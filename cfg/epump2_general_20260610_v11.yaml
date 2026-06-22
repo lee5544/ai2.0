@@ -1,0 +1,59 @@
+line_name: epump2
+model:
+  model_name: general_20260610_v11
+results_path: ./results/
+feature_version: v11
+data:
+  line: epump2
+  key_sns:
+  - /Volumes/18555440521/fault/data_root/factory_raw/epump2/key_sns/
+  - /Volumes/18555440521/fault/data_root/factory_raw/epump4/key_sns/
+  - /Volumes/18555440521/fault/data_root/factory_raw/etilt1/key_sns/
+train:
+  model_type: xgb
+  train_mode: normal
+  split_strategy: reference_in
+  feature_version: v11
+  xgb_params:
+    max_depth: 6
+    min_child_weight: 5
+    reg_lambda: 2.0
+    n_estimators: 300
+  early_stopping_rounds: 30
+  early_stopping_metric: f1_macro
+  feature_weights:
+    dwt_4_sk_max_run_len: 1.0
+    dwt_4_sk_burst_frac: 1.0
+  label_mapping:
+    enable: true
+    auto_mlabel: true
+    groups:
+    - reasons:
+      - reason: 正常
+        sample: 2000
+      - reason: 干扰
+        sample: -1
+      - reason: 边界
+        sample: -1
+    - reasons:
+      - reason: 杂音
+        sample: -1
+      - reason: 咬齿
+        sample: -1
+      - reason: 哒哒_咔咔
+        sample: -1
+    - reasons:
+      - reason: 震颤
+        sample: -1
+      - reason: 马达
+        sample: -1
+    - reasons:
+      - reason: 传感器错误
+        sample: -1
+    - reasons:
+      - reason: 秒表
+        sample: -1
+    - reasons:
+      - reason: 摩擦acc
+        sample: -1
+  seed_runs: 10

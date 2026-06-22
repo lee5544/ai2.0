@@ -1,0 +1,149 @@
+# ============================================================
+# epump2 · general · TCN 训练配置
+# 用法：
+#   Step 1+2  python dl/main_dataset.py --config cfg/epump2_general_tcn.yaml
+#   Step 3    python dl/main_train.py   --config cfg/epump2_general_tcn.yaml
+# ============================================================
+
+line_name: epump2
+model:
+  model_name: general
+
+results_path: ./results/
+
+# ------------------------------------------------------------
+# 数据源
+# ------------------------------------------------------------
+database:
+  label_records_db_path: /Volumes/18555440521/fault/data_root/metadata/label_records.db
+  tdms_root:             /Volumes/18555440521/fault/data_root/factory_raw
+  manifest_path:         /Volumes/18555440521/fault/data_root/metadata/tdms_manifest.csv
+  configured: true
+
+data_root: /Volumes/18555440521/fault/data_root
+label_records_db_path: /Volumes/18555440521/fault/data_root/metadata/label_records.db
+
+data:
+  key_sns:
+    - path: /Volumes/18555440521/fault/data_root/factory_raw/prototype/epump2/
+      line: epump2
+    - path: /Volumes/18555440521/fault/data_root/factory_raw/prototype/epump3/
+      line: epump3
+    - path: /Volumes/18555440521/fault/data_root/factory_raw/prototype/etilt1/
+      line: etilt1
+    - path: /Volumes/18555440521/fault/data_root/factory_raw/epump4/
+      line: epump4
+  line:
+    - epump2
+
+dataset:
+  num_workers: 8
+  data_root:             /Volumes/18555440521/fault/data_root
+  label_records_db_path: /Volumes/18555440521/fault/data_root/metadata/label_records.db
+  manifest_path:         /Volumes/18555440521/fault/data_root/metadata/tdms_manifest.csv
+
+# ------------------------------------------------------------
+# 标签映射（ML / DL 共用，train_core.build_label_runtime 读取）
+# ------------------------------------------------------------
+train:
+  split_strategy: reference_in
+  label_mapping:
+    enable: true
+    auto_mlabel: true
+    extract_all_features: false
+    groups:
+    - weight: 1
+      reasons:
+      - reason: 正常
+        sample: -1
+    - weight: 1
+      reasons:
+      - reason: 干扰
+        sample: -1
+    - weight: 1
+      reasons:
+      - reason: 边界
+        sample: -1
+    - weight: 1
+      reasons:
+      - reason: 传感器错误
+        sample: -1
+    - weight: 1
+      reasons:
+      - reason: 秒表
+        sample: -1
+    - weight: 1
+      reasons:
+      - reason: 摩擦
+        sample: -1
+    - weight: 1
+      reasons:
+      - reason: 摩擦acc
+        sample: -1
+    - weight: 1
+      reasons:
+      - reason: 杂音
+        sample: -1
+    - weight: 1
+      reasons:
+      - reason: 咬齿
+        sample: -1
+    - weight: 1
+      reasons:
+      - reason: 震颤
+        sample: -1
+    - weight: 1
+      reasons:
+      - reason: 马达
+        sample: -1
+    - weight: 1
+      reasons:
+      - reason: 哒哒_咔咔
+        sample: -1
+    - weight: 1
+      reasons:
+      - reason: 其它
+        sample: -1
+
+# ------------------------------------------------------------
+# DL 配置（TCN）
+# 输出目录：results/epump2_general_tcn/
+# ------------------------------------------------------------
+dl:
+  model_type: tcn
+
+  # mel 频谱特征提取（Step 1+2）
+  mel:
+    n_fft: 256        # FFT 点数
+    hop_length: 128   # 帧移（约 50% 重叠）
+    n_mels: 13        # mel 滤波器数 → 输入通道数
+    max_frames: 1024  # 截断/补零到固定帧数
+    fmin: 0
+    fmax: null        # null = 采样率 / 2
+
+  # 训练超参（Step 3）
+  train:
+    train_mode: normal   # normal / cross / grid
+    epochs: 100
+    batch_size: 128
+    learning_rate: 0.001
+    weight_decay: 0.0001
+    use_amp: true        # 混合精度，GPU 训练时加速
+    num_workers: 4
+    random_state: 42
+    seed_runs: 3         # 多种子重复训练
+
+    # 数据切分
+    test_size: 0.10      # 测试集比例
+    val_size: 0.125      # 验证集比例（从训练集中再切）
+    group_split_trials: 32
+    group_sample_trials: 24
+
+    # TCN 超参
+    # 4 个 block，膨胀系数依次：1 → 2 → 4 → 8
+    # 感受野 = 1 + 2 × (kernel_size−1) × (2^4 − 1) = 121 步（kernel=5）
+    tcn_num_channels: [64, 64, 128, 128]  # 每 block 输出通道
+    kernel_size: 5                         # 膨胀卷积核（建议 3 或 5）
+    dropout: 0.2
+    hidden_dim: 128
+    tcn_causal: false    # false = 非因果（双侧对称填充，分类任务推荐）

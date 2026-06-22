@@ -1,0 +1,100 @@
+# CNN 训练配置（参考 epump2_general_20260607.yaml）
+# 用法：
+#   1) 先提取 mel 窗口特征： python dl/main_dataset.py --config cfg/epump2_general_20260607_cnn.yaml
+#   2) 再训练：             python dl/main_train.py            --config cfg/epump2_general_20260607_cnn.yaml
+# 说明：顶层 train.label_mapping / train.split_strategy / train.random_state 由 DL 复用；
+#       train.model_type 仅 ML 入口使用，DL 入口忽略，模型类型由 dl.model_type 决定。
+
+line_name: epump2
+model:
+  model_name: general_20260607
+results_path: ./results/
+
+data:
+  line: epump2
+  key_sns:
+  - path: /Volumes/18555440521/fault/data_root/factory_raw/prototype/epump2
+    line: epump2
+  - path: /Volumes/18555440521/fault/data_root/factory_raw/prototype/epump3
+    line: epump3
+  - path: /Volumes/18555440521/fault/data_root/factory_raw/prototype/epump4
+    line: epump4
+  - path: /Volumes/18555440521/fault/data_root/factory_raw/prototype/etilt1
+    line: etilt1
+
+train:
+  model_type: xgb           # DL 入口忽略此项（仅供 ml/main_train 使用）
+  train_mode: normal
+  split_strategy: reference_in
+  label_mapping:
+    enable: true
+    auto_mlabel: true
+    groups:
+    - reasons:
+      - reason: 正常
+        sample: 3000
+      - reason: 干扰
+        sample: -1
+      - reason: 边界
+        sample: -1
+    - reasons:
+      - reason: 杂音
+        sample: -1
+      - reason: 咬齿
+        sample: -1
+      - reason: 哒哒_咔咔
+        sample: -1
+    - reasons:
+      - reason: 震颤
+        sample: -1
+      - reason: 马达
+        sample: -1
+    - reasons:
+      - reason: 传感器错误
+        sample: -1
+    - reasons:
+      - reason: 秒表
+        sample: -1
+    - reasons:
+      - reason: 摩擦acc
+        sample: -1
+
+# ===================== DL / CNN 专有配置 =====================
+dl:
+  model_type: cnn           # DL 模型类型：cnn / cnn1d（registry 解析）
+
+  model:                    # 网络架构超参（cnn1d）
+    arch: cnn1d             # cnn1d / cnn2d / resnet / lstm
+    conv_channels: [32, 64, 128]
+    kernel_size: 5
+    dropout: 0.2
+    hidden_dim: 128
+
+  train:                    # 训练超参
+    train_mode: normal      # 目前仅支持 normal
+    epochs: 200
+    batch_size: 256
+    learning_rate: 0.001
+    weight_decay: 0.0001
+    num_workers: 4
+    device: auto            # auto / cuda / mps / cpu
+    random_state: 42
+    test_size: 0.1
+    val_size: 0.125
+    group_split_trials: 32
+    group_sample_trials: 24
+    seed_runs: 3            # 多 seed 复跑，取验证集 macro_f1 最优（DL 较慢，建议 3~5）
+
+  mel:                      # mel 窗口特征参数（extract_window_features.py 使用）
+    n_fft: 256
+    hop_length: 128
+    n_mels: 13              # 通道数 = n_mels（cnn1d 输入通道）
+    max_frames: 1024        # 时间步上限
+    fmin: 0.0
+    fmax: null
+
+  extract:                  # 特征批次输出
+    output_file_prefix: dl_mel_spec
+    output_format: pickle   # pickle / csv
+    batch_size: 2000
+    # output_feature_folder: 留空则默认 results/{line}_{model}_cnn/dl_dataset_csv

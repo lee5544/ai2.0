@@ -1,0 +1,20 @@
+# Forvia 标注 v2 · Docker Compose
+# 推荐用 scripts/run-mac.sh 一键暂存依赖 + 构建 + 启动。
+services:
+  forvia-label-v2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: forvia-label-v2:latest
+    container_name: forvia-label-v2
+    ports:
+      - "8000:8000"
+    volumes:
+      # ① 持久化：标注库 + 任务配置（_data 内）。重启/重建容器后标注仍在。
+      - ./_data:/app/_data
+      # ② 宿主机数据目录 → 容器内 /data。任务表单里填 /data/... 这种“容器内路径”。
+      #    用 .env 里的 FORVIA_DATA_DIR 指定宿主目录（Mac 外接盘示例见 .env.example）。
+      - ${FORVIA_DATA_DIR:-./data}:/data
+    environment:
+      PYTHONUNBUFFERED: "1"
+    restart: unless-stopped

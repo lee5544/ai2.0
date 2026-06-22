@@ -1,0 +1,66 @@
+# 外部模型注册表。修改或新增模型后，重启训练 App 即可更新模型选择和参数卡片。
+# module_name 可填写 ml 包内模块，例如 ml.MyModel；class_name 为模型类名。
+
+models:
+  xgb:
+    module_name: ml.models.xgb
+    class_name: XGBModel
+    display_name: XGBoost
+    description: 梯度提升树，适合当前默认训练流程。
+    parameter_key: xgb_params
+    parameters:
+      - {key: n_estimators, label: 最大树数量, type: int, default: 400, min: 1}
+      - {key: max_depth, label: 单棵树最大深度, type: int, default: 6, min: 1}
+      - {key: learning_rate, label: 学习率, type: float, default: 0.05, min: 0.001}
+      - {key: min_child_weight, label: 子节点最小权重, type: float, default: 5, min: 0}
+      - {key: gamma, label: 最小分裂损失 gamma, type: float, default: 1, min: 0}
+      - {key: reg_lambda, label: L2 正则 reg_lambda, type: float, default: 5, min: 0}
+      - {key: reg_alpha, label: L1 正则 reg_alpha, type: float, default: 0.5, min: 0}
+      - {key: subsample, label: 样本采样比例, type: float, default: 0.8, min: 0.01, max: 1}
+      - {key: colsample_bytree, label: 特征采样比例, type: float, default: 0.7, min: 0.01, max: 1}
+      - {key: eval_metric, label: 评估指标, type: select, default: mlogloss, options: [mlogloss, logloss, error, merror, auc, aucpr]}
+      - {key: tree_method, label: 树构建算法, type: select, default: hist, options: [hist, approx, exact, auto]}
+      - {key: random_state, label: 模型随机种子, type: int, default: 42}
+      - {key: n_jobs, label: 并行线程数（-1 为全部）, type: int, default: -1}
+
+  lgb:
+    module_name: ml.models.lgb
+    class_name: LGBModel
+    display_name: LightGBM
+    description: LightGBM 梯度提升，训练速度快，适合大特征量场景。
+    parameter_key: lgb_params
+
+  rf:
+    module_name: ml.models.rf
+    class_name: RFModel
+    display_name: Random Forest
+    description: 随机森林，训练稳定，参数较少。
+    parameter_key: rf_params
+    parameters:
+      - {key: n_estimators, label: 树数量, type: int, default: 100, min: 1}
+      - {key: max_depth, label: 最大深度, type: int, default: 8, min: 1}
+      - {key: min_samples_split, label: 节点最小切分样本, type: int, default: 2, min: 2}
+      - {key: min_samples_leaf, label: 叶节点最小样本, type: int, default: 1, min: 1}
+      - {key: max_features, label: 特征采样比例, type: float, default: 0.8, min: 0.01, max: 1}
+
+  brf:
+    module_name: ml.models.brf
+    class_name: BRFModel
+    display_name: Balanced RF
+    description: 平衡随机森林，适合类别不均衡数据。
+    parameter_key: rf_params
+    parameters:
+      - {key: n_estimators, label: 树数量, type: int, default: 100, min: 1}
+      - {key: max_depth, label: 最大深度, type: int, default: 8, min: 1}
+      - {key: min_samples_split, label: 节点最小切分样本, type: int, default: 2, min: 2}
+      - {key: min_samples_leaf, label: 叶节点最小样本, type: int, default: 1, min: 1}
+      - {key: max_features, label: 特征采样比例, type: float, default: 0.8, min: 0.01, max: 1}
+
+  # custom:
+  #   module_name: ml.CustomModel
+  #   class_name: CustomModel
+  #   display_name: Custom Model
+  #   description: 自定义模型说明
+  #   parameter_key: custom_params
+  #   parameters:
+  #     - {key: width, label: 宽度, type: int, default: 64, min: 1}

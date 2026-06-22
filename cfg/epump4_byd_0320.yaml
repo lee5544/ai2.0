@@ -1,0 +1,48 @@
+line_name: epump4
+model:
+  model_name: byd_0320
+results_path: ./results/
+data:
+  reference:
+  - epump4/2372944
+  - epump4/3951869
+  - epump4/3951870
+  - epump4/4030952
+  - epump4/5302148
+  - epump4/5302149
+train:
+  model_type: xgb
+  train_mode: normal
+  split_strategy: reference_out
+  label_mapping:
+    enable: true
+    auto_mlabel: true
+    groups:
+    - reasons:
+      - reason: 正常
+        sample: -1
+      - reason: 干扰
+        sample: -1
+      - reason: 边界
+        sample: -1
+    - reasons:
+      - reason: 摩擦
+        sample: 2000
+      - reason: 摩擦acc
+        sample: -1
+      - reason: 杂音
+        sample: -1
+    - reasons:
+      - reason: 震颤
+        sample: 2000
+      - reason: 马达
+        sample: -1
+    - reasons:
+      - reason: 传感器错误
+        sample: -1
+    - reasons:
+      - reason: 秒表
+        sample: -1
+    - reasons:
+      - reason: 咬齿
+        sample: -1

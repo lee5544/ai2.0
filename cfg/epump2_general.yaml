@@ -1,0 +1,98 @@
+line_name: epump2
+model:
+  model_name: general
+results_path: ./results/
+database:
+  label_records_db_path: /Volumes/18555440521/fault/data_root/metadata/label_records.db
+  tdms_root: /Volumes/18555440521/fault/data_root/factory_raw
+  manifest_path: /Volumes/18555440521/fault/data_root/metadata/tdms_manifest.csv
+  configured: true
+  last_operation: refresh
+data_root: /Volumes/18555440521/fault/data_root
+label_records_db_path: /Volumes/18555440521/fault/data_root/metadata/label_records.db
+data:
+  key_sns:
+  - path: /Volumes/18555440521/fault/data_root/factory_raw/prototype/epump2/
+    line: epump2
+  - path: /Volumes/18555440521/fault/data_root/factory_raw/prototype/epump3/
+    line: epump3
+  - path: /Volumes/18555440521/fault/data_root/factory_raw/prototype/etilt1/
+    line: etilt1
+  - path: /Volumes/18555440521/fault/data_root/factory_raw/prototype/epump4/
+    line: epump4
+  line:
+  - epump2
+dataset:
+  num_workers: 8
+  data_root: /Volumes/18555440521/fault/data_root
+  label_records_db_path: /Volumes/18555440521/fault/data_root/metadata/label_records.db
+  manifest_path: /Volumes/18555440521/fault/data_root/metadata/tdms_manifest.csv
+train:
+  model_type: lgb
+  train_mode: normal
+  split_strategy: reference_in
+  seed_runs: 10
+  label_mapping:
+    enable: true
+    auto_mlabel: true
+    extract_all_features: true
+    groups:
+    - weight: 1
+      reasons:
+      - reason: 正常
+        sample: -1
+      - reason: 干扰
+        sample: -1
+      - reason: 边界
+        sample: -1
+    - weight: 1
+      reasons:
+      - reason: 传感器错误
+        sample: -1
+    - weight: 1
+      reasons:
+      - reason: 秒表
+        sample: -1
+    - weight: 1
+      reasons:
+      - reason: 摩擦
+        sample: -1
+      - reason: 摩擦acc
+        sample: -1
+      - reason: 杂音
+        sample: -1
+      - reason: 咬齿
+        sample: -1
+      - reason: 哒哒_咔咔
+        sample: -1
+    - weight: 1
+      reasons:
+      - reason: 震颤
+        sample: -1
+      - reason: 马达
+        sample: -1
+  class_weights:
+    正常_干扰_边界: 1
+    传感器错误: 1
+    秒表: 1
+    摩擦_摩擦acc_杂音_咬齿_哒哒_咔咔: 1
+    震颤_马达: 1
+  lgb_params:
+    n_estimators: 250
+    num_leaves: 25
+    max_depth: -1
+    learning_rate: 0.05
+    min_child_samples: 20
+    min_split_gain: 0
+    reg_lambda: 5
+    reg_alpha: 0.5
+    subsample: 0.8
+    subsample_freq: 1
+    feature_fraction: 0.7
+    random_state: 42
+    n_jobs: -1
+augmentation:
+  input_folders: []
+  methods:
+  - white_noise
+  output_dir: ./results/epump2_general/dataset_csv

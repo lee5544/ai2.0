@@ -1,0 +1,47 @@
+line_name: etilt1
+model:
+  model_name: general_20260612
+results_path: ./results/
+data:
+  line: etilt1
+  key_sns:
+  - /Volumes/18555440521/fault/data_root/factory_raw/epump2/key_sns/
+  - /Volumes/18555440521/fault/data_root/factory_raw/epump4/key_sns/
+  - /Volumes/18555440521/fault/data_root/factory_raw/etilt1/key_sns/
+train:
+  model_type: xgb
+  train_mode: normal
+  split_strategy: reference_in
+  seed_runs: 10
+  label_mapping:
+    enable: true
+    auto_mlabel: true
+    groups:
+    - reasons:
+      - reason: 正常
+        sample: 5000
+      - reason: 干扰
+        sample: -1
+      - reason: 边界
+        sample: -1
+    - reasons:
+      - reason: 摩擦
+        sample: -1
+      - reason: 杂音
+        sample: -1
+      - reason: 咬齿
+        sample: -1
+    - reasons:
+      - reason: 震颤
+        sample: -1
+      - reason: 马达
+        sample: 2000
+    - reasons:
+      - reason: 传感器错误
+        sample: -1
+    - reasons:
+      - reason: 秒表
+        sample: -1
+    - reasons:
+      - reason: 哒哒_咔咔
+        sample: -1

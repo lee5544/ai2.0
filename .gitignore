@@ -1,0 +1,42 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# ---- PyInstaller 打包产物（在 CI / 本机生成，不入库）----
+build/
+dist/
+*.spec.bak
+forvia_label_v2/build/
+forvia_label_v2/dist/
+
+# ---- 运行时数据 / 标注库 / 缓存（本地或 runner 生成）----
+forvia_label_v2/_data/
+*.log
+*.db
+*.sqlite
+*.sqlite3
+
+# ---- 大体积数据 / 训练产物（不需要进仓库，超 GitHub 限制）----
+results/
+tmp/
+新建文件夹/
+quick_test/
+*.pkl
+*.npz
+*.npy
+*.tdms
+*.tdms.zst
+*.wav
+*.h5
+*.pt
+*.pth
+*.onnx
+*.ckpt
+
+# ---- 系统 ----
+.DS_Store
+Thumbs.db

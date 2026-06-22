@@ -1,0 +1,9 @@
+# Docker 构建暂存的 v1 依赖（由 scripts/run-mac.sh 生成）
+vendor/
+# 运行期数据：标注库 + 任务配置 + 缓存
+_data/
+data/
+.env
+# Python 缓存
+__pycache__/
+*.pyc

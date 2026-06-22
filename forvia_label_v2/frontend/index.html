@@ -1,0 +1,1483 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Forvia 标注 v2</title>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.2/dist/ag-grid-community.min.js"></script>
+  <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.2/styles/ag-grid.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.2/styles/ag-theme-quartz.css" />
+  <style>
+    :root { --bd:#e3e6ea; --fg:#1f2329; --mut:#6b7280; --acc:#2563eb; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: system-ui,-apple-system,"Segoe UI","PingFang SC",sans-serif; color:var(--fg); }
+    header { padding:12px 18px; border-bottom:1px solid var(--bd); display:flex; align-items:center; gap:16px; }
+    header h1 { font-size:16px; margin:0; }
+    .tabs { display:flex; gap:6px; margin-left:auto; }
+    .tab { padding:6px 14px; border:1px solid var(--bd); border-radius:8px; cursor:pointer; background:#fff; font-size:13px; }
+    .tab.active { background:var(--acc); color:#fff; border-color:var(--acc); }
+    .tab.disabled { opacity:.4; cursor:not-allowed; pointer-events:none; }
+    /* 多选下拉（reference / reason）*/
+    .ms { position:relative; display:inline-block; }
+    .ms-panel { position:absolute; z-index:50; top:100%; left:0; margin-top:4px; min-width:200px; max-width:340px;
+      max-height:320px; overflow:auto; background:#fff; border:1px solid var(--bd); border-radius:8px;
+      box-shadow:0 6px 24px rgba(0,0,0,.12); padding:6px; }
+    .ms-item { display:flex; align-items:center; gap:6px; padding:4px 6px; font-size:13px; white-space:nowrap; cursor:pointer; border-radius:6px; }
+    .ms-item:hover { background:#f1f5f9; }
+    .ms-act { padding:2px 6px 6px; border-bottom:1px solid var(--bd); margin-bottom:4px; }
+    .ms-act a { color:var(--acc); cursor:pointer; font-size:12px; }
+    .ms-empty { padding:6px; color:var(--mut); font-size:12px; }
+    .ms-label { font-size:13px; color:var(--mut); margin-right:-4px; }   /* reference/reason 前的文字标号 */
+    .busy-overlay { position:absolute; inset:0; z-index:5; display:flex; align-items:center; justify-content:center; gap:8px;
+      background:rgba(255,255,255,.65); color:var(--mut); font-size:13px; border-radius:inherit; cursor:wait; }
+    .busy-spin { width:16px; height:16px; border:2px solid var(--bd); border-top-color:var(--acc); border-radius:50%; animation:busy-rot .7s linear infinite; }
+    @keyframes busy-rot { to { transform:rotate(360deg); } }
+    /* 放大标注表单的控件 */
+    .lblform label { font-size:15px; font-weight:600; margin-bottom:4px; display:block; }
+    .lblform select, .lblform input[type=text] { padding:12px 14px !important; font-size:16px !important; border-radius:9px !important; }
+    .lblform .conf { font-size:16px !important; margin-right:24px !important; display:inline-flex; align-items:center; gap:6px; cursor:pointer; }
+    .lblform .conf input[type=radio] { width:20px; height:20px; cursor:pointer; }
+    .lblform .field { margin-bottom:14px; }
+    .lblform .btn { padding:12px 26px; font-size:16px; border-radius:9px; }
+    /* 放大任务页按钮 */
+    .taskpage .btn, .taskpage select { padding:9px 18px; font-size:15px; border-radius:8px; }
+    .taskpage h3 { font-size:17px !important; }
+    .taskpage .proj-row { padding:12px 0; gap:10px; }
+    .wrap { padding:14px 18px; }
+    .toolbar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:10px; }
+    .toolbar label { font-size:13px; color:var(--mut); display:flex; gap:5px; align-items:center; }
+    select, button.btn { padding:5px 9px; border:1px solid var(--bd); border-radius:7px; font-size:13px; background:#fff; cursor:pointer; }
+    button.btn[disabled] { opacity:.4; cursor:default; }
+    .btn.primary { background:var(--acc); color:#fff; border-color:var(--acc); }
+    .stats { margin-left:auto; font-size:13px; color:var(--mut); }
+    .stats b { color:var(--fg); }
+    .badge { font-size:11px; padding:1px 7px; border-radius:99px; background:#fff7ed; color:#c2410c; border:1px solid #fed7aa; }
+    #grid { width:100%; height: calc(100vh - 170px); }
+    .hint { font-size:12px; color:var(--mut); margin-top:6px; }
+    /* 标注视图 */
+    .navbar { display:flex; align-items:center; gap:14px; padding:10px 18px; border-bottom:1px solid var(--bd); position:sticky; top:0; background:#fff; z-index:5; }
+    .navbar .btn { padding:11px 20px; font-size:15px; border-radius:9px; }
+    .navbar input[type=number] { padding:10px 8px !important; font-size:15px; }
+    .progress { flex:1; }
+    .progress .bar { height:10px; border-radius:99px; background:#eef0f2; overflow:hidden; }
+    .progress .bar > i { display:block; height:100%; background:var(--acc); }
+    .progress .lab { font-size:12px; color:var(--mut); margin-bottom:3px; }
+    .meta { padding:10px 18px; font-size:14px; display:flex; gap:18px; flex-wrap:wrap; align-items:center; border-bottom:1px solid var(--bd); }
+    .meta .k { color:var(--mut); margin-right:4px; }
+    .star { color:#d97706; }
+    .cards { padding:8px 18px 40px; }
+    .card { border:1px solid var(--bd); border-radius:10px; margin:12px 0; overflow:hidden; }
+    .card-h { padding:8px 12px; font-size:13px; font-weight:600; border-bottom:1px solid var(--bd); background:#fafbfc; }
+    .plot { width:100%; }
+    audio { width:100%; margin:6px 0 2px; }
+    .placeholder { margin:14px 18px; padding:14px; border:1px dashed var(--bd); border-radius:10px; color:var(--mut); font-size:13px; }
+    .loading { padding:30px; text-align:center; color:var(--mut); }
+    /* 多通道并列 */
+    .channels-row { display:flex; gap:16px; padding:8px 18px 40px; align-items:flex-start; }
+    .channel-col { flex:1 1 0; min-width:0; }
+    .ch-head { font-weight:600; font-size:14px; padding:8px 4px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+    .tag { font-size:11px; padding:1px 8px; border-radius:99px; border:1px solid var(--bd); color:var(--mut); background:#fff; }
+    .tag.ok { color:#15803d; border-color:#bbf7d0; background:#f0fdf4; }
+    .tag.star { color:#d97706; border-color:#fed7aa; background:#fff7ed; }
+    /* 参数调整面板 */
+    .param-panel { background:#f7f8fa; border-bottom:1px solid var(--bd); }
+    .param-panel-h { font-size:12px; font-weight:600; color:var(--fg); padding:7px 12px 0; }
+    .param-grid { padding:8px 12px 10px; display:flex; gap:14px; flex-wrap:wrap; align-items:flex-end; }
+    .param-item { font-size:12px; color:var(--mut); display:flex; flex-direction:column; gap:3px; }
+    .param-item select, .param-item input { padding:4px 8px; border:1px solid var(--bd); border-radius:6px; min-width:90px; }
+    /* 初始化表单 */
+    .field { margin:12px 0; }
+    .field > label { display:block; font-size:13px; color:var(--fg); margin-bottom:5px; }
+    .row { display:flex; gap:8px; }
+    .row input[type=text] { flex:1; padding:7px 10px; border:1px solid var(--bd); border-radius:7px; font-size:13px; }
+    .row.drag { outline:2px dashed var(--acc); outline-offset:3px; border-radius:8px; background:#eef2ff; }
+    .proj-row { display:flex; align-items:center; gap:8px; padding:8px 0; border-top:1px solid var(--bd); }
+    .proj-row:first-of-type { border-top:none; }
+    /* 文件浏览器 */
+    .modal-mask { position:fixed; inset:0; background:rgba(0,0,0,.35); display:flex; align-items:center; justify-content:center; z-index:50; }
+    .modal { width:620px; max-height:78vh; background:#fff; border-radius:12px; display:flex; flex-direction:column; overflow:hidden; }
+    .modal-h { display:flex; align-items:center; gap:8px; padding:12px 14px; border-bottom:1px solid var(--bd); font-weight:600; font-size:14px; }
+    .modal-roots { display:flex; gap:6px; flex-wrap:wrap; padding:8px 14px; border-bottom:1px solid var(--bd); }
+    .chip { font-size:12px; padding:3px 9px; border:1px solid var(--bd); border-radius:99px; cursor:pointer; background:#fff; }
+    .chip:hover { background:#eef2ff; }
+    .modal-path { padding:8px 14px; font-size:12px; color:var(--mut); background:#f7f8fa; word-break:break-all; }
+    .modal-list { overflow:auto; padding:6px 8px; flex:1; min-height:240px; }
+    .modal-list .item { padding:7px 10px; border-radius:7px; cursor:pointer; font-size:13px; }
+    .modal-list .item:hover { background:#eef2ff; }
+    .modal-list .file { color:#2563eb; }
+    .modal-f { display:flex; align-items:center; gap:10px; padding:10px 14px; border-top:1px solid var(--bd); }
+  </style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>🎧 Forvia 标注 v2</h1>
+    <span v-if="isMock" class="badge">演示数据（未配置 sample_view / tdms）</span>
+    <div class="tabs">
+      <div class="tab" :class="{active: view==='init'}" @click="view='init'; taskMode='list'; loadProjects()">📋 任务</div>
+      <div class="tab" :class="{active: view==='list', disabled: !taskActive}" @click="taskActive && openList()">📋 列表总览</div>
+      <div class="tab" :class="{active: view==='label', disabled: !taskActive}" @click="taskActive && (view='label')">🎧 逐条标注</div>
+      <div class="tab" :class="{active: view==='task', disabled: !taskActive}" @click="taskActive && openTasks()">📤 导出表格结果</div>
+      <div class="tab" v-if="canPrototype && taskActive" :class="{active: view==='proto'}" @click="openProto">★ Prototype</div>
+    </div>
+  </header>
+
+  <!-- ===== Prototype（典型件入库，db+expert）===== -->
+  <div v-show="view==='proto'" class="wrap" style="max-width:900px">
+    <div class="card" style="padding:16px">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+        <h3 style="margin:0;font-size:15px">Prototype 典型件入库</h3>
+        <button class="btn" @click="loadProto" :disabled="protoImporting">↻ 刷新</button>
+        <label style="font-size:13px;color:var(--mut)">在Prototype库
+          <select v-model="protoFilter" style="padding:5px 8px;border:1px solid var(--bd);border-radius:6px">
+            <option value="all">全部</option><option value="in">是</option><option value="out">否</option>
+          </select>
+        </label>
+        <button class="btn primary" style="margin-left:auto;display:inline-flex;align-items:center;gap:6px"
+                :disabled="!protoSel.length || protoImporting" @click="importProto">
+          <span v-if="protoImporting" class="busy-spin"></span>{{ protoImporting ? '导入中…' : '导入选中（'+protoSel.length+'）→ <line>/prototype' }}
+        </button>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin:0 0 8px;flex-wrap:wrap">
+        <span style="font-size:13px;color:var(--mut)">导入目录（line 的父目录，通常 factory_raw）</span>
+        <input v-model.trim="protoDest" :placeholder="protoRoot||'/path/to/factory_raw'"
+               style="flex:1;min-width:280px;padding:6px 10px;border:1px solid var(--bd);border-radius:7px;font-size:13px" />
+        <button class="btn" @click="openPicker('proto')">选择…</button>
+      </div>
+      <p class="hint" style="margin:0 0 8px">再次确认后<b>移动</b>到 <b>{{ protoDest||protoRoot }}/&lt;line&gt;/prototype/&lt;reason&gt;/</b>，在数据库标记 [[prototype]]，并把 tdms_manifest.csv 的路径同步指到新位置。</p>
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead><tr style="text-align:left;color:var(--mut)">
+          <th style="padding:5px 8px"><input type="checkbox" :checked="allProtoChecked" @change="toggleAllProto($event)" /></th>
+          <th>line</th><th>sn</th><th>sample_id</th><th>reason</th><th>来源</th><th>tdms</th><th>在Prototype库</th>
+        </tr></thead>
+        <tbody>
+          <tr v-for="r in protoRowsView" :key="r.sample_id" style="border-top:1px solid var(--bd)">
+            <td style="padding:5px 8px"><input type="checkbox" :value="r.sample_id" v-model="protoSel" :disabled="!r.resolvable" /></td>
+            <td>{{ r.line }}</td><td>{{ r.sn }}</td><td>{{ r.sample_id }}</td>
+            <td>{{ r.reason_name }}</td><td>{{ r.source }}</td>
+            <td :style="{color: r.resolvable?'':'#b91c1c'}">{{ r.resolvable?'✓':'缺失' }}</td>
+            <td :style="{color: r.in_prototype?'#16a34a':'var(--mut)', fontWeight: r.in_prototype?'700':'400'}">{{ r.in_prototype ? '是' : '否' }}</td>
+          </tr>
+          <tr v-if="!protoRowsView.length"><td colspan="8" style="padding:10px;color:var(--mut)">无符合条件的件</td></tr>
+        </tbody>
+      </table>
+      <p v-if="protoMsg" :style="{color: protoErr?'#b91c1c':'var(--mut)', fontSize:'13px', marginTop:'8px'}">{{ protoMsg }}</p>
+    </div>
+  </div>
+
+  <!-- ===== 导出表格结果 ===== -->
+  <div v-show="view==='task'" class="wrap" style="max-width:none;margin:0 auto">
+    <div class="card" style="padding:16px">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+        <h3 style="margin:0;font-size:15px">标签结果（{{ labelRows.length }} 条已标注）</h3>
+        <button class="btn" @click="loadLabelRows">↻ 刷新</button>
+        <span v-if="labelRows.length>labelRowCap" class="hint" style="font-size:12px">仅预览前 {{ labelRowCap }} 条（导出/写回包含全部 {{ labelRows.length }} 条）</span>
+        <button class="btn primary" style="margin-left:auto" :disabled="!labelRows.length" @click="exportNewTable">⬇ 导出新表格</button>
+        <button class="btn" :disabled="!labelRows.length" @click="writeBackSV">↩ 写回 sample_view</button>
+      </div>
+      <div style="overflow:auto;max-height:calc(100vh - 220px)">
+        <table style="border-collapse:collapse;font-size:12px;white-space:nowrap;width:100%">
+          <thead><tr style="text-align:left;color:var(--mut);position:sticky;top:0;background:#fff">
+            <th v-for="c in labelCols" :key="c" style="padding:5px 8px;border-bottom:1px solid var(--bd)">{{ c }}</th>
+          </tr></thead>
+          <tbody>
+            <tr v-for="(r,i) in labelRowsView" :key="i" style="border-top:1px solid var(--bd)">
+              <td v-for="c in labelCols" :key="c" style="padding:4px 8px">{{ r[c] }}</td>
+            </tr>
+            <tr v-if="!labelRows.length"><td :colspan="labelCols.length" style="padding:12px;color:var(--mut)">当前任务暂无标注记录</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p v-if="runMsg" :style="{color: runErr?'#b91c1c':'var(--mut)', fontSize:'13px', marginTop:'8px'}">{{ runMsg }}</p>
+      <p class="hint" style="margin-top:6px">仅展示当前任务做过标注动作的记录（16 列）。"导出新表格"另存为 CSV；"写回 sample_view"把最新标签写回输入的 sample_view.csv。</p>
+    </div>
+  </div>
+
+  <!-- ===== 任务 ===== -->
+  <div v-show="view==='init'" class="wrap taskpage" style="max-width:760px;margin:0 auto">
+
+    <!-- 列表页：创建任务 + 任务列表 -->
+    <div v-if="taskMode==='list'">
+      <div class="card" style="padding:16px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+          <h3 style="margin:0;font-size:15px">任务</h3>
+          <button class="btn primary" style="margin-left:auto" @click="newTask">＋ 创建任务</button>
+        </div>
+        <div v-if="!projects.length" class="hint">暂无任务，点"＋ 创建任务"。</div>
+        <div v-for="p in projects" :key="p.id" class="proj-row" :style="{opacity: p.valid ? 1 : 0.55}"
+             :title="(p.missing_paths&&p.missing_paths.length) ? ('以下路径失效：\n'+p.missing_paths.map(m=>m.field+'：'+m.path).join('\n')) : ''">
+          <div style="flex:1;min-width:0" :style="{cursor: p.valid ? 'pointer' : 'default'}" @click="p.valid && openProject(p)">
+            <div style="font-weight:600">
+              📌 {{ p.name }}
+              <span v-if="!p.valid" class="tag" style="color:#b91c1c;border-color:#fecaca;background:#fef2f2">路径失效</span>
+              <span v-if="opening===p.id" style="color:var(--mut);font-weight:400">打开中…</span>
+            </div>
+            <div class="hint" style="margin:2px 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+              {{ p.sample_view_path }} · tdms: {{ p.tdms_root || '—' }}<span v-if="p.label_records_db_path"> · db: {{ p.label_records_db_path }}</span>
+            </div>
+            <div v-if="p.missing_paths && p.missing_paths.length" style="margin:3px 0 0;color:#b91c1c;font-size:12px">
+              ⚠ 失效路径：
+              <span v-for="(m,mi) in p.missing_paths" :key="mi">{{ mi?'、':'' }}<b>{{ m.field }}</b>（{{ m.path }}）</span>
+            </div>
+          </div>
+          <button class="btn primary" @click="openProject(p)" :disabled="!p.valid">打开</button>
+          <button class="btn" @click="editTask(p)">详情</button>
+          <button class="btn" @click="deleteProject(p)">✕</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 表单页：创建任务 / 加载数据 + 输入样表 -->
+    <template v-else>
+    <button class="btn" style="margin-bottom:12px" @click="taskMode='list'; loadProjects()">← 返回任务列表</button>
+    <div class="card" style="padding:18px">
+      <h3 style="margin:0 0 14px">创建任务 / 加载数据</h3>
+      <p class="hint" style="margin:-6px 0 10px">可把文件/文件夹从访达拖到对应输入框（浏览器无法读取文件夹路径时请用"选择…"）。加载成功后会保存为一个"任务"。</p>
+      <div class="field">
+        <label>任务名（可选，留空用 sample_view 文件名）</label>
+        <input type="text" v-model="initForm.name" placeholder="例如：epump2 漏判复核"
+               style="width:100%;padding:7px 10px;border:1px solid var(--bd);border-radius:7px;font-size:13px" />
+      </div>
+      <div class="field">
+        <label>第一步：TDMS 存放目录（.tdms / .tdms.zst）</label>
+        <div class="row" :class="{drag: dragTarget==='tdms'}"
+             @dragover.prevent="dragTarget='tdms'" @dragleave="dragTarget=''" @drop.prevent="onDrop($event,'tdms')">
+          <input type="text" v-model="initForm.tdms_root" placeholder="点击选择 / 粘贴 / 拖入目录" />
+          <button class="btn" @click="nativeDir('tdms')">选择…</button>
+        </div>
+      </div>
+      <div class="field">
+        <label><input type="checkbox" v-model="initForm.useSampleView" /> 第二步：sample_view.csv（可选）</label>
+        <div class="row" v-if="initForm.useSampleView" :class="{drag: dragTarget==='sv'}"
+             @dragover.prevent="dragTarget='sv'" @dragleave="dragTarget=''" @drop.prevent="onDrop($event,'sv')">
+          <input type="text" v-model="initForm.sample_view_path" placeholder="点击选择 / 粘贴 / 拖入路径" />
+          <button class="btn" @click="openPicker('sv')">选择…</button>
+        </div>
+        <p class="hint" style="margin:4px 0 0">不勾选 sample_view：① 无数据库→扫描 TDMS 生成空标签的 sample_view；② 有数据库→按数据库+TDMS 生成。</p>
+      </div>
+      <div class="field">
+        <label><input type="checkbox" v-model="initForm.loadLabels" /> 第三步：加载数据库文件夹（可选）</label>
+        <div class="row" v-if="initForm.loadLabels" :class="{drag: dragTarget==='label'}"
+             @dragover.prevent="dragTarget='label'" @dragleave="dragTarget=''" @drop.prevent="onDrop($event,'label')">
+          <input type="text" v-model="initForm.label_records_db_path" placeholder="选择数据库文件夹（自动找 label_records.db / tdms_manifest.csv）" />
+          <button class="btn" @click="nativeDir('label')">选择…</button>
+        </div>
+        <p v-if="initForm.loadLabels" class="hint" style="margin:4px 0 0">自动在该文件夹及其 metadata/ 下查找 label_records.db（历史标签）与 tdms_manifest.csv（tdms 登记）。</p>
+      </div>
+      <div class="field" v-if="initForm.loadLabels">
+        <label>标注来源 source</label>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <select v-model="initForm.source" style="padding:7px 10px;border:1px solid var(--bd);border-radius:7px;min-width:140px">
+            <option v-for="src in sources" :key="src" :value="src">{{ src }}</option>
+          </select>
+          <template v-if="initForm.source==='operator'">
+            <span style="color:var(--mut)">operator_</span>
+            <input v-model.trim="initForm.operatorName" list="operatorNames" placeholder="如 hetao"
+                   style="padding:7px 10px;border:1px solid var(--bd);border-radius:7px;width:160px" />
+            <datalist id="operatorNames">
+              <option v-for="n in operatorNameOptions" :key="n" :value="n"></option>
+            </datalist>
+          </template>
+        </div>
+        <p class="hint" style="margin:4px 0 0">operator 时可填操作员名（下拉可选/可手输），写入来源记为 <b>operator_{{ initForm.operatorName || '?' }}</b>。</p>
+      </div>
+      <div style="margin-top:14px; display:flex; gap:10px; align-items:center">
+        <button class="btn primary" @click="doInit" :disabled="initing">{{ initing ? '加载中…' : '加载并开始标注' }}</button>
+        <span v-if="initMsg" :style="{color: initErr ? '#b91c1c' : 'var(--mut)'}">{{ initMsg }}</span>
+      </div>
+      <p class="hint" style="margin-top:12px">不选择时使用内置演示数据。不勾选③则从空标签开始。单通道输入会自动补齐该 tdms 的 up/down，并在列表"输入"列标出原始输入样本。</p>
+    </div>
+
+    <!-- 输入样表 -->
+    <div class="card" style="padding:16px;margin-top:14px">
+      <h3 style="margin:0 0 6px;font-size:15px">输入样表（sample_view.csv 扩展版）</h3>
+      <p class="hint" style="margin:0 0 10px">至少包含 <b>view_name / line / sn / sample_id</b>；可带标注信息(reason_name 等)与 relative_path/tdms_path。原有列都会被保留。</p>
+      <div style="overflow:auto">
+        <table style="border-collapse:collapse;font-size:12px;white-space:nowrap">
+          <thead><tr style="color:var(--mut);text-align:left">
+            <th style="padding:4px 8px;border-bottom:1px solid var(--bd)">view_name</th>
+            <th style="padding:4px 8px;border-bottom:1px solid var(--bd)">line</th>
+            <th style="padding:4px 8px;border-bottom:1px solid var(--bd)">sn</th>
+            <th style="padding:4px 8px;border-bottom:1px solid var(--bd)">sample_id</th>
+            <th style="padding:4px 8px;border-bottom:1px solid var(--bd)">reason_name</th>
+            <th style="padding:4px 8px;border-bottom:1px solid var(--bd)">relative_path (可选)</th>
+          </tr></thead>
+          <tbody style="color:var(--fg)">
+            <tr><td style="padding:4px 8px">epump2_v1</td><td style="padding:4px 8px">epump2</td><td style="padding:4px 8px">HI4B0620</td><td style="padding:4px 8px">HI4B0620_up</td><td style="padding:4px 8px">正常</td><td style="padding:4px 8px;color:var(--mut)">epump2/2026.../HI4B0620....tdms.zst</td></tr>
+            <tr><td style="padding:4px 8px">epump2_v1</td><td style="padding:4px 8px">epump2</td><td style="padding:4px 8px">HI4B0620</td><td style="padding:4px 8px">HI4B0620_down</td><td style="padding:4px 8px">咬齿</td><td style="padding:4px 8px;color:var(--mut)">（同上）</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="hint" style="margin-top:10px">tdms 定位：有数据库文件夹按 (line,sn) 查登记路径(<b>已注册</b>)；否则在源数据文件夹按 <b>line 子目录 + 文件名含 sn</b> find_tdms(<b>未注册</b>)；都找不到为 <b>缺失</b>。</p>
+    </div>
+    </template>
+  </div>
+
+  <!-- ===== 文件/目录浏览器 ===== -->
+  <div v-if="picker.open" class="modal-mask" @click.self="picker.open=false">
+    <div class="modal">
+      <div class="modal-h">
+        {{ picker.target==='export' ? '选择导出目录' : (picker.target==='label' ? '选择数据库文件夹' : (pickerDirMode ? '选择 TDMS 目录' : '选择 CSV 文件')) }}
+        <button class="btn" @click="tryNativeDialog" title="尝试系统对话框">系统对话框</button>
+        <button class="btn" style="margin-left:auto" @click="picker.open=false">✕</button>
+      </div>
+      <div class="modal-roots">
+        <span class="chip" v-for="r in roots" :key="r.path" @click="browse(r.path)">{{ r.label }}</span>
+      </div>
+      <div class="modal-path">{{ picker.path || '~' }}</div>
+      <div class="modal-list">
+        <div class="item" v-if="picker.parent" @click="browse(picker.parent)">📁 ..</div>
+        <div class="item" v-for="d in picker.dirs" :key="'d'+d" @click="browse(joinPath(picker.path,d))">📁 {{ d }}</div>
+        <template v-if="!pickerDirMode">
+          <div class="item file" v-for="f in picker.files" :key="'f'+f" @click="pickFile(f)">📄 {{ f }}</div>
+          <div v-if="!picker.dirs.length && !picker.files.length" class="item" style="color:var(--mut)">（此目录无子目录、csv 或 db 文件）</div>
+        </template>
+      </div>
+      <div class="modal-f">
+        <button v-if="pickerDirMode" class="btn primary" @click="pickDir()">
+          {{ picker.target==='export' ? '导出到此目录' : '选择此目录' }}
+        </button>
+        <span class="hint">{{ pickerDirMode ? '进入目标目录后点下方按钮' : '点击 csv 文件即选中' }}</span>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ===== 列表总览 ===== -->
+  <div v-show="view==='list'" class="wrap">
+    <div class="toolbar">
+      <button class="btn" @click="reload(true)" :disabled="refreshing" style="display:inline-flex;align-items:center;gap:6px">
+        <span v-if="refreshing" class="busy-spin"></span>{{ refreshing ? '刷新中…' : '↻ 刷新' }}
+      </button>
+      <label>标注状态
+        <select v-model="filters.status" @change="applyFilters">
+          <option value="all">全部</option><option value="labeled">已标注</option><option value="unlabeled">未标注</option>
+        </select>
+      </label>
+      <label>线名
+        <select v-model="filters.line" @change="applyFilters">
+          <option value="all">全部</option>
+          <option v-for="l in lines" :key="l" :value="l">{{ l }}</option>
+        </select>
+      </label>
+      <label>标签来源
+        <select v-model="labelSrc" @change="switchLabelSrc">
+          <option value="db">数据库</option>
+          <option value="sample_view" :disabled="!fromSampleView">sample_view</option>
+        </select>
+      </label>
+      <!-- reference 多选 -->
+      <label class="ms-label">reference</label>
+      <div class="ms" v-click-outside="() => openFilter==='reference' && (openFilter='')">
+        <button class="btn" @click="openFilter = openFilter==='reference' ? '' : 'reference'">
+          {{ filters.reference.length ? '已选 '+filters.reference.length : '全部' }} ▾
+        </button>
+        <div v-if="openFilter==='reference'" class="ms-panel">
+          <div class="ms-act"><a @click="filters.reference=[]; applyFilters()">全部</a></div>
+          <label v-for="rf in referenceOptions" :key="rf" class="ms-item">
+            <input type="checkbox" :value="rf" v-model="filters.reference" @change="applyFilters" /> {{ rf }}
+          </label>
+          <div v-if="!referenceOptions.length" class="ms-empty">无 reference</div>
+        </div>
+      </div>
+      <!-- reason 多选 -->
+      <label class="ms-label">reason</label>
+      <div class="ms" v-click-outside="() => openFilter==='reason' && (openFilter='')">
+        <button class="btn" @click="openFilter = openFilter==='reason' ? '' : 'reason'">
+          {{ filters.reason.length ? '已选 '+filters.reason.length : '全部' }} ▾
+        </button>
+        <div v-if="openFilter==='reason'" class="ms-panel">
+          <div class="ms-act"><a @click="filters.reason=[]; applyFilters()">全部</a></div>
+          <label v-for="rn in reasonOptions" :key="rn" class="ms-item">
+            <input type="checkbox" :value="rn" v-model="filters.reason" @change="applyFilters" /> {{ rn }}
+          </label>
+          <div v-if="!reasonOptions.length" class="ms-empty">无 reason</div>
+        </div>
+      </div>
+      <label>本次改动
+        <select v-model="filters.changed" @change="applyFilters">
+          <option value="all">全部</option>
+          <option value="yes">已改动 ●</option>
+          <option value="no">未改动</option>
+        </select>
+      </label>
+      <label><input type="checkbox" v-model="filters.typicalOnly" @change="applyFilters" /> 仅典型异音 ★</label>
+      <label><input type="checkbox" v-model="filters.missingTdms" @change="applyFilters" /> 仅 tdms 缺失</label>
+      <button v-if="hasDb && stats.unresolved>0" class="btn" @click="pruneMissing">🗑 删除无 tdms 的登记（{{ stats.unresolved }}）</button>
+      <span class="stats">共 <b>{{ stats.total }}</b> · 已标 <b>{{ stats.labeled }}</b> · 未标 <b>{{ stats.unlabeled }}</b> · 典型 <b>{{ stats.typical }}</b> · tdms 已注册 <b>{{ stats.registered }}</b>/未注册 <b>{{ stats.unregistered }}</b>/缺失 <b>{{ stats.unresolved }}</b></span>
+    </div>
+    <div id="grid" class="ag-theme-quartz"></div>
+    <div class="hint">双击任意一行 → 进入该样本的标注视图。表头可排序、按列筛选。</div>
+  </div>
+
+  <!-- ===== 逐条标注（按 SN 分组，组内 up/down 并列）===== -->
+  <div v-show="view==='label'">
+    <div class="navbar">
+      <button class="btn" @click="view='list'">← 列表</button>
+      <button class="btn" :disabled="snPos<=0" @click="prevGroup">⬅ 上一条</button>
+      <div class="progress">
+        <div class="lab">SN {{ snPos+1 }}/{{ snList.length }}</div>
+        <div class="bar"><i :style="{width: snPct+'%', background:'#0ea5e9'}"></i></div>
+        <div class="lab" style="margin-top:5px">标注进度 {{ stats.labeled }}/{{ stats.total }}（{{ pct }}%）</div>
+        <div class="bar"><i :style="{width: pct+'%'}"></i></div>
+      </div>
+      <button class="btn" :disabled="snPos>=snList.length-1" @click="nextGroup">下一条 ➡</button>
+      <span style="display:inline-flex;align-items:center;gap:4px">
+        前往第
+        <input type="number" v-model.number="gotoN" min="1" :max="snList.length"
+               style="width:64px;padding:5px 6px;border:1px solid var(--bd);border-radius:7px"
+               @keyup.enter="goSnIndex" />
+        个 SN
+        <button class="btn" @click="goSnIndex">前往</button>
+      </span>
+      <button class="btn" @click="openExport">⬇ 导出标签</button>
+    </div>
+
+    <template v-if="channels.length">
+      <div class="meta">
+        <div><span class="k">SN</span><b>{{ currentSn }}</b></div>
+        <div><span class="k">line</span>{{ channels[0].row.line || '—' }}</div>
+        <div><span class="k">通道</span>{{ channels.length }}（{{ channels.map(c=>c.direction).join(' / ') }}）</div>
+        <span v-if="opMsg" :style="{color: opErr?'#b91c1c':'var(--mut)', fontSize:'13px'}">{{ opMsg }}</span>
+        <span v-if="perf" style="margin-left:auto;color:var(--mut);font-size:12px" :title="'详细分解见浏览器控制台 console'">⏱ {{ perf }}</span>
+      </div>
+
+      <!-- 通道并列 -->
+      <div class="channels-row">
+        <div class="channel-col" v-for="ch in channels" :key="ch.index">
+          <div class="ch-head">
+            <span :style="{color: ch.row.is_input ? '#dc2626' : 'inherit'}">{{ ch.direction==='down' ? '⬇' : '⬆' }} {{ ch.sample_id }}</span>
+            <span v-if="ch.row.is_input" style="color:#dc2626;font-size:12px;font-weight:600">来自输入表格</span>
+            <span v-else style="color:var(--mut);font-size:12px;font-weight:400">补全</span>
+            <span v-if="ch.row.labeled" class="tag ok">已标注 · {{ ch.row.reason_name }}</span>
+            <span v-else class="tag">未标注</span>
+            <span v-if="ch.row.typical" class="tag star">★典型</span>
+          </div>
+
+          <div v-if="ch.loading" class="loading">加载 tdms / 生成曲线频谱…</div>
+          <template v-else>
+            <div class="card" v-if="ch.audioUrl">
+              <div class="card-h">🔊 播放器</div>
+              <div style="padding:6px 12px"><audio :src="ch.audioUrl" controls preload="none" style="width:100%"></audio></div>
+            </div>
+            <div class="card" v-for="card in ch.cards" :key="card.id">
+              <div class="card-h">{{ cardIcon(card) }} {{ card.title }}</div>
+              <div v-if="card.error" style="padding:12px;color:#b91c1c">渲染失败: {{ card.error }}</div>
+              <div v-else class="plot" :id="'plot-'+ch.index+'-'+card.id"></div>
+            </div>
+
+            <!-- 标注 -->
+            <div class="card">
+              <div class="card-h">📝 标注</div>
+              <div class="lblform" style="padding:12px">
+                <div v-if="!ch.labelForm.open" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+                  <button class="btn primary" @click="ch.labelForm.open=true">开始新的标注</button>
+                  <button class="btn" @click="markTypical(ch, !ch.row.typical)">
+                    {{ ch.row.typical ? '✓ 取消典型异音' : '★ 标记为典型异音' }}
+                  </button>
+                  <span v-if="ch.msg" :style="{color: ch.err?'#b91c1c':'var(--mut)', fontSize:'13px'}">{{ ch.msg }}</span>
+                </div>
+                <div v-else>
+                  <div class="field">
+                    <label>原因 reason</label>
+                    <select v-model="ch.labelForm.reason_key" style="width:100%;border:1px solid var(--bd)">
+                      <option v-for="r in reasons" :key="r.key" :value="r.key">{{ r.name }}（{{ r.key }}）</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>置信度</label>
+                    <label v-for="(v,k) in confidenceOptions" :key="k" class="conf">
+                      <input type="radio" :value="v" v-model="ch.labelForm.confidence" /> {{ k }}
+                    </label>
+                  </div>
+                  <div class="field">
+                    <label>备注 note</label>
+                    <input type="text" v-model="ch.labelForm.note" placeholder="其他/边界/不确定请说明"
+                           style="width:100%;border:1px solid var(--bd)" />
+                  </div>
+                  <div style="display:flex;gap:12px;margin-top:8px">
+                    <button class="btn primary" @click="saveLabel(ch)" :disabled="ch.saving">{{ ch.saving?'保存中…':'保存标注' }}</button>
+                    <button class="btn" @click="ch.labelForm.open=false">取消</button>
+                  </div>
+                </div>
+                <div v-if="ch.labelForm.open" style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+                  <button class="btn" @click="markTypical(ch, !ch.row.typical)">
+                    {{ ch.row.typical ? '✓ 取消典型异音' : '★ 标记为典型异音' }}
+                  </button>
+                  <span v-if="ch.msg" :style="{color: ch.err?'#b91c1c':'var(--mut)', fontSize:'13px'}">{{ ch.msg }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 来自 sample_view：放在 label_history 上面，展示该样本对应行（无 sample_view 则不显示）-->
+            <div class="card" v-if="fromSampleView">
+              <div class="card-h">📄 来自 sample_view</div>
+              <div style="padding:6px 12px;overflow:auto">
+                <table v-if="ch.svLabel" style="width:100%;border-collapse:collapse;font-size:12px">
+                  <tbody>
+                    <tr v-for="(v,k) in ch.svLabel" :key="k" style="border-top:1px solid var(--bd)">
+                      <td style="padding:4px 8px;color:var(--mut);white-space:nowrap;font-weight:600">{{ k }}</td>
+                      <td style="padding:4px 8px;word-break:break-all">{{ v }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div v-else style="padding:6px 2px;color:var(--mut);font-size:12px">（该样本在 sample_view 中无对应行）</div>
+              </div>
+            </div>
+
+            <!-- label_history（来自数据库；无数据库则不渲染）-->
+            <div class="card" style="position:relative" v-if="hasDb">
+              <div v-if="ch.busy" class="busy-overlay"><span class="busy-spin"></span>正在操作…</div>
+              <div class="card-h">🕘 label_history（{{ ch.history.length }}）· 来自数据库</div>
+              <div style="padding:6px 12px;overflow:auto">
+                <table style="width:100%;border-collapse:collapse;font-size:12px">
+                  <thead><tr style="text-align:left;color:var(--mut)">
+                    <th style="padding:4px 6px">timestamp</th><th>source</th><th>reason</th><th>conf</th><th>note</th>
+                    <th v-if="canPrototype">操作</th>
+                  </tr></thead>
+                  <tbody>
+                    <tr v-for="(h,i) in ch.history" :key="i" style="border-top:1px solid var(--bd)">
+                      <td style="padding:4px 6px">{{ h.timestamp }}</td><td>{{ h.source }}</td>
+                      <td>{{ h.reason_name }}</td><td>{{ h.reason_confidence }}</td><td>{{ h.note }}</td>
+                      <td v-if="canPrototype" style="white-space:nowrap">
+                        <button class="btn" style="padding:1px 7px;margin-right:4px" @click="confirmLabel(ch,i)">确认正确</button>
+                        <button class="btn" style="padding:1px 7px" @click="deleteLabel(ch,i)">删除</button>
+                      </td>
+                    </tr>
+                    <tr v-if="!ch.history.length"><td :colspan="canPrototype?6:5" style="padding:8px;color:var(--mut)">暂无记录</td></tr>
+                  </tbody>
+                </table>
+                <p v-if="canPrototype" class="hint" style="margin:6px 6px 2px;color:var(--mut);font-size:11px">
+                  ⚠ 「确认正确」会<b>复制这条记录</b>并把来源改为 <b>expert</b>（保留原记录）；「删除」会<b>永久删除</b>该条记录，不可恢复。两者操作后立即刷新数据库。
+                </p>
+              </div>
+            </div>
+
+            <!-- 任务结果 / 建议 -->
+            <div class="card" v-if="ch.taskResults.length || ch.suggestions.length">
+              <div class="card-h">🛠 任务结果 / 建议</div>
+              <div style="padding:8px 12px;font-size:13px">
+                <div v-for="(t,i) in ch.taskResults" :key="'r'+i" style="margin-bottom:4px">
+                  <span style="color:var(--mut)">{{ t.task_title }}：</span>
+                  <span v-for="(v,k) in t.data" :key="k" style="margin-right:10px">{{ k }}=<b>{{ v }}</b></span>
+                </div>
+                <div v-for="(sug,i) in ch.suggestions" :key="'s'+i" style="margin-top:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                  <span class="tag">建议</span>
+                  <span>{{ sug.task_title }} → <b>{{ sug.reason_key }}</b>（{{ sug.confidence }}）</span>
+                  <button v-if="!sug.accepted" class="btn" @click="acceptSuggestion(ch, sug)">采纳</button>
+                  <span v-else class="tag ok">已采纳</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 高级频谱分析：按行按钮，点击展开内容（在 label_history 下方）-->
+            <div class="card">
+              <div class="card-h">🧩 高级频谱分析</div>
+              <div style="padding:10px 12px;display:flex;gap:8px;flex-wrap:wrap">
+                <button v-for="ic in insertable" :key="ic.id" class="btn"
+                        :class="{primary: isAdvShown(ch, ic.id)}" @click="toggleCard(ch, ic.id)">
+                  {{ ic.title }}
+                </button>
+              </div>
+              <!-- 展开的高级频谱内容（按卡片顺序，放在最下面）-->
+              <div v-for="card in ch.advCards" :key="card.id" style="border-top:1px solid var(--bd)">
+                <div class="card-h" style="display:flex;align-items:center;gap:6px;background:#fff">
+                  <span>{{ cardIcon(card) }} {{ card.title }}</span>
+                  <button class="btn" style="margin-left:auto;padding:1px 8px" @click="toggleCard(ch, card.id)">✕</button>
+                </div>
+                <div v-if="card.params && card.params.length" class="param-panel">
+                  <div class="param-panel-h">⚙ 参数调整</div>
+                  <div class="param-grid">
+                    <label v-for="p in card.params" :key="p.key" class="param-item">
+                      <span>{{ p.label }}</span>
+                      <select v-if="p.type==='select'" v-model="card.values[p.key]">
+                        <option v-for="o in p.options" :key="o" :value="o">{{ o }}</option>
+                      </select>
+                      <input v-else type="number" v-model.number="card.values[p.key]" :min="p.min" :max="p.max" :step="p.step" />
+                    </label>
+                    <button class="btn primary" style="align-self:end" @click="applyCardParams(ch,card)">开始分析</button>
+                  </div>
+                </div>
+                <div v-if="card.loading" class="loading">渲染中…</div>
+                <div v-else-if="card.error" style="padding:12px;color:#b91c1c">渲染失败: {{ card.error }}</div>
+                <div v-else class="plot full" :id="'plot-'+ch.index+'-'+card.id"></div>
+              </div>
+            </div>
+          </template>
+        </div>
+
+      </div>
+    </template>
+    <p v-else style="color:var(--mut); padding:18px">从列表双击一行进入。</p>
+  </div>
+</div>
+
+<script>
+const { createApp, reactive, toRefs, computed, nextTick } = Vue;
+
+const _ClickOutside = {
+  mounted(el, binding){
+    el._cob = (e) => { if(!el.contains(e.target)) binding.value && binding.value(e); };
+    setTimeout(() => document.addEventListener('click', el._cob), 0);
+  },
+  unmounted(el){ document.removeEventListener('click', el._cob); }
+};
+
+createApp({
+  setup() {
+    const state = reactive({
+      view: 'init', allRows: [], lines: [],
+      stats: { total: 0, labeled: 0, unlabeled: 0, typical: 0 },
+      isMock: false, taskActive: false, perf: '', labelSrc: 'db', fromSampleView: false, gotoN: 1, navIdx: 0,
+      filters: { status:'all', line:'all', reason:[], reference:[], changed:'all', typicalOnly:false, missingTdms:false },
+      openFilter: '', reasonOptions: [], referenceOptions: [],
+      currentSn: '', channels: [], listRows: [], listColumns: [],
+      initForm: { name:'', sample_view_path:'', useSampleView:false, tdms_root:'', loadLabels:false, label_records_db_path:'', source:'operator', operatorName:'' },
+      operatorNameOptions: ['hetao'],
+      initing: false, initMsg: '', initErr: false, dragTarget: '',
+      sources: ['expert','operator'], hasDb: false, defaultSource: 'expert', refreshing: false,
+      projects: [], opening: '', taskMode: 'list',
+      reg: { running:false, message:'', error:'' }, regLine: '', exportKind: 'labels',
+      canPrototype: false, protoRows: [], protoSel: [], protoRoot: '', protoMsg: '', protoErr: false,
+      protoImporting: false, protoFilter: 'all', protoDest: '',
+      picker: { open:false, target:'', path:'', parent:'', dirs:[], files:[] }, roots: [],
+      reasons: [], confidenceOptions: {},
+      insertable: [],
+      taskTypes: [], taskForm: { task_id:'', scope:'all', params:{} }, runs: [], runMsg:'', runErr:false,
+      labelRows: [], labelCols: [], labelRowCap: 500,
+      opMsg:'', opErr:false,
+    });
+    let gridApi = null;
+
+    // ---- 文件浏览器（浏览后端本机文件系统，本地/远程都可用）----
+    function joinPath(base, name){ return base ? (base.replace(/\/$/,'') + '/' + name) : name; }
+    function applyPicked(path){
+      const t = state.picker.target;
+      if (t==='sv') state.initForm.sample_view_path = path;
+      else if (t==='label') state.initForm.label_records_db_path = path;
+      else if (t==='proto') state.protoDest = path;
+      else state.initForm.tdms_root = path;
+    }
+    async function browse(path){
+      try {
+        const r = await fetch('/api/browse?path='+encodeURIComponent(path||''));
+        const d = await r.json();
+        if(!r.ok){ state.initErr=true; state.initMsg=d.detail||'无法读取目录'; return; }
+        Object.assign(state.picker, { path:d.path, parent:d.parent, dirs:d.dirs, files:d.files });
+      } catch(e){ state.initErr=true; state.initMsg=String(e); }
+    }
+    const pickerDirMode = computed(() => ['tdms','export','label','proto'].includes(state.picker.target));
+
+    async function openPickerModal(target){
+      state.initMsg=''; state.initErr=false; state.opMsg='';
+      state.picker.open = true; state.picker.target = target;
+      if (!state.roots.length) {
+        try { state.roots = (await fetch('/api/roots').then(x=>x.json())).roots || []; } catch(e){}
+      }
+      let cur = target==='sv' ? state.initForm.sample_view_path
+              : target==='label' ? state.initForm.label_records_db_path
+              : target==='tdms' ? state.initForm.tdms_root
+              : state.initForm.sample_view_path;  // export 从 sample_view 目录起步
+      await browse(cur ? cur.replace(/\/[^/]*$/,'') : '');
+    }
+    // 文件选择（csv）走网页浏览器；目录选择直接弹系统原生对话框
+    function openPicker(target){ openPickerModal(target); }
+    // 目录类（tdms / db数据库文件夹 / export）：直接系统对话框，失败回退网页浏览器
+    async function nativeDir(target){
+      state.initMsg=''; state.initErr=false; state.opMsg='';
+      const curMap = { tdms: state.initForm.tdms_root, label: state.initForm.label_records_db_path };
+      const cur = curMap[target] || state.initForm.sample_view_path;
+      const titleMap = { export:'选择导出目录', tdms:'选择 TDMS 目录', label:'选择数据库文件夹' };
+      try {
+        const r = await fetch(`/api/pick?kind=dir&title=${encodeURIComponent(titleMap[target]||'选择目录')}&initial=${encodeURIComponent(cur?cur.replace(/\/[^/]*$/,''):'')}`);
+        const d = await r.json();
+        if(!r.ok) throw new Error(d.detail||'系统对话框不可用');
+        if(d.canceled || !d.path) return;
+        if(target==='export'){ await doExport(d.path); }
+        else if(target==='label'){ state.initForm.label_records_db_path = d.path; }
+        else { state.initForm.tdms_root = d.path; }
+      } catch(e){
+        openPickerModal(target);   // 无 GUI 回退网页文件浏览器
+      }
+    }
+    function openExport(){ state.exportKind='labels'; nativeDir('export'); }
+
+    // ---- 任务（列表/表单两级）----
+    function newTask(){
+      state.initForm = { name:'', sample_view_path:'', useSampleView:false, tdms_root:'', loadLabels:false, label_records_db_path:'', source:'operator' };
+      state.initMsg=''; state.initErr=false;
+      state.taskMode = 'form';
+    }
+    function editTask(p){
+      state.initForm = {
+        name: p.name || '', sample_view_path: p.sample_view_path || '', useSampleView: !!p.sample_view_path,
+        tdms_root: p.tdms_root || '', loadLabels: !!p.label_records_db_path,
+        label_records_db_path: p.label_records_db_path || '', source: p.source || 'operator',
+      };
+      state.initMsg=''; state.initErr=false;
+      state.taskMode = 'form';
+    }
+
+    // ---- 已保存的任务 ----
+    async function loadProjects(){
+      try { state.projects = (await fetch('/api/projects').then(x=>x.json())).projects || []; }
+      catch(e){ state.projects = []; }
+    }
+    async function openProject(p){
+      state.opening = p.id; state.initMsg=''; state.initErr=false;
+      // 同步回填到表单，便于查看
+      state.initForm.sample_view_path = p.sample_view_path || '';
+      state.initForm.tdms_root = p.tdms_root || '';
+      state.initForm.label_records_db_path = p.label_records_db_path || '';
+      state.initForm.loadLabels = !!p.label_records_db_path;
+      // 还原 source：operator_xxx → source=operator + operatorName=xxx
+      const _src = p.source || 'operator';
+      if(_src.indexOf('operator_')===0){ state.initForm.source='operator'; state.initForm.operatorName=_src.slice('operator_'.length); }
+      else { state.initForm.source=_src; state.initForm.operatorName=''; }
+      try {
+        const r = await fetch(`/api/projects/${p.id}/open`, {method:'POST'});
+        const d = await r.json();
+        if(!r.ok){ state.initErr=true; state.initMsg = d.detail || '打开失败'; return; }
+        await reload();
+        state.currentSn=''; state.channels=[];
+        state.taskActive = true;
+        state.view = 'list';
+        loadProjects();
+      } catch(e){ state.initErr=true; state.initMsg=String(e); }
+      finally { state.opening=''; }
+    }
+    async function deleteProject(p){
+      await fetch(`/api/projects/${p.id}`, {method:'DELETE'});
+      loadProjects();
+    }
+    let regTimer=null;
+    async function pollReg(){
+      const d = await fetch('/api/register_tdms/status').then(x=>x.json());
+      const wasRunning = state.reg.running;
+      state.reg.running=!!d.running; state.reg.message=d.message||''; state.reg.error=d.error||'';
+      if(!d.running && regTimer){
+        clearInterval(regTimer); regTimer=null;
+        if(wasRunning){ try{ if(state.view==='proto') loadProto(); else reload(true); }catch(e){} }
+      }
+    }
+    async function registerTdms(){
+      state.reg.message=''; state.reg.error='';
+      const r = await fetch('/api/register_tdms',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({line: state.regLine||''})});
+      const d = await r.json();
+      if(!r.ok || d.ok===false){ state.reg.error=d.detail||'启动失败'; return; }
+      state.reg.running=true;
+      if(!regTimer) regTimer=setInterval(pollReg, 1500);
+    }
+
+    // ---- 拖拽文件/文件夹 ----
+    function setField(target, path){
+      if(target==='sv') state.initForm.sample_view_path = path;
+      else if(target==='label') state.initForm.label_records_db_path = path;
+      else state.initForm.tdms_root = path;
+    }
+    async function onDrop(e, target){
+      state.dragTarget=''; state.initMsg=''; state.initErr=false;
+      const dt = e.dataTransfer;
+      const f = dt.files && dt.files[0];
+      // ① 浏览器若暴露绝对路径（桌面打包/部分环境）→ 文件或文件夹都能直接用
+      if (f && f.path){ setField(target, f.path); state.initMsg='已读取拖入路径'; return; }
+      // ② 文件夹：普通浏览器拿不到路径
+      const item = dt.items && dt.items[0];
+      const entry = item && item.webkitGetAsEntry && item.webkitGetAsEntry();
+      if (entry && entry.isDirectory){
+        state.initErr=true; state.initMsg='浏览器无法获取文件夹路径，请点"选择…"用系统对话框'; return;
+      }
+      if (target==='tdms'){
+        state.initErr=true; state.initMsg='TDMS 需要目录，请拖文件夹或点"选择…"'; return;
+      }
+      // ③ CSV 文件：上传内容，后端存一份并回填路径
+      if (!f){ return; }
+      try {
+        const fd = new FormData(); fd.append('file', f, f.name);
+        const r = await fetch('/api/upload',{method:'POST', body:fd});
+        const d = await r.json();
+        if(!r.ok){ state.initErr=true; state.initMsg=d.detail||'上传失败'; return; }
+        setField(target, d.path);
+        state.initMsg=`已上传 ${d.name}`;
+      } catch(err){ state.initErr=true; state.initMsg='上传失败: '+err; }
+    }
+    function pickFile(name){ applyPicked(joinPath(state.picker.path, name)); state.picker.open=false; }
+    async function pickDir(){
+      if (state.picker.target==='export') { await doExport(state.picker.path); state.picker.open=false; return; }
+      applyPicked(state.picker.path); state.picker.open=false;
+    }
+    async function doExport(dir){
+      // 按 exportKind 路由到不同导出接口；都写到所选目录 dir
+      const kind = state.exportKind || 'labels';
+      const url = kind==='nonstandard' ? '/api/nonstandard_reasons/export'
+                : kind==='label_records' ? '/api/label_records/export' : '/api/export';
+      const toRun = (kind==='label_records' || kind==='nonstandard');
+      const setMsg = (err,msg)=>{ if(toRun){state.runErr=err;state.runMsg=msg;} else {state.opErr=err;state.opMsg=msg;} };
+      setMsg(false,'');
+      try {
+        const r = await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({out_path: dir})});
+        const d = await r.json();
+        if(!r.ok){ setMsg(true, d.detail||'导出失败'); return; }
+        setMsg(false, `已导出 ${d.rows} 条到 ${d.path}`);
+      } catch(e){ setMsg(true, String(e)); }
+    }
+    // 可选：尝试后端本机的系统原生对话框（仅本地 GUI 有效）
+    async function tryNativeDialog(){
+      const kind = state.picker.target==='tdms' ? 'dir' : 'file';
+      try {
+        const r = await fetch(`/api/pick?kind=${kind}`);
+        const d = await r.json();
+        if(!r.ok){ state.initErr=true; state.initMsg=(d.detail||'系统对话框不可用')+'，请用上方文件浏览器'; return; }
+        if(d.canceled || !d.path) return;
+        applyPicked(d.path); state.picker.open=false;
+      } catch(e){ state.initErr=true; state.initMsg='系统对话框不可用，请用上方文件浏览器'; }
+    }
+    async function doInit(){
+      state.initing = true; state.initMsg=''; state.initErr=false;
+      try {
+        const body = {
+          name: state.initForm.name,
+          sample_view_path: state.initForm.useSampleView ? state.initForm.sample_view_path : '',
+          tdms_root: state.initForm.tdms_root,
+          label_records_db_path: state.initForm.loadLabels ? state.initForm.label_records_db_path : '',
+          source: (state.initForm.source==='operator' && state.initForm.operatorName)
+                    ? 'operator_'+state.initForm.operatorName : state.initForm.source,
+        };
+        const r = await fetch('/api/init',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+        const d = await r.json();
+        if(!r.ok){ state.initErr=true; state.initMsg = d.detail || '初始化失败'; return; }
+        state.initMsg = `已加载 ${d.n_samples} 条样本，解析到 ${d.n_resolved} 个 tdms` + (d.n_unresolved? `，${d.n_unresolved} 个未解析`:'');
+        await reload();
+        loadProjects();   // 刷新"我的任务"（已自动保存本次配置）
+        state.currentSn = ''; state.channels = [];
+        state.taskActive = true;
+        state.view = 'list';
+      } catch(e){ state.initErr=true; state.initMsg = String(e); }
+      finally { state.initing = false; }
+    }
+
+    const pct = computed(() => state.stats.total ? Math.round(state.stats.labeled / state.stats.total * 100) : 0);
+    const snPct = computed(() => snList.value.length ? Math.round((snPos.value + 1) / snList.value.length * 100) : 0);
+
+    // sample_view 形式（无数据库）
+    const svColumnDefs = [
+      { headerName:'#', field:'index', width:80, filter:'agNumberColumnFilter' },
+      { headerName:'sn', field:'sn', width:130, filter:true },
+      { headerName:'sample_id', field:'sample_id', width:160, filter:true },
+      { headerName:'line', field:'line', width:100, filter:true },
+      { headerName:'输入', field:'is_input', width:78, filter:true,
+        valueFormatter:p=>p.value?'✓ 输入':'补全' },
+      { headerName:'已标注', field:'labeled', width:90, valueFormatter:p=>p.value?'✅':'—' },
+      { headerName:'reason', field:'reason_name', width:120, filter:true },
+      { headerName:'置信度', field:'reason_confidence', width:90 },
+      { headerName:'来源', field:'source', width:90, filter:true },
+      { headerName:'典型', field:'typical', width:80, valueFormatter:p=>p.value?'★':'' },
+      { headerName:'note', field:'note', flex:1, minWidth:160, filter:true },
+      { headerName:'tdms', field:'tdms', width:90 },
+    ];
+    // 完整 16 列（始终展示；无数据库时标签列留空，有数据库多记录展开多行）
+    const dbColumnDefs = [
+      { headerName:'#', field:'index', width:70, filter:'agNumberColumnFilter' },
+      { headerName:'输入', field:'is_input', width:70, valueFormatter:p=>p.value?'✓':'补全' },
+      { headerName:'line', field:'line', width:90, filter:true },
+      { headerName:'sn', field:'sn', width:120, filter:true },
+      { headerName:'sample_id', field:'sample_id', width:150, filter:true },
+      { headerName:'group_name', field:'group_name', width:110, filter:true },
+      { headerName:'channel_name', field:'channel_name', width:110, filter:true },
+      { headerName:'timestamp', field:'timestamp', width:150 },
+      { headerName:'source', field:'source', width:90, filter:true },
+      { headerName:'result_key', field:'result_key', width:90 },
+      { headerName:'result_id', field:'result_id', width:80 },
+      { headerName:'result_name', field:'result_name', width:90 },
+      { headerName:'reason_key', field:'reason_key', width:110, filter:true },
+      { headerName:'reason_id', field:'reason_id', width:80 },
+      { headerName:'reason_name', field:'reason_name', width:110, filter:true },
+      { headerName:'reason_confidence', field:'reason_confidence', width:110 },
+      { headerName:'label_version', field:'label_version', width:110 },
+      { headerName:'note', field:'note', flex:1, minWidth:140, filter:true },
+      { headerName:'tdms', field:'tdms', width:90 },
+    ];
+    function gridColumns(){
+      // 后端返回了动态列就用动态列；否则退回固定 16 列
+      const cols = state.listColumns || [];
+      if (!cols.length) return dbColumnDefs;
+      return cols.map(c => {
+        if (c === 'index') return { headerName:'#', field:'index', width:70, filter:'agNumberColumnFilter' };
+        if (c === 'changed') return { headerName:'本次改动', field:'changed', width:100, filter:true,
+          valueFormatter:p=>p.value?'● 已改动':'',
+          cellStyle:p=> p.value ? {color:'#16a34a', fontWeight:'700'} : null };
+        if (c === 'is_input') return { headerName:'输入', field:'is_input', width:70, valueFormatter:p=>p.value?'✓':'补全' };
+        if (c === 'note') return { headerName:'note', field:'note', flex:1, minWidth:140, filter:true };
+        const w = (c==='sample_id'||c==='timestamp') ? 150 : (c.length>10?120:95);
+        return { headerName:c, field:c, width:w, filter:true };
+      });
+    }
+
+    function visibleRows() {
+      const f = state.filters;
+      return state.listRows.filter(rowMatchesFilter);
+    }
+    function rowMatchesFilter(r){
+      const f = state.filters;
+      if (f.status==='labeled' && !r.labeled) return false;
+      if (f.status==='unlabeled' && r.labeled) return false;
+      if (f.line!=='all' && r.line!==f.line) return false;
+      if (f.reason.length && !f.reason.includes(String(r.reason_name||''))) return false;
+      if (f.reference.length && !f.reference.includes(String(r.reference||''))) return false;
+      if (f.typicalOnly && !r.typical) return false;
+      if (f.missingTdms && r.tdms!=='缺失') return false;
+      if (f.changed==='yes' && !r.changed) return false;
+      if (f.changed==='no' && r.changed) return false;
+      return true;
+    }
+    function applyFilters(){ if(gridApi) gridApi.setGridOption('rowData', visibleRows()); }
+
+    // 来自 sample_view 面板的列（取当前 SN 各通道行的列并集，保持顺序）
+    const svLabelCols = computed(() => {
+      const cols = [];
+      for (const ch of state.channels){
+        if(!ch.svLabel) continue;
+        for(const k of Object.keys(ch.svLabel)){ if(k!=='sample_id' && !cols.includes(k)) cols.push(k); }
+      }
+      return cols;
+    });
+
+    // 导出表格只预览前 labelRowCap 条，避免大表全量渲染撑爆内存（导出/写回仍含全部）
+    const labelRowsView = computed(() => state.labelRows.slice(0, state.labelRowCap));
+    // reason / reference 多选下拉的可选值：由后端 /api/refresh 计算返回（见 reload()）。
+
+    function cardIcon(c){ return c.category==='waveform' ? '📈' : (c.category==='spectrum' ? '🌈' : '🧩'); }
+
+    // ---- SN 分组导航（逐条标注只走"列表总览筛选后"的 SN）----
+    const snList = computed(() => {
+      const seen = new Set(), out = [];
+      for (const r of state.allRows){
+        if(!rowMatchesFilter(r)) continue;          // 应用与列表总览相同的筛选
+        if(!seen.has(r.sn)){ seen.add(r.sn); out.push(r.sn); }
+      }
+      return out;
+    });
+    const snPos = computed(() => {
+      const i = snList.value.indexOf(state.currentSn);
+      return i >= 0 ? i : Math.min(state.navIdx, Math.max(0, snList.value.length-1));
+    });
+
+    function dirOf(sid){ return String(sid).toLowerCase().endsWith('_down') ? 'down' : 'up'; }
+    function defaultReason(){ return state.reasons.length ? state.reasons[0].key : ''; }
+
+    function makeChannel(row){
+      return { index:row.index, sample_id:row.sample_id, direction:dirOf(row.sample_id),
+               row, cards:[], audioUrl:'', loading:true, history:[], svLabel:null, advCards:[],
+               taskResults:[], suggestions:[],
+               labelForm:{open:false, reason_key:defaultReason(), confidence:0.9, note:''},
+               saving:false, msg:'', err:false, busy:false, _writing:false };
+    }
+
+    function isAdvShown(ch, cid){ return ch.advCards.some(c=>c.id===cid); }
+    function advOrder(cid){ return state.insertable.findIndex(ic=>ic.id===cid); }
+    async function toggleCard(ch, cid){
+      if (isAdvShown(ch, cid)){
+        const el = document.getElementById('plot-'+ch.index+'-'+cid);
+        if(el && window.Plotly) Plotly.purge(el);
+        ch.advCards = ch.advCards.filter(c=>c.id!==cid);
+        return;
+      }
+      const spec = state.insertable.find(ic=>ic.id===cid) || {};
+      const values = {};
+      (spec.params||[]).forEach(p=> values[p.key]=p.default);
+      const placeholder = { id:cid, title:spec.title||cid, removable:true, loading:true,
+                            params:spec.params||[], values, figure:null };
+      ch.advCards.push(placeholder);
+      ch.advCards.sort((a,b)=>advOrder(a.id)-advOrder(b.id));
+      await fetchCard(ch, placeholder);
+    }
+
+    async function fetchCard(ch, card){
+      card.loading = true;
+      try {
+        const d = await fetch(`/api/sample/${ch.index}/card`,{method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({card_id:card.id, params:card.values})}).then(x=>x.json());
+        const res = d.card || {};
+        card.figure = res.figure; card.error = res.error;
+      } catch(e){ card.error = String(e); }
+      card.loading = false;
+      renderPlots();
+    }
+    function applyCardParams(ch, card){ fetchCard(ch, card); }
+    function resetCardParams(ch, card){
+      (card.params||[]).forEach(p=> card.values[p.key]=p.default);
+      fetchCard(ch, card);
+    }
+
+    function drawCard(ch, card){
+      if (card.error || !card.figure) return;
+      const el = document.getElementById('plot-'+ch.index+'-'+card.id);
+      if (!el) return;
+      const base = card.figure.layout || {};
+      const layout = Object.assign({}, base, {autosize:true});
+      layout.title = '';                      // 删除图标题（Time / Mel Spectrogram 等）
+      if (card.removable) {
+        layout.height = base.height || 460;   // 高级频谱：完整尺寸
+      } else {
+        layout.height = 240;                  // 默认曲线：固定高度，去标题后主图更大
+        layout.margin = {l:46, r:12, t:8, b:30};
+      }
+      Plotly.react(el, card.figure.data||[], layout, {responsive:true, displaylogo:false});
+    }
+    async function renderPlots(){
+      await nextTick();
+      for (const ch of state.channels){
+        for (const card of ch.cards) drawCard(ch, card);
+        for (const card of ch.advCards) drawCard(ch, card);
+      }
+    }
+
+    async function reloadHistory(ch){
+      try {
+        const list = (await fetch(`/api/sample/${ch.index}/history`).then(x=>x.json())).history || [];
+        list.forEach(h=> h._src = h.source || state.initForm.source || 'expert');
+        ch.history = list;
+      } catch(e){ ch.history = []; }
+    }
+    async function loadSvLabel(ch){
+      try { ch.svLabel = (await fetch(`/api/sample/${ch.index}/sv_label`).then(x=>x.json())).label || null; }
+      catch(e){ ch.svLabel = null; }
+    }
+    async function confirmSvLabel(ch){
+      if(ch.busy) return;
+      ch.busy=true; ch.err=false; ch.msg='';
+      try {
+        const r = await fetch('/api/label/confirm_sv',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({index:ch.index})});
+        const d = await r.json();
+        if(!r.ok){ ch.err=true; ch.msg=d.detail||'确认失败'; return; }
+        ch.msg='已确认：sample_view 标签写入数据库（expert）';
+        await reloadHistory(ch); applyHistoryToRow(ch);
+      } finally { ch.busy=false; }
+    }
+    // 用已刷新的 history 本地更新该样本的行（避免再拉整张表的 /overview）
+    function applyHistoryToRow(ch){
+      const TYP='[[典型异音]]';
+      const last = ch.history.length ? ch.history[ch.history.length-1] : null;
+      const labeled = ch.history.length>0;
+      const reason_name = last ? (last.reason_name||'') : '';
+      const typical = !!(last && String(last.note||'').includes(TYP));
+      if(ch.row){ ch.row.labeled=labeled; ch.row.reason_name=reason_name; ch.row.typical=typical; ch.row.changed=true; }
+      const r = state.allRows.find(x=>x.sample_id===ch.sample_id);
+      if(r){ r.labeled=labeled; r.reason_name=reason_name; r.typical=typical; r.changed=true; }
+    }
+    // 用接口回带的 history 直接更新（少一次 DB 往返）
+    function setHistory(ch, list){
+      (list||[]).forEach(h=> h._src = h.source || state.initForm.source || 'expert');
+      ch.history = list || [];
+    }
+    // 乐观更新 + 按事件 id 即发即忘：点击瞬间界面生效，写库在后台并发进行，不互相阻塞。
+    function confirmLabel(ch, i){
+      const src = ch.history[i]; if(!src || src._id==null) return;   // 只对已落库的行操作
+      ch.err=false;
+      const t0=performance.now();
+      const opt = Object.assign({}, src, {source:'expert', _src:'expert', _id:null,
+        timestamp:new Date().toISOString().slice(0,19)});
+      ch.history = ch.history.concat([opt]);  // 立即可见
+      applyHistoryToRow(ch);
+      const uiMs=performance.now()-t0;        // 点击→界面生效（应≈0）
+      fetch('/api/label/confirm',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({index:ch.index, event_id:src._id})})
+        .then(r=>r.json()).then(d=>{
+          if(d && d.history){ setHistory(ch, d.history); applyHistoryToRow(ch);
+            const tot=performance.now()-t0;
+            ch.msg=`已确认（界面 ${uiMs.toFixed(0)}ms · 后台写库 ${d.write_ms}ms · 总 ${tot.toFixed(0)}ms）`;
+            console.log('[confirm] ui(ms)=',uiMs.toFixed(1),'db write(ms)=',d.write_ms,'roundtrip(ms)=',tot.toFixed(1)); }
+          else { ch.err=true; ch.msg=(d&&d.detail)||'确认失败';
+            ch.history=ch.history.filter(x=>x!==opt); applyHistoryToRow(ch); }
+        }).catch(e=>{ ch.err=true; ch.msg=String(e);
+          ch.history=ch.history.filter(x=>x!==opt); applyHistoryToRow(ch); });
+    }
+    function deleteLabel(ch, i){
+      const removed = ch.history[i]; if(!removed || removed._id==null) return;
+      ch.err=false;
+      const t0=performance.now();
+      ch.history = ch.history.filter((_,j)=>j!==i);   // 立即移除
+      applyHistoryToRow(ch);
+      const uiMs=performance.now()-t0;
+      fetch('/api/label/delete',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({index:ch.index, event_id:removed._id})})
+        .then(r=>r.json()).then(d=>{
+          if(d && d.history){ setHistory(ch, d.history); applyHistoryToRow(ch);
+            const tot=performance.now()-t0;
+            ch.msg=`已删除（界面 ${uiMs.toFixed(0)}ms · 后台写库 ${d.write_ms}ms · 总 ${tot.toFixed(0)}ms）`;
+            console.log('[delete] ui(ms)=',uiMs.toFixed(1),'db write(ms)=',d.write_ms,'roundtrip(ms)=',tot.toFixed(1)); }
+          else { ch.err=true; ch.msg=(d&&d.detail)||'删除失败';
+            ch.history=ch.history.concat([removed]); applyHistoryToRow(ch); }
+        }).catch(e=>{ ch.err=true; ch.msg=String(e);
+          ch.history=ch.history.concat([removed]); applyHistoryToRow(ch); });
+    }
+
+    async function loadChannel(ch){
+      ch.loading = true; ch.cards = []; ch.audioUrl = '';
+      const tH=performance.now(); await reloadHistory(ch); const histMs=performance.now()-tH;
+      loadSvLabel(ch);
+      const tK=performance.now(); await loadChannelTasks(ch); const tasksMs=performance.now()-tK;
+      let respMs=0, jsonMs=0, bytes=0, srv=null;
+      try {
+        const t0=performance.now();
+        const resp = await fetch(`/api/sample/${ch.index}/cards`);
+        respMs=performance.now()-t0;
+        const txt = await resp.text(); bytes=txt.length;
+        const t1=performance.now();
+        const d = JSON.parse(txt); jsonMs=performance.now()-t1;
+        srv=d.timings||null;
+        ch.cards = d.cards || [];
+        ch.audioUrl = `/api/sample/${ch.index}/audio.wav?t=${Date.now()}`;
+      } catch(e){ ch.cards = []; }
+      ch.loading = false;
+      const netMs=respMs+jsonMs;
+      ch._t = { netMs, respMs, jsonMs, histMs, tasksMs, bytes, srv };
+    }
+    async function loadChannelTasks(ch){
+      try {
+        const d = await fetch(`/api/sample/${ch.index}/tasks`).then(x=>x.json());
+        ch.taskResults = d.results || []; ch.suggestions = d.suggestions || [];
+      } catch(e){ ch.taskResults = []; ch.suggestions = []; }
+    }
+    async function acceptSuggestion(ch, sug){
+      const r = await fetch('/api/tasks/accept',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({run_id:sug.run_id, sample_id:ch.sample_id})});
+      const d = await r.json();
+      if(!r.ok){ ch.err=true; ch.msg=d.detail||'采纳失败'; return; }
+      sug.accepted = true;
+      await reloadHistory(ch);
+      await refreshRows();
+    }
+
+    // ---- 任务视图 ----
+    const currentTaskParams = computed(() => {
+      const t = state.taskTypes.find(t=>t.id===state.taskForm.task_id);
+      return t ? (t.params||[]) : [];
+    });
+    function onTaskTypeChange(){
+      const params = {};
+      currentTaskParams.value.forEach(p=> params[p.key]=p.default);
+      state.taskForm.params = params;
+    }
+    async function openTasks(){   // 导出表格结果 tab
+      state.view='task';
+      loadLabelRows();
+    }
+
+    // ---- Prototype ----
+    const protoRowsView = computed(() => {
+      const f = state.protoFilter;
+      if(f==='in') return state.protoRows.filter(r=>r.in_prototype);
+      if(f==='out') return state.protoRows.filter(r=>!r.in_prototype);
+      return state.protoRows;
+    });
+    const allProtoChecked = computed(() => protoRowsView.value.length>0 &&
+      protoRowsView.value.filter(r=>r.resolvable).every(r=>state.protoSel.includes(r.sample_id)));
+    function toggleAllProto(e){
+      if(e.target.checked) state.protoSel = protoRowsView.value.filter(r=>r.resolvable).map(r=>r.sample_id);
+      else state.protoSel = [];
+    }
+    async function openProto(){ state.view='proto'; loadProto(); }
+    async function loadProto(){
+      state.protoMsg=''; state.protoErr=false; state.protoSel=[];
+      try {
+        const d = await fetch('/api/prototype/candidates').then(x=>x.json());
+        state.canPrototype = !!d.can_operate;
+        state.protoRows = d.candidates || []; state.protoRoot = d.prototype_root || '';
+        if(!state.protoDest) state.protoDest = state.protoRoot;   // 默认用建议目录，可改
+      } catch(e){ state.protoRows=[]; }
+    }
+    async function importProto(){
+      if(state.protoImporting) return;
+      state.protoMsg=''; state.protoErr=false; state.protoImporting=true;
+      try {
+        const r = await fetch('/api/prototype/import',{method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({sample_ids: state.protoSel, dest_root: state.protoDest||''})});
+        const d = await r.json();
+        if(!r.ok){ state.protoErr=true; state.protoMsg=d.detail||'导入失败'; return; }
+        state.protoMsg = `已移动 ${d.copied.length} 个到 ${d.prototype_root}，数据库标记 ${d.marked} 条，manifest 更新 ${d.manifest_updated||0} 条` + (d.errors.length?`；${d.errors.length} 个失败`:'');
+        await loadProto();   // 刷新候选（in_prototype 状态会更新）
+      } catch(e){ state.protoErr=true; state.protoMsg=String(e); }
+      finally { state.protoImporting=false; }
+    }
+    async function loadLabelRows(){
+      state.runMsg=''; state.runErr=false;
+      try {
+        const d = await fetch('/api/label_records?labeled_only=true').then(x=>x.json());
+        state.labelCols = (d.columns||[]).concat([]);  // 16 列，不含内部 index
+        state.labelRows = d.rows || [];
+      } catch(e){ state.labelRows=[]; state.runErr=true; state.runMsg=String(e); }
+    }
+    function exportNewTable(){ state.exportKind='label_records'; state.runMsg='请选择导出目录…'; nativeDir('export'); }
+    async function exportNonstandard(){
+      state.runErr=false;
+      const d = await fetch('/api/nonstandard_reasons').then(x=>x.json());
+      if(!d.count){ state.runMsg='没有非标准 reason 的样本'; return; }
+      state.runMsg = `发现 ${d.count} 个非标准 reason（${d.reasons.join('、')}），请选择导出目录…`;
+      state.exportKind='nonstandard'; nativeDir('export');
+    }
+    async function cleanNotes(){
+      state.runMsg=''; state.runErr=false;
+      const r = await fetch('/api/db/clean_notes',{method:'POST'});
+      const d = await r.json();
+      if(!r.ok){ state.runErr=true; state.runMsg=d.detail||'清理失败'; return; }
+      state.runMsg = `已清理 ${d.changed} 条 note（共 ${d.total} 条，行未删除）`;
+      loadLabelRows();
+    }
+    async function writeBackSV(){
+      state.runMsg=''; state.runErr=false;
+      const r = await fetch('/api/label_records/writeback',{method:'POST'});
+      const d = await r.json();
+      if(!r.ok){ state.runErr=true; state.runMsg=d.detail||'写回失败'; return; }
+      state.runMsg = `已写回 ${d.updated} 条到 ${d.path}`;
+    }
+    let runPollTimer = null;
+    async function loadRuns(){
+      state.runs = (await fetch('/api/tasks/runs').then(x=>x.json())).runs || [];
+      const anyRunning = state.runs.some(r=>r.status==='running'||r.status==='pending');
+      if(anyRunning && !runPollTimer){ runPollTimer = setInterval(loadRuns, 1000); }
+      if(!anyRunning && runPollTimer){ clearInterval(runPollTimer); runPollTimer=null; }
+    }
+    async function runTask(){
+      const r = await fetch('/api/tasks/run',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({task_id:state.taskForm.task_id, scope:state.taskForm.scope, params:state.taskForm.params})});
+      await loadRuns();
+    }
+    async function exportRun(r){
+      state.runMsg=''; state.runErr=false;
+      try {
+        const res = await fetch(`/api/tasks/run/${r.run_id}/export`,{method:'POST',
+          headers:{'Content-Type':'application/json'}, body:JSON.stringify({})});
+        const d = await res.json();
+        if(!res.ok){ state.runErr=true; state.runMsg=d.detail||'导出失败'; return; }
+        state.runMsg = `已导出 ${d.rows} 行到 ${d.path}`;
+      } catch(e){ state.runErr=true; state.runMsg=String(e); }
+    }
+
+    function purgeChannelPlots(){
+      // 切换样本前清理旧 Plotly 图：释放其 window resize 监听，避免内存泄漏
+      if(!window.Plotly) return;
+      for(const ch of state.channels){
+        for(const card of ch.cards.concat(ch.advCards||[])){
+          const el = document.getElementById('plot-'+ch.index+'-'+card.id);
+          if(el) try{ Plotly.purge(el); }catch(e){}
+        }
+      }
+    }
+    let _loadToken = 0;
+    async function loadGroup(sn){
+      const token = ++_loadToken;          // 标记本次导航，过期的加载不再渲染
+      const tAll=performance.now();
+      purgeChannelPlots();
+      state.currentSn = sn; state.opMsg='';
+      const _i = snList.value.indexOf(sn); if(_i>=0) state.navIdx=_i;   // 记住在筛选列表中的位置
+      state.channels = state.allRows.filter(r => r.sn === sn).map(makeChannel);
+      const tFetch=performance.now();
+      await Promise.all(state.channels.map(loadChannel));
+      if(token !== _loadToken) return;     // 已被更晚的点击取代 → 丢弃这次渲染
+      const fetchMs=performance.now()-tFetch;
+      const tRender=performance.now();
+      await renderPlots();
+      if(token !== _loadToken) return;
+      const renderMs=performance.now()-tRender;
+      const totalMs=performance.now()-tAll;
+      reportPerf(totalMs, fetchMs, renderMs);
+      prefetchNext();   // 后台预解压下一条，翻页瞬开
+    }
+    function reportPerf(totalMs, fetchMs, renderMs){
+      // 取“通道总耗时(hist+tasks+net)”最大的通道作为关键路径
+      let slow=null;
+      for(const ch of state.channels){
+        if(!ch._t) continue;
+        const tot=ch._t.histMs+ch._t.tasksMs+ch._t.netMs;
+        if(!slow || tot>slow._tot){ slow=ch._t; slow._tot=tot; }
+      }
+      slow = slow || {histMs:0,tasksMs:0,respMs:0,jsonMs:0,netMs:0,bytes:0,srv:null};
+      const s = slow.srv;
+      const ld = s && s.load_detail ? s.load_detail : {};
+      const cards = s && s.cards_ms ? s.cards_ms : {};
+      const cardsTotal = Object.values(cards).reduce((a,b)=>a+b,0);
+      const src = s ? (s.cache_hit?'卡片缓存命中'
+                      : ld.from_mem_cache?'内存缓存'
+                      : ld.from_disk_cache?'磁盘缓存':'解压.zst') : '-';
+      state.perf = `刷新 ${totalMs.toFixed(0)}ms ｜ history ${slow.histMs.toFixed(0)} · tasks ${slow.tasksMs.toFixed(0)}`
+                 + ` · cards请求 ${slow.respMs.toFixed(0)}(传输+排队)+JSON解析 ${slow.jsonMs.toFixed(0)}`
+                 + ` · 前端绘图 ${renderMs.toFixed(0)} ｜ 后端实算 解压${ld.decompress_ms??'-'}+处理${ld.process_ms??'-'}+绘图${cardsTotal.toFixed(0)}（${src}, ${(slow.bytes/1024).toFixed(0)}KB）`;
+      console.table({
+        '总耗时(点击→渲染完)': totalMs.toFixed(0),
+        '① reloadHistory(/history)': slow.histMs.toFixed(0),
+        '② loadChannelTasks(/tasks)': slow.tasksMs.toFixed(0),
+        '③ /cards 请求(传输+排队)': slow.respMs.toFixed(0),
+        '④ JSON.parse(响应)': slow.jsonMs.toFixed(0),
+        '⑤ 前端Plotly绘图': renderMs.toFixed(0),
+        '响应大小KB': (slow.bytes/1024).toFixed(1),
+        '——后端自测——': '——',
+        '解压/读缓存ms': ld.decompress_ms,
+        '信号处理ms': ld.process_ms,
+        '卡片渲染ms合计': cardsTotal.toFixed(0),
+        '数据来源': src,
+      });
+      if (s) console.table(cards);
+    }
+    function prefetchNext(){
+      const i = snPos.value;
+      const nextSn = (i>=0 && i<snList.value.length-1) ? snList.value[i+1] : null;
+      if(!nextSn) return;
+      const idxs = state.allRows.filter(r=>r.sn===nextSn).map(r=>r.index);
+      if(!idxs.length) return;
+      fetch('/api/prefetch',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({indices:idxs})}).catch(()=>{});
+    }
+
+    function goto(index){
+      const row = state.allRows[index];
+      if (!row) return;
+      state.view = 'label';
+      loadGroup(row.sn);
+    }
+    function prevGroup(){
+      const list=snList.value, i=list.indexOf(state.currentSn);
+      const target = (i>=0) ? i-1 : state.navIdx-1;     // 当前已掉出筛选列表→用记住的位置
+      if(target>=0 && target<list.length) loadGroup(list[target]);
+    }
+    function nextGroup(){
+      const list=snList.value, i=list.indexOf(state.currentSn);
+      // 当前还在列表→下一个；当前已被筛掉→它原来的位置现在正是“下一个”
+      const target = (i>=0) ? i+1 : state.navIdx;
+      if(target>=0 && target<list.length) loadGroup(list[target]);
+    }
+    function goSnIndex(){
+      const n = parseInt(state.gotoN, 10);
+      if(!n || n<1 || n>snList.value.length){ state.opErr=true; state.opMsg=`请输入 1~${snList.value.length}`; return; }
+      state.opErr=false; state.opMsg='';
+      loadGroup(snList.value[n-1]);
+    }
+
+    // 写操作后：刷新总览并把当前组的 row 引用更新（保留卡片不重渲染）
+    async function refreshRows(){
+      const d = await fetch('/api/overview?label_source='+state.labelSrc).then(x=>x.json());
+      state.allRows=d.rows; state.lines=d.lines; state.stats=d.stats; state.isMock=d.is_mock;
+      if(gridApi) applyFilters();
+      const byId = Object.fromEntries(state.allRows.map(r=>[r.sample_id, r]));
+      for (const ch of state.channels){ if(byId[ch.sample_id]) ch.row = byId[ch.sample_id]; }
+    }
+    // 进入「列表总览」：从后端拉取最新标注结果再展示（含当前标签来源）
+    async function openList(){
+      state.view='list';
+      try { await reload(); } catch(e){}
+    }
+
+    // 乐观保存：点击即在 label_history 生效并关闭表单，写库在后台进行；失败回滚提示。
+    function saveLabel(ch){
+      if (!ch.labelForm.reason_key){ ch.err=true; ch.msg='请选择 reason'; return; }
+      ch.err=false;
+      const t0=performance.now();
+      const rk=ch.labelForm.reason_key, conf=ch.labelForm.confidence, note=ch.labelForm.note;
+      const rname=(state.reasons.find(r=>r.key===rk)||{}).name||rk;
+      const opt={_id:null, source:(state.defaultSource||''), _src:(state.defaultSource||'expert'),
+        reason_name:rname, reason_key:rk, reason_confidence:conf, note:note,
+        timestamp:new Date().toISOString().slice(0,19)};
+      ch.history = ch.history.concat([opt]);   // 立即可见
+      applyHistoryToRow(ch);
+      ch.labelForm.open=false; ch.labelForm.note='';
+      const uiMs=performance.now()-t0;
+      fetch('/api/label',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({index:ch.index, reason_key:rk, reason_confidence:conf, note:note})})
+        .then(r=>r.json()).then(d=>{
+          if(d && d.history){ setHistory(ch, d.history); applyHistoryToRow(ch);
+            ch.msg=`已保存（界面 ${uiMs.toFixed(0)}ms · 后台写库 ${d.write_ms}ms）`; }
+          else { ch.err=true; ch.msg=(d&&d.detail)||'保存失败';
+            ch.history=ch.history.filter(x=>x!==opt); applyHistoryToRow(ch); }
+        }).catch(e=>{ ch.err=true; ch.msg=String(e);
+          ch.history=ch.history.filter(x=>x!==opt); applyHistoryToRow(ch); });
+    }
+
+    async function markTypical(ch, flag){
+      ch.msg=''; ch.err=false;
+      const r = await fetch('/api/typical',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({index:ch.index, flag})});
+      const d = await r.json();
+      if(!r.ok){ ch.err=true; ch.msg=d.detail||'操作失败'; return; }
+      ch.msg = flag?'已标记典型异音':'已取消典型异音';
+      await reloadHistory(ch); applyHistoryToRow(ch);
+    }
+
+    function initGrid(){
+      gridApi = agGrid.createGrid(document.getElementById('grid'), {
+        columnDefs: gridColumns(), rowData: visibleRows(),
+        defaultColDef:{ resizable:true, sortable:true },
+        rowSelection:'single',
+        getRowStyle: p => (p.data && (p.data.changed || p.data.has_expert)) ? { background:'#dcfce7' } : null,  // 本次改动 或 存在 source=expert 的标注 → 绿色行
+        onRowDoubleClicked: e => goto(e.data.index),
+      });
+    }
+
+    async function pruneMissing(){
+      if(!confirm(`将从数据库删除 ${state.stats.unresolved} 个无对应 tdms 文件的登记（含其标签事件），不可恢复。确认？`)) return;
+      const r = await fetch('/api/db/prune_missing',{method:'POST'});
+      const d = await r.json();
+      if(!r.ok){ alert(d.detail||'删除失败'); return; }
+      alert(`已删除 ${d.deleted_samples} 个样本登记、${d.deleted_events} 条标签事件`);
+      await reload();
+    }
+    async function reload(force){
+      state.refreshing = true;
+      try {
+        const q = '/api/refresh?label_source='+state.labelSrc + (force ? '&force=1' : '');
+        const d = await fetch(q).then(x=>x.json());   // 单请求：overview+list+config
+        const ov = d.overview || {};
+        state.allRows=ov.rows||[]; state.lines=ov.lines||[]; state.stats=ov.stats||{}; state.isMock=!!ov.is_mock;
+        state.hasDb = !!d.has_db;
+        state.defaultSource = d.default_source || state.defaultSource;
+        state.canPrototype = !!d.has_db && d.default_source==='expert';
+        state.fromSampleView = !!d.from_sample_view;
+        if(!state.fromSampleView && state.labelSrc==='sample_view') state.labelSrc='db';
+        state.listRows = (d.list && d.list.rows) || []; state.listColumns = (d.list && d.list.columns) || [];
+        state.reasonOptions = (d.list && d.list.reason_values) || [];
+        state.referenceOptions = (d.list && d.list.reference_values) || [];
+        if(gridApi){ gridApi.setGridOption('columnDefs', gridColumns()); applyFilters(); }
+        else initGrid();
+      } finally { state.refreshing = false; }
+    }
+    async function switchLabelSrc(){
+      state.filters.reason=[]; state.filters.reference=[];   // 切来源后选项变了，重置多选筛选
+      await reload();
+    }
+
+    Vue.onMounted(async () => {
+      const rs = await fetch('/api/reasons').then(x=>x.json());
+      state.reasons = rs.reasons || []; state.confidenceOptions = rs.confidence_options || {};
+      if (rs.sources && rs.sources.length) {
+        state.sources = rs.sources;
+        if (!state.sources.includes(state.initForm.source)) state.initForm.source = state.sources[0];
+      }
+      try {
+        const cd = await fetch('/api/cards').then(x=>x.json());
+        const def = new Set(cd.default||[]);
+        state.insertable = (cd.cards||[]).filter(c=>!def.has(c.id))
+          .map(c=>({id:c.id, title:c.title, params:c.params||[]}));
+      } catch(e){}
+      loadProjects();
+      const cfg = await fetch('/api/config').then(x=>x.json());
+      if (!cfg.is_mock && cfg.n_samples > 0) { await reload(); state.taskActive = true; state.view = 'list'; }
+    });
+    return { ...toRefs(state), pct, snPct, snList, snPos, pickerDirMode, currentTaskParams, svLabelCols, labelRowsView,
+             applyFilters, reload, goto, cardIcon,
+             prevGroup, nextGroup, goSnIndex, isAdvShown, toggleCard, applyCardParams, resetCardParams, acceptSuggestion,
+             confirmLabel, deleteLabel, confirmSvLabel,
+             loadProjects, openProject, deleteProject, newTask, editTask, registerTdms,
+             onDrop, openPicker, openPickerModal, nativeDir, openExport, browse, joinPath, pickFile, pickDir,
+             openTasks, loadLabelRows, exportNewTable, writeBackSV, pruneMissing,
+             openProto, loadProto, importProto, allProtoChecked, toggleAllProto, protoRowsView,
+             tryNativeDialog, doInit, saveLabel, markTypical, openList, switchLabelSrc };
+  }
+}).directive('click-outside', _ClickOutside).mount('#app');
+</script>
+</body>
+</html>

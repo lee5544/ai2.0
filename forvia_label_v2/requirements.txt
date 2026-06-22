@@ -1,0 +1,17 @@
+fastapi>=0.110
+uvicorn[standard]>=0.29
+pydantic>=2.0
+python-multipart>=0.0.9
+pandas>=2.0
+numpy>=1.24
+# 信号 / 频谱（复用现网 read_tdms + plot_utils）
+nptdms>=1.7
+scipy>=1.10
+librosa>=0.10
+soundfile>=0.12
+plotly>=5.18
+PyWavelets>=1.4
+EMD-signal>=1.5
+# 复用的 data_manager：yaml 规则 + .tdms.zst 解压
+PyYAML>=6.0
+zstandard>=0.21

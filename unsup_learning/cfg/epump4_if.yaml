@@ -1,0 +1,60 @@
+line_name: "epump4"  # "epump2"/"epump3"/"epump4"/"etilt"
+
+# 模型 ID 相关参数
+model:
+  model_name: "xx"  # 模型名称 "tianjing"
+
+# 输出路径, 结果文件是 ./results/line_name+model_name+model_type
+results_path: "./results/" # 结果存放路径 规定，用户不需要修改
+
+# 数据集 相关参数
+dataset:
+  tdms_folder: # 存放TDMS源数据的根目录
+    - "/Volumes/18555440521/fault/laser"
+
+  label_files: # 标签文件
+    - path: "/Volumes/18555440521/fault/laser/epump3/epump#3/1651629/label.csv"
+      line: "epump3"
+    - path: "/Volumes/18555440521/fault/laser/epump3/ep3-NOK/label.csv"
+      line: "epump3"
+
+    - path: "/Volumes/18555440521/fault/laser/epump4/ep4-1000pcs-NOK/label.csv"
+      line: "epump4"
+    - path: "/Volumes/18555440521/fault/laser/epump4/ep4-20250706-missedkill/label.csv"
+      line: "epump4"
+    - path: "/Volumes/18555440521/fault/laser/epump4/ep4-202506/label.csv"
+      line: "epump4"
+    - path: "/Volumes/18555440521/fault/laser/epump4/ep4-20250910-artificial/label.csv"
+      line: "epump4"
+
+  augmentation: # 数据增强
+    enable: False
+    tdms_aug_folder: # 存放待增强的TDMS源数据的根目录
+      - "/Volumes/18555440521/fault/laser"
+    label_aug_files: # 待增强的标签文件
+      - path: "/Volumes/18555440521/fault/laser/epump4/aug_mada.csv"
+        line: "epump4"
+    target_amount: 5 # 增强数量
+    aug_save_path: "/Volumes/18555440521/fault/laser/epump4/aug_mada" # 存放增强后的tdms和标签文件
+
+# 训练 相关参数
+train:
+  model_type: "if"  # 模型类别 规定，当前阶段用户不需要修改 "xgb"，后续可扩展其它模型
+
+  train_mode: "normal" # 训练方式，支持 "normal"、"grid"、"cross"
+
+  label_config: #
+    # type/label 自定义标签的中文/数据
+    # enable 是否加入训练
+    # mlabel 模型的标签，支持多个自定义标签合并
+    # sample 采样数量，支持调整标签比例，"-1" 表示全部使用
+    - {type: 正常,   enable: true,  label: 0,   mlabel: 0, sample: -1}
+    - {type: 干扰,   enable: true,  label: -1,  mlabel: 0, sample: -1}
+    - {type: 边界,   enable: true,  label: 2,   mlabel: 0, sample: -1}
+    # - {type: 秒表,   enable: true,  label: 11,  mlabel: 1, sample: -1}
+    # - {type: 摩擦,   enable: true,  label: 12,  mlabel: 1, sample: -1}
+    # - {type: 杂音,   enable: true,  label: 13,  mlabel: 2, sample: -1}
+    # - {type: 咬齿,   enable: true,  label: 14,  mlabel: 3, sample: -1}
+    # - {type: 震颤,   enable: true,  label: 15,  mlabel: 4, sample: -1}
+    # - {type: 马达,   enable: true,  label: 151, mlabel: 4, sample: -1}
+    - {type: 其它,   enable: true, label: 16,  mlabel: 1, sample: -1}
