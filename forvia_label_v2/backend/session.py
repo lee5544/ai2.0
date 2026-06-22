@@ -94,6 +94,39 @@ def _direction_of(sample_id: str) -> str:
     return "up"
 
 
+def _explode_list_sample_ids(sv: pd.DataFrame) -> pd.DataFrame:
+    """有的 sample_view 把一个 tdms 的 up/down 合并成一行，sample_id 写成列表
+    （如 ["AB6A0001_up","AB6A0001_down"]）。这里把这种行拆成每个原子一行，
+    避免列表整体被当成一个样本（导致列表里出现 up+down 同一行的脏行）。"""
+    if "sample_id" not in sv.columns:
+        return sv
+
+    def _parse(v):
+        if isinstance(v, (list, tuple)):
+            return [str(x) for x in v]
+        s = str(v or "").strip()
+        if s.startswith("[") and s.endswith("]"):
+            for loader in (json.loads, __import__("ast").literal_eval):
+                try:
+                    arr = loader(s)
+                    if isinstance(arr, (list, tuple)):
+                        return [str(x) for x in arr]
+                except Exception:
+                    continue
+        return None
+
+    rows, changed = [], False
+    for _, r in sv.iterrows():
+        lst = _parse(r.get("sample_id"))
+        if lst:
+            changed = True
+            for sid in lst:
+                nr = r.to_dict(); nr["sample_id"] = sid; rows.append(nr)
+        else:
+            rows.append(r.to_dict())
+    return pd.DataFrame(rows).reset_index(drop=True) if changed else sv
+
+
 def complete_samples(sv: pd.DataFrame) -> pd.DataFrame:
     """补齐每个 tdms(按 sn) 的所有分析原子(up/down)，并标识哪些是原始输入。
 
@@ -408,13 +441,17 @@ class LabelSession:
             idx_by_id.setdefault(sid, i)
         return sv_by_id, idx_by_id
 
-    def label_records(self, labeled_only: bool = True) -> list[dict]:
-        """构造完整标签结果表（16 列）。labeled_only=True 只含有标注记录的行。"""
+    def label_records(self, labeled_only: bool = True, changed_only: bool = False) -> list[dict]:
+        """构造完整标签结果表（16 列）。labeled_only=True 只含有标注记录的行；
+        changed_only=True 只含本次任务里被人工改动过的样本（确认/删除/保存/标记典型）。"""
         sv_by_id, idx_by_id = self._sv_lookup()
+        changed = self.changed_ids if changed_only else None
         out = []
         if labeled_only:
             for rec in self.label_table.events_normalized():
                 sid = str(rec.get("sample_id", ""))
+                if changed is not None and sid not in changed:
+                    continue
                 base = sv_by_id.get(sid, {})
                 row = {c: str(rec.get(c, "") or "") for c in LABEL_TABLE_COLUMNS}
                 row["group_name"] = base.get("group_name", "") or row.get("group_name", "")
@@ -427,6 +464,8 @@ class LabelSession:
             latest = self.latest_label_map()
             for i, (_, r) in enumerate(self.sample_view.iterrows()):
                 sid = str(r.get("sample_id", ""))
+                if changed is not None and sid not in changed:
+                    continue
                 lab = latest.get(sid, {})
                 row = {"line": str(r.get("line", "")), "sn": str(r.get("sn", "")),
                        "sample_id": sid, "group_name": str(r.get("group_name", "")),
@@ -511,8 +550,9 @@ class LabelSession:
             rows.append(row)
         return {"columns": columns, "rows": rows, **_distinct_filters(rows)}
 
-    def write_back_sample_view(self) -> tuple[str, int]:
+    def write_back_sample_view(self, changed_only: bool = False) -> tuple[str, int]:
         """把最新标签写回输入的 sample_view.csv（按 sample_id 更新标签相关列，保留原有列）。
+        changed_only=True 时只写回本次任务改动过的样本。
         若当前任务只给了 TDMS 目录、没有 sample_view 文件，则在该目录下新建 sample_view.csv。"""
         if self.sample_view_path:
             path = Path(self.sample_view_path).expanduser()
@@ -523,6 +563,7 @@ class LabelSession:
             raise RuntimeError("当前任务既无 sample_view 文件路径也无 TDMS 目录，无法写回")
         df = self.sample_view.copy()
         latest = self.latest_label_map()
+        changed = self.changed_ids if changed_only else None
         # 仅原始输入行写回（补全的行不写回 sample_view）
         for c in _LABEL_ONLY_COLS:
             if c not in df.columns:
@@ -530,6 +571,8 @@ class LabelSession:
         n = 0
         for i in range(len(df)):
             sid = str(df.iloc[i].get("sample_id", ""))
+            if changed is not None and sid not in changed:
+                continue
             lab = latest.get(sid)
             if not lab:
                 continue
@@ -745,6 +788,10 @@ def init_session(sample_view_path: str | None = None,
         sv = mock_sample_view()                               # 仍为空 → 演示数据
         is_mock = True
 
+    # 先把 sample_id 是列表（up/down 合并成一行）的行拆开，每个原子一行。
+    if not is_mock:
+        sv = _explode_list_sample_ids(sv)
+
     # 规整 sn / sample_id（兼容只带 sn 或只带 sample_id 的输入表）：
     #  · 有 sample_id 缺 sn → 从 sample_id 去掉结尾 _up/_down 推导 sn；
     #  · 有 sn 缺 sample_id → sample_id=sn_up（complete_samples 再补 _down）。
@@ -801,7 +848,7 @@ def init_session(sample_view_path: str | None = None,
     try:
         # 工作空间新建且无外部种子时，用 sample_view 登记样本
         if seed_new and str(store_path).endswith(".db"):
-            LabelDatabase(store_path).replace_samples(
+            LabelDatabase(store_path, auto_export=False).replace_samples(
                 sv.fillna("").to_dict("records"), all_samples=True)
         label_table = LabelTable(store_path)
         if is_mock:   # 演示模式：种子标签

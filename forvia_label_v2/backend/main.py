@@ -514,26 +514,29 @@ def api_list_view():
 
 
 @app.get("/api/label_records")
-def api_label_records(labeled_only: bool = True):
-    """完整标签结果表（16 列）。labeled_only=True 只含做过标注的记录。"""
+def api_label_records(labeled_only: bool = True, changed_only: bool = False):
+    """完整标签结果表（16 列）。labeled_only=True 只含做过标注的记录；
+    changed_only=True 只含本次任务改动过的样本。"""
     from .session import LABEL_TABLE_COLUMNS
     s = get_session()
-    return {"columns": LABEL_TABLE_COLUMNS, "rows": s.label_records(labeled_only=labeled_only),
-            "has_db": s.has_db}
+    return {"columns": LABEL_TABLE_COLUMNS,
+            "rows": s.label_records(labeled_only=labeled_only, changed_only=changed_only),
+            "has_db": s.has_db, "changed_count": len(s.changed_ids)}
 
 
 class LabelExportReq(BaseModel):
     out_path: str = ""
+    changed_only: bool = True   # 默认只导出本次任务改动过的标签
 
 
 @app.post("/api/label_records/export")
 def api_label_records_export(req: LabelExportReq):
-    """导出"标签结果表"为新 CSV（16 列，含 group/channel）。"""
+    """导出"标签结果表"为新 CSV（16 列，含 group/channel）。默认仅导出本次任务改动过的标签。"""
     import csv as _csv
     from datetime import datetime
     from .session import LABEL_TABLE_COLUMNS
     s = get_session()
-    rows = s.label_records(labeled_only=True)
+    rows = s.label_records(labeled_only=True, changed_only=req.changed_only)
     out = req.out_path
     base = Path(s.sample_view_path).expanduser().parent if s.sample_view_path else Path(tempfile.gettempdir())
     if not out:
@@ -551,12 +554,16 @@ def api_label_records_export(req: LabelExportReq):
     return {"ok": True, "path": str(outp), "rows": len(rows)}
 
 
+class WritebackReq(BaseModel):
+    changed_only: bool = True   # 默认只写回本次任务改动过的样本
+
+
 @app.post("/api/label_records/writeback")
-def api_label_records_writeback():
-    """把最新标签写回输入的 sample_view.csv。"""
+def api_label_records_writeback(req: WritebackReq = WritebackReq()):
+    """把最新标签写回输入的 sample_view.csv。默认仅写回本次任务改动过的样本。"""
     s = get_session()
     try:
-        path, n = s.write_back_sample_view()
+        path, n = s.write_back_sample_view(changed_only=req.changed_only)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"写回失败: {e}")
     return {"ok": True, "path": path, "updated": n}

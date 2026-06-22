@@ -27,6 +27,53 @@ DEFAULT_SOURCE = "expert"
 REASONS = [{"key": r["key"], "name": r["name"]} for r in RUNTIME.reasons.values()]
 CONFIDENCE_OPTIONS = {"强烈 0.9": 0.9, "中等 0.6": 0.6, "微弱 0.3": 0.3}
 
+# ---- 用 label_rules.yaml 把标签 6 字段(result/reason 的 key/id/name)补成一致 ----
+_REASON_KEY_BY_ID: dict[int, str] = {}
+for _k, _r in RUNTIME.reasons.items():
+    try:
+        _REASON_KEY_BY_ID[int(_r["id"])] = _k
+    except (TypeError, ValueError, KeyError):
+        pass
+# 旧标签 id → reason_key（cfg 里 meta.legacy_label_to_reason），用于历史/推理数据里的旧 id
+_LEGACY_ID_BY_KEY: dict[int, str] = {}
+for _legacy, _key in (LABEL_RULES.get("meta", {}).get("legacy_label_to_reason", {}) or {}).items():
+    try:
+        _LEGACY_ID_BY_KEY[int(_legacy)] = _key
+    except (TypeError, ValueError):
+        pass
+
+
+def _resolve_reason_key(reason_key: str = "", reason_id=None, reason_name: str = "") -> str | None:
+    """按 key → name/alias → id(规范 id，再退回旧 id) 的优先级，解析出 yaml 里规范的 reason_key。"""
+    rk = str(reason_key or "").strip()
+    if rk in RUNTIME.reasons:
+        return rk
+    rn = str(reason_name or "").strip()
+    if rn and rn in RUNTIME.reason_name_to_key:
+        return RUNTIME.reason_name_to_key[rn]
+    if reason_id is not None and str(reason_id).strip() != "":
+        try:
+            rid = int(float(reason_id))
+            if rid in _REASON_KEY_BY_ID:
+                return _REASON_KEY_BY_ID[rid]
+            if rid in _LEGACY_ID_BY_KEY:
+                return _LEGACY_ID_BY_KEY[rid]
+        except (TypeError, ValueError):
+            pass
+    return None
+
+
+def reconcile_label_fields(row: dict) -> dict:
+    """就地把 row 的 result_key/id/name + reason_key/id/name 改成与 yaml 一致（解析不出则保持原样）。"""
+    key = _resolve_reason_key(row.get("reason_key", ""), row.get("reason_id"), row.get("reason_name", ""))
+    if not key:
+        return row
+    reason = RUNTIME.reasons[key]
+    result = RUNTIME.get_result_by_reason(key)
+    row["reason_key"], row["reason_id"], row["reason_name"] = reason["key"], reason["id"], reason["name"]
+    row["result_key"], row["result_id"], row["result_name"] = result["key"], result["id"], result["name"]
+    return row
+
 
 def build_decision_result(reason_name: str = "", reason_key: str = "",
                           source: str = DEFAULT_SOURCE) -> dict:
@@ -41,6 +88,12 @@ class LabelTable:
     def __init__(self, path: str | Path):
         self.path = Path(path).expanduser()
         self.store = LabelStore(self.path)
+        # 关键性能：关掉 LabelDatabase 的“每次写入都重导出整张 CSV”（auto_export）。
+        # 否则每标注一条就把上万条记录重写一遍 CSV，导致下一次刷新巨慢。导出由“导出表格结果”按钮显式完成。
+        try:
+            self.store.database.auto_export = False
+        except Exception:
+            pass
         self._cache: list[dict] | None = None      # 全部 confirmed 事件（raw，含 id）的内存缓存
         self._lock = threading.RLock()             # 保护缓存 + 写库（确认/删除/保存为并发即发即忘）
         # 镜像（外部数据库）双写：主存储=本地工作空间，每次标注后把该样本同步到外部 db（后台线程，不阻塞）。
@@ -73,7 +126,8 @@ class LabelTable:
         if self._mirror_db is None:
             try:
                 from data_manager.label_database import LabelDatabase
-                self._mirror_db = LabelDatabase(Path(self.mirror_path).expanduser())
+                # auto_export=False：镜像写入外部库时不要重导出整张 CSV（这是之前变慢的主因）
+                self._mirror_db = LabelDatabase(Path(self.mirror_path).expanduser(), auto_export=False)
             except Exception:
                 self._mirror_db = None
         return self._mirror_db
@@ -128,11 +182,12 @@ class LabelTable:
             srs = self._srs
             if srs is not None:
                 try:
-                    self._cache = [dict(e) for e in srs.list_label_events(statuses={"confirmed"})]
+                    self._cache = [reconcile_label_fields(dict(e))
+                                   for e in srs.list_label_events(statuses={"confirmed"})]
                 except Exception:
                     self._cache = []
             else:
-                self._cache = [dict(r) for r in self.store.list_all()]
+                self._cache = [reconcile_label_fields(dict(r)) for r in self.store.list_all()]
         return self._cache
 
     def invalidate_cache(self) -> None:
@@ -148,7 +203,8 @@ class LabelTable:
         srs = self._srs
         if srs is not None:
             try:
-                cache.extend(dict(e) for e in srs.list_label_events(sample_id=sid, statuses={"confirmed"}))
+                cache.extend(reconcile_label_fields(dict(e))
+                             for e in srs.list_label_events(sample_id=sid, statuses={"confirmed"}))
             except Exception:
                 pass
 

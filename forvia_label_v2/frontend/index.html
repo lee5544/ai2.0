@@ -171,9 +171,15 @@
   <div v-show="view==='task'" class="wrap" style="max-width:none;margin:0 auto">
     <div class="card" style="padding:16px">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
-        <h3 style="margin:0;font-size:15px">标签结果（{{ labelRows.length }} 条已标注）</h3>
+        <h3 style="margin:0;font-size:15px">{{ exportScope==='changed' ? '本次改动标签' : '全部标签' }}（{{ labelRows.length }} 条）</h3>
+        <div style="display:inline-flex;border:1px solid var(--bd);border-radius:7px;overflow:hidden">
+          <button class="btn" :class="{primary: exportScope==='changed'}" style="border:0;border-radius:0"
+                  @click="setExportScope('changed')">仅本次改动</button>
+          <button class="btn" :class="{primary: exportScope==='all'}" style="border:0;border-radius:0;border-left:1px solid var(--bd)"
+                  @click="setExportScope('all')">全部</button>
+        </div>
         <button class="btn" @click="loadLabelRows">↻ 刷新</button>
-        <span v-if="labelRows.length>labelRowCap" class="hint" style="font-size:12px">仅预览前 {{ labelRowCap }} 条（导出/写回包含全部 {{ labelRows.length }} 条）</span>
+        <span class="hint" style="font-size:12px"><template v-if="exportScope==='changed'">仅含本次任务改动过的样本（确认/删除/保存/标记典型）</template><template v-else>含全部已标注样本</template><template v-if="labelRows.length>labelRowCap">；预览前 {{ labelRowCap }} 条，导出含全部 {{ labelRows.length }} 条</template></span>
         <button class="btn primary" style="margin-left:auto" :disabled="!labelRows.length" @click="exportNewTable">⬇ 导出新表格</button>
         <button class="btn" :disabled="!labelRows.length" @click="writeBackSV">↩ 写回 sample_view</button>
       </div>
@@ -646,7 +652,7 @@ createApp({
       reasons: [], confidenceOptions: {},
       insertable: [],
       taskTypes: [], taskForm: { task_id:'', scope:'all', params:{} }, runs: [], runMsg:'', runErr:false,
-      labelRows: [], labelCols: [], labelRowCap: 500,
+      labelRows: [], labelCols: [], labelRowCap: 500, exportScope: 'changed',
       opMsg:'', opErr:false,
     });
     let gridApi = null;
@@ -818,8 +824,10 @@ createApp({
       const setMsg = (err,msg)=>{ if(toRun){state.runErr=err;state.runMsg=msg;} else {state.opErr=err;state.opMsg=msg;} };
       setMsg(false,'');
       try {
+        const body = {out_path: dir};
+        if(kind==='label_records') body.changed_only = (state.exportScope==='changed');
         const r = await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({out_path: dir})});
+          body:JSON.stringify(body)});
         const d = await r.json();
         if(!r.ok){ setMsg(true, d.detail||'导出失败'); return; }
         setMsg(false, `已导出 ${d.rows} 条到 ${d.path}`);
@@ -1206,10 +1214,12 @@ createApp({
       } catch(e){ state.protoErr=true; state.protoMsg=String(e); }
       finally { state.protoImporting=false; }
     }
+    function setExportScope(scope){ state.exportScope = scope; loadLabelRows(); }
     async function loadLabelRows(){
       state.runMsg=''; state.runErr=false;
+      const co = state.exportScope==='changed' ? 'true' : 'false';
       try {
-        const d = await fetch('/api/label_records?labeled_only=true').then(x=>x.json());
+        const d = await fetch(`/api/label_records?labeled_only=true&changed_only=${co}`).then(x=>x.json());
         state.labelCols = (d.columns||[]).concat([]);  // 16 列，不含内部 index
         state.labelRows = d.rows || [];
       } catch(e){ state.labelRows=[]; state.runErr=true; state.runMsg=String(e); }
@@ -1232,10 +1242,11 @@ createApp({
     }
     async function writeBackSV(){
       state.runMsg=''; state.runErr=false;
-      const r = await fetch('/api/label_records/writeback',{method:'POST'});
+      const r = await fetch('/api/label_records/writeback',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({changed_only: (state.exportScope==='changed')})});
       const d = await r.json();
       if(!r.ok){ state.runErr=true; state.runMsg=d.detail||'写回失败'; return; }
-      state.runMsg = `已写回 ${d.updated} 条到 ${d.path}`;
+      state.runMsg = `已写回 ${d.updated} 条到 ${d.path}（${state.exportScope==='changed'?'仅本次改动':'全部'}）`;
     }
     let runPollTimer = null;
     async function loadRuns(){
@@ -1413,7 +1424,12 @@ createApp({
         columnDefs: gridColumns(), rowData: visibleRows(),
         defaultColDef:{ resizable:true, sortable:true },
         rowSelection:'single',
-        getRowStyle: p => (p.data && (p.data.changed || p.data.has_expert)) ? { background:'#dcfce7' } : null,  // 本次改动 或 存在 source=expert 的标注 → 绿色行
+        getRowStyle: p => {                                    // 本次修改→淡红(覆盖绿)；数据库已有标签→绿；否则无色
+          if(!p.data) return null;
+          if(p.data.changed) return { background:'#fecaca' };
+          if(p.data.labeled || p.data.has_expert) return { background:'#dcfce7' };
+          return null;
+        },
         onRowDoubleClicked: e => goto(e.data.index),
       });
     }
@@ -1473,7 +1489,7 @@ createApp({
              confirmLabel, deleteLabel, confirmSvLabel,
              loadProjects, openProject, deleteProject, newTask, editTask, registerTdms,
              onDrop, openPicker, openPickerModal, nativeDir, openExport, browse, joinPath, pickFile, pickDir,
-             openTasks, loadLabelRows, exportNewTable, writeBackSV, pruneMissing,
+             openTasks, loadLabelRows, setExportScope, exportNewTable, writeBackSV, pruneMissing,
              openProto, loadProto, importProto, allProtoChecked, toggleAllProto, protoRowsView,
              tryNativeDialog, doInit, saveLabel, markTypical, openList, switchLabelSrc };
   }
