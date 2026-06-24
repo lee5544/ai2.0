@@ -761,6 +761,13 @@ def init_session(sample_view_path: str | None = None,
                  label_records_db_path: str | None = None,
                  source: str = "expert") -> LabelSession:
     global SESSION
+    # 先回收上一个任务的镜像后台线程，否则旧 LabelTable（含整份事件缓存）会被线程引用而无法释放，
+    # 反复切换/重载任务会导致内存持续增长。
+    if SESSION is not None and getattr(SESSION, "label_table", None) is not None:
+        try:
+            SESSION.label_table.close()
+        except Exception:
+            pass
     # 数据库文件夹/文件 → 现成 db 文件 + 数据库文件夹（用于 manifest 查找 / 无 sample_view 时生成）
     db_file, db_folder = _resolve_db(label_records_db_path)
 

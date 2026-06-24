@@ -48,7 +48,7 @@ from ml.runtime import (
     build_uniform_threshold_dict,
     predict_with_threshold_rule,
 )
-from ml.dataset.split import (
+from ml.training.split import (
     PreparedCrossValidationData,
     TrainValTestSplit,
     resolve_split_strategy_name,

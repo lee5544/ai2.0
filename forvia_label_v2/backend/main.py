@@ -632,6 +632,44 @@ def _card_cache_put(key, val):
         _CARD_CACHE.popitem(last=False)
 
 
+import gc as _gc
+import platform as _platform
+
+_trim_lock = threading.Lock()
+_last_trim = 0.0
+
+
+def _release_memory_to_os() -> None:
+    """gc 回收后，把已释放的堆内存真正还给操作系统，避免 numpy/plotly 反复造大数组导致
+    RSS 只涨不落。Linux 用 malloc_trim，Windows 压缩工作集，macOS 用 gc（无 malloc_trim）。"""
+    _gc.collect()
+    try:
+        sysname = _platform.system()
+        if sysname == "Linux":
+            import ctypes
+            ctypes.CDLL("libc.so.6").malloc_trim(0)
+        elif sysname == "Windows":
+            import ctypes
+            k32 = ctypes.windll.kernel32
+            # (SIZE_T)-1, (SIZE_T)-1 = 临时把工作集裁到最小，已释放页归还系统
+            k32.SetProcessWorkingSetSize(k32.GetCurrentProcess(),
+                                         ctypes.c_size_t(-1), ctypes.c_size_t(-1))
+    except Exception:
+        pass
+
+
+def _maybe_trim_memory(min_interval: float = 2.0) -> None:
+    """限频触发内存回收（默认最多每 2 秒一次），避免每次请求都裁工作集拖慢翻页。"""
+    global _last_trim
+    import time as _t
+    now = _t.monotonic()
+    with _trim_lock:
+        if now - _last_trim < min_interval:
+            return
+        _last_trim = now
+    _release_memory_to_os()
+
+
 @app.get("/api/sample/{index}/cards")
 def api_sample_cards(index: int, ids: str = ""):
     """渲染指定卡片（逗号分隔；缺省=默认卡片）-> Plotly figure JSON 列表。带缓存。"""
@@ -671,6 +709,8 @@ def api_sample_cards(index: int, ids: str = ""):
                 results[cid] = {"id": cid, "title": cid, "category": "", "figure": None, "error": str(e)}
             timings["cards_ms"][cid] = round((_t.perf_counter() - tc) * 1000, 1)
     out = [results[cid] for cid in card_ids if results.get(cid) is not None]
+    if not timings["cache_hit"]:        # 本次真的解压/算图了 → 回收期间产生的大数组
+        _maybe_trim_memory()
     return {"index": index, "sample_id": sid, "cards": out, "timings": timings}
 
 

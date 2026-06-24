@@ -7,6 +7,11 @@ from torch import nn
 from .cnn1d_model import CNN1DClassifier, build_cnn1d_model, resolve_cnn1d_config
 from .cnn2d_model import CNN2DClassifier, build_cnn2d_model, resolve_cnn2d_config
 from .lstm_model import LSTMClassifier, build_lstm_model, resolve_lstm_config
+from .multiscale_cnn1d import (
+    MultiScaleCNN1DClassifier,
+    build_multiscale_cnn1d_model,
+    resolve_multiscale_cnn1d_config,
+)
 from .resnet2d_model import ResNet2DClassifier, build_resnet_model, resolve_resnet_config
 from .tcn_model import TCNClassifier, build_tcn_model, resolve_tcn_config
 
@@ -28,6 +33,11 @@ def normalize_model_arch(value: str | None) -> str:
         "tcn": "tcn",
         "temporalcnn": "tcn",
         "dilatedcnn": "tcn",
+        "multiscalecnn1d": "multiscale_cnn1d",
+        "multiscalecnn": "multiscale_cnn1d",
+        "multiscale": "multiscale_cnn1d",
+        "mscnn1d": "multiscale_cnn1d",
+        "mscnn": "multiscale_cnn1d",
     }
     if raw not in alias_map:
         supported = ", ".join(sorted({x for x in alias_map.values()}))
@@ -80,6 +90,14 @@ def build_dl_model(
     elif model_arch == "tcn":
         resolved_config = resolve_tcn_config(model_cfg=model_cfg, train_cfg=train_cfg)
         model = build_tcn_model(
+            in_channels=in_channels,
+            sequence_length=sequence_length,
+            num_classes=num_classes,
+            config=resolved_config,
+        )
+    elif model_arch == "multiscale_cnn1d":
+        resolved_config = resolve_multiscale_cnn1d_config(model_cfg=model_cfg, train_cfg=train_cfg)
+        model = build_multiscale_cnn1d_model(
             in_channels=in_channels,
             sequence_length=sequence_length,
             num_classes=num_classes,

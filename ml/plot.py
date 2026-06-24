@@ -33,7 +33,7 @@ from sklearn.preprocessing import StandardScaler
 
 
 try:
-    from ml.dataset.loader import load_sampled_training_dataframe, load_training_dataframe
+    from ml.training.loader import load_sampled_training_dataframe, load_training_dataframe
     from ml.training.config import (
         DEFAULT_CONFIG_PATH,
         NON_FEATURE_COLUMNS,

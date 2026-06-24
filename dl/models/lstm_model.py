@@ -5,15 +5,18 @@ from typing import Any
 import torch
 from torch import nn
 
+from .base_model import BaseModel
 from .common import pick_config_value, to_bool, to_float, to_int
 
 
-class LSTMClassifier(nn.Module):
+class LSTMClassifier(BaseModel):
     """
     输入张量形状:
     - [batch, channels, steps]
     内部会转成 [batch, steps, channels]
     """
+
+    arch_name = "lstm"
 
     def __init__(
         self,
@@ -26,13 +29,19 @@ class LSTMClassifier(nn.Module):
         dropout: float = 0.2,
         hidden_dim: int = 128,
     ) -> None:
-        super().__init__()
-        if int(in_channels) <= 0:
-            raise ValueError(f"in_channels 必须 > 0，当前: {in_channels}")
-        if int(num_classes) <= 1:
-            raise ValueError(f"num_classes 必须 > 1，当前: {num_classes}")
         lstm_hidden_size = max(8, int(lstm_hidden_size))
         lstm_layers = max(1, int(lstm_layers))
+        super().__init__(
+            in_channels=in_channels,
+            num_classes=num_classes,
+            hyperparams={
+                "lstm_hidden_size": int(lstm_hidden_size),
+                "lstm_layers": int(lstm_layers),
+                "bidirectional": bool(bidirectional),
+                "dropout": float(dropout),
+                "hidden_dim": int(hidden_dim),
+            },
+        )
         lstm_dropout = float(dropout) if lstm_layers > 1 else 0.0
         self.bidirectional = bool(bidirectional)
         self.lstm = nn.LSTM(
@@ -51,9 +60,7 @@ class LSTMClassifier(nn.Module):
             nn.Linear(int(hidden_dim), int(num_classes)),
         )
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        if x.ndim != 3:
-            raise ValueError(f"LSTMClassifier 期望输入维度为 3，当前: {tuple(x.shape)}")
+    def _forward_impl(self, x: torch.Tensor) -> torch.Tensor:
         x = x.transpose(1, 2)
         _, (h_n, _) = self.lstm(x)
         if self.bidirectional:

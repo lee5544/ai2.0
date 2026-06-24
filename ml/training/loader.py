@@ -1,7 +1,7 @@
 """训练数据加载与重采样工具。
 
 职责：从特征 CSV 文件加载 DataFrame，规范化标签，按目标样本数重采样。
-划分逻辑（train/val/test split / CV）见 ml.dataset.split。
+划分逻辑（train/val/test split / CV）见 ml.training.split。
 """
 
 from __future__ import annotations

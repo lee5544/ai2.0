@@ -135,12 +135,35 @@ class LabelTable:
     def _mirror_worker(self) -> None:
         while True:
             sid = self._sync_q.get()
+            if sid is None:                  # 哨兵：停止信号（task 切换时回收线程，避免老 LabelTable 泄漏）
+                self._sync_q.task_done()
+                break
             try:
                 self._sync_sample_to_mirror(sid)
             except Exception:
                 pass
             finally:
                 self._sync_q.task_done()
+
+    def close(self) -> None:
+        """停止镜像后台线程并释放外部库连接（切换任务时调用，防止旧表常驻内存）。"""
+        if self._sync_q is not None:
+            try:
+                self._sync_q.put_nowait(None)   # 排在队尾：已排队的同步先处理完再退出
+            except Exception:
+                pass
+        self._sync_thread = None
+        mdb = self._mirror_db
+        self._mirror_db = None
+        if mdb is not None:
+            for attr in ("close", "dispose"):
+                fn = getattr(mdb, attr, None)
+                if callable(fn):
+                    try:
+                        fn()
+                    except Exception:
+                        pass
+                    break
 
     def _sync_sample_to_mirror(self, sample_id: str) -> None:
         """用本地工作空间里该样本的当前事件，覆盖外部数据库里同一样本的事件（删后插）。"""

@@ -48,7 +48,7 @@ try:
         resolve_split_strategy_name,
     )
 except ModuleNotFoundError:  # pragma: no cover
-    from ml.dataset.split import (
+    from ml.training.split import (
         PreparedCrossValidationData,
         TrainValTestSplit,
         resolve_split_strategy_name,

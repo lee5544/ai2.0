@@ -273,7 +273,7 @@ def load_training_config(config_path: str | Path) -> tuple[Path, dict[str, Any]]
 
 def run_training(model: Any, train_mode: object) -> None:
     """根据 train_mode 协调训练流程（normal / cross / grid）。"""
-    from ml.dataset.split import (
+    from ml.training.split import (
         prepare_cross_validation_for_model,
         prepare_grid_search_cv_from_split,
         prepare_train_val_test_for_model,

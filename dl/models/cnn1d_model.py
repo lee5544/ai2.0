@@ -5,6 +5,7 @@ from typing import Any, Iterable
 import torch
 from torch import nn
 
+from .base_model import BaseModel
 from .common import normalize_channel_list, pick_config_value, to_float, to_int, to_int_list
 
 
@@ -24,11 +25,13 @@ class Conv1dBlock(nn.Module):
         return self.block(x)
 
 
-class CNN1DClassifier(nn.Module):
+class CNN1DClassifier(BaseModel):
     """
     输入张量形状:
     - [batch, channels, steps]
     """
+
+    arch_name = "cnn1d"
 
     def __init__(
         self,
@@ -40,12 +43,17 @@ class CNN1DClassifier(nn.Module):
         dropout: float = 0.2,
         hidden_dim: int = 128,
     ) -> None:
-        super().__init__()
         conv_channels = normalize_channel_list(conv_channels, default=[32, 64, 128])
-        if int(in_channels) <= 0:
-            raise ValueError(f"in_channels 必须 > 0，当前: {in_channels}")
-        if int(num_classes) <= 1:
-            raise ValueError(f"num_classes 必须 > 1，当前: {num_classes}")
+        super().__init__(
+            in_channels=in_channels,
+            num_classes=num_classes,
+            hyperparams={
+                "conv_channels": list(conv_channels),
+                "kernel_size": int(kernel_size),
+                "dropout": float(dropout),
+                "hidden_dim": int(hidden_dim),
+            },
+        )
 
         layers = []
         prev_channels = int(in_channels)
@@ -69,9 +77,7 @@ class CNN1DClassifier(nn.Module):
             nn.Linear(int(hidden_dim), int(num_classes)),
         )
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        if x.ndim != 3:
-            raise ValueError(f"CNN1DClassifier 期望输入维度为 3，当前: {tuple(x.shape)}")
+    def _forward_impl(self, x: torch.Tensor) -> torch.Tensor:
         x = self.encoder(x)
         x = self.pool(x)
         return self.classifier(x)

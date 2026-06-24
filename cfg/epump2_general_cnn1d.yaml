@@ -19,7 +19,7 @@ database:
   tdms_root:             /Volumes/18555440521/fault/data_root/factory_raw
   manifest_path:         /Volumes/18555440521/fault/data_root/metadata/tdms_manifest.csv
   configured: true
-
+  last_operation: existing
 data_root: /Volumes/18555440521/fault/data_root
 label_records_db_path: /Volumes/18555440521/fault/data_root/metadata/label_records.db
 
@@ -55,11 +55,13 @@ train:
     - weight: 1
       reasons:
       - reason: 正常
-        sample: -1
+        sample: 2000
       - reason: 干扰
         sample: -1
       - reason: 边界
         sample: -1
+    - weight: 1
+      reasons:
       - reason: 传感器错误
         sample: -1
     - weight: 1
@@ -87,34 +89,12 @@ train:
 
 # ------------------------------------------------------------
 # DL 配置（TCN）
-# 输出目录：results/epump2_general_tcn/
+# 输出目录：results/epump2_general_cnn1d/
 # ------------------------------------------------------------
 dl:
-  model_type: tcn
-
-  # 训练超参（Step 3）
-  train:
-    train_mode: normal   # normal / cross / grid
-    epochs: 100
-    batch_size: 128
-    learning_rate: 0.001
-    weight_decay: 0.0001
-    use_amp: true        # 混合精度，GPU 训练时加速
-    num_workers: 4
-    random_state: 42
-    seed_runs: 3         # 多种子重复训练
-
-    # 数据切分
-    test_size: 0.10      # 测试集比例
-    val_size: 0.125      # 验证集比例（从训练集中再切）
-    group_split_trials: 32
-    group_sample_trials: 24
-
-    # TCN 超参
-    # 4 个 block，膨胀系数依次：1 → 2 → 4 → 8
-    # 感受野 = 1 + 2 × (kernel_size−1) × (2^4 − 1) = 121 步（kernel=5）
-    tcn_num_channels: [64, 64, 128, 128]  # 每 block 输出通道
-    kernel_size: 5                         # 膨胀卷积核（建议 3 或 5）
+  model:
+    arch: cnn1d
+    conv_channels: [32, 64, 128]
+    kernel_size: 5
     dropout: 0.2
     hidden_dim: 128
-    tcn_causal: false    # false = 非因果（双侧对称填充，分类任务推荐）

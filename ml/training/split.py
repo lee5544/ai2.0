@@ -1,6 +1,6 @@
 """数据集划分工具：train/val/test split 与交叉验证。
 
-数据加载与重采样见 ml.dataset.loader。
+数据加载与重采样见 ml.training.loader。
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ try:
 except ImportError:  # pragma: no cover
     StratifiedGroupKFold = None
 
-from ml.dataset.loader import (
+from ml.training.loader import (
     load_sampled_training_dataframe,
     load_training_dataframe,
     map_labels,

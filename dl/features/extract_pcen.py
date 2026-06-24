@@ -4,7 +4,6 @@ import argparse
 import json
 import os
 import pickle
-import sys
 import time
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from functools import lru_cache
@@ -26,13 +25,19 @@ from .preprocess import trim_edges
 
 
 REQUIRED_SAMPLE_VIEW_COLS = {"line", "sn", "sample_id"}
-EXCLUDED_OUTPUT_COLS = {"sample_view_file", "sample_view_row_index", "view_name"}
 DEFAULT_CONFIG_PATH = Path("cfg/epump4.yaml")
-DEFAULT_OUTPUT_FILE_PREFIX = "dl_mel_spec"
+DEFAULT_OUTPUT_FILE_PREFIX = "dl_pcen_spec"
 SCHEMA_FILENAME = "dl_feature_schema.json"
 DEFAULT_OUTPUT_FORMAT = "pickle"
 SUPPORTED_OUTPUT_FORMATS = {"pickle": ".pkl", "pkl": ".pkl", "csv": ".csv"}
 COMPACT_FEATURE_COLUMN = "__feature_tensor__"
+_PCEN_TIME_CONSTANT_SEC = 0.4
+_PCEN_S = 0.025
+_PCEN_ALPHA = 0.98
+_PCEN_DELTA = 2.0
+_PCEN_R = 0.5
+_PCEN_EPS = 1e-6
+_PCEN_MAX_RELATIVE_ENERGY = 1e12
 DM_CFG = load_data_manager_config()
 SAMPLE_VIEW_OUTPUT_COLS = ["line", "sn", "sample_id"]
 FEATURE_OUTPUT_METADATA_COLUMNS = [
@@ -268,7 +273,7 @@ def _iter_batch_files(*, output_folder: Path, output_file_prefix: str) -> Iterab
             yield path
 
 
-def _resolve_mel_params(
+def _resolve_pcen_params(
     cfg: Dict[str, Any],
     *,
     cli_n_fft: int | None,
@@ -279,13 +284,14 @@ def _resolve_mel_params(
     cli_fmax: float | None,
 ) -> tuple[int, int, int, int, float, float | None]:
     dl_cfg = _resolve_dl_cfg(cfg)
+    pcen_cfg = dl_cfg.get("pcen") if isinstance(dl_cfg.get("pcen"), dict) else {}
     mel_cfg = dl_cfg.get("mel") if isinstance(dl_cfg.get("mel"), dict) else {}
-    n_fft = int(cli_n_fft or mel_cfg.get("n_fft") or 256)
-    hop_length = int(cli_hop_length or mel_cfg.get("hop_length") or max(1, n_fft // 2))
-    n_mels = int(cli_n_mels or mel_cfg.get("n_mels") or 13)
-    max_frames = int(cli_max_frames or mel_cfg.get("max_frames") or 1024)
-    fmin = float(cli_fmin if cli_fmin is not None else mel_cfg.get("fmin") or 0.0)
-    fmax_raw = cli_fmax if cli_fmax is not None else mel_cfg.get("fmax")
+    n_fft = int(cli_n_fft or pcen_cfg.get("n_fft") or mel_cfg.get("n_fft") or 256)
+    hop_length = int(cli_hop_length or pcen_cfg.get("hop_length") or mel_cfg.get("hop_length") or max(1, n_fft // 2))
+    n_mels = int(cli_n_mels or pcen_cfg.get("n_mels") or mel_cfg.get("n_mels") or 13)
+    max_frames = int(cli_max_frames or pcen_cfg.get("max_frames") or mel_cfg.get("max_frames") or 1024)
+    fmin = float(cli_fmin if cli_fmin is not None else pcen_cfg.get("fmin", mel_cfg.get("fmin", 0.0)) or 0.0)
+    fmax_raw = cli_fmax if cli_fmax is not None else pcen_cfg.get("fmax", mel_cfg.get("fmax"))
     fmax = None if fmax_raw in (None, "", "None", "null") else float(fmax_raw)
     if n_fft <= 0:
         raise ValueError(f"n_fft 必须 > 0，当前: {n_fft}")
@@ -503,7 +509,7 @@ def _cached_hann_window(n_fft: int) -> np.ndarray:
 @lru_cache(maxsize=64)
 def _cached_feature_keys(n_mels: int, max_frames: int) -> tuple[str, ...]:
     return tuple(
-        f"feat__mel_{mel_idx:03d}__{frame_idx:04d}"
+        f"feat__pcen_{mel_idx:03d}__{frame_idx:04d}"
         for mel_idx in range(int(n_mels))
         for frame_idx in range(int(max_frames))
     )
@@ -566,7 +572,50 @@ def _cached_mel_filterbank(
     )
 
 
-def extract_mel_spectrogram_features(
+def _pcen_smoothing_coefficient(frame_sr: float, time_constant_sec: float) -> float:
+    t_frames = max(float(frame_sr) * float(time_constant_sec), _PCEN_EPS)
+    return float(2.0 / (np.sqrt(1.0 + 4.0 * t_frames * t_frames) + 1.0))
+
+
+def pcen_transform(
+    energy: np.ndarray,
+    *,
+    s: float = _PCEN_S,
+    alpha: float = _PCEN_ALPHA,
+    delta: float = _PCEN_DELTA,
+    r: float = _PCEN_R,
+    eps: float = _PCEN_EPS,
+) -> np.ndarray:
+    """Per-channel energy normalization for a mel-energy matrix [n_mels, n_frames]."""
+    E = np.asarray(energy, dtype=np.float64)
+    if E.ndim != 2:
+        raise ValueError("energy must be 2-D: [n_mels, n_frames]")
+    if E.shape[1] == 0:
+        return np.maximum(np.nan_to_num(E, nan=0.0, posinf=0.0, neginf=0.0), 0.0)
+
+    E = np.maximum(np.nan_to_num(E, nan=0.0, posinf=0.0, neginf=0.0), 0.0)
+    positive = E[E > 0.0]
+    if positive.size:
+        energy_ref = max(float(np.median(positive)), np.finfo(np.float64).tiny)
+        E = np.clip(E / energy_ref, 0.0, _PCEN_MAX_RELATIVE_ENERGY)
+
+    s = float(np.clip(s, _PCEN_EPS, 1.0))
+    alpha = float(np.clip(alpha, 0.0, 1.0))
+    delta = max(float(delta), 0.0)
+    r = max(float(r), _PCEN_EPS)
+    eps = max(float(eps), _PCEN_EPS)
+
+    M = np.empty_like(E, dtype=np.float64)
+    init_frames = min(E.shape[1], max(3, int(round(1.0 / s))))
+    M[:, 0] = np.median(E[:, :init_frames], axis=1)
+    for t in range(1, E.shape[1]):
+        M[:, t] = (1.0 - s) * M[:, t - 1] + s * E[:, t]
+
+    smooth = np.power(eps + M, alpha)
+    return np.power(E / (smooth + _PCEN_EPS) + delta, r) - np.power(delta, r)
+
+
+def extract_pcen_spectrogram_features(
     signal: np.ndarray,
     *,
     sampling_rate: int,
@@ -576,10 +625,10 @@ def extract_mel_spectrogram_features(
     max_frames: int,
     fmin: float,
     fmax: float | None,
-) -> tuple[Dict[str, float], Dict[str, int]]:
+) -> tuple[np.ndarray, Dict[str, Any]]:
     data = np.asarray(signal, dtype=np.float32).reshape(-1)
     if data.size == 0:
-        raise ValueError("空信号，无法提取 mel 频谱特征")
+        raise ValueError("空信号，无法提取 PCEN 频谱特征")
 
     if data.size < int(n_fft):
         data = np.pad(data, (0, int(n_fft) - int(data.size)), mode="constant")
@@ -611,14 +660,17 @@ def extract_mel_spectrogram_features(
         _cacheable_fmax(fmax),
     )
     mel_spec = np.matmul(mel_filters, stft_power)
-    mel_spec = np.log10(np.maximum(mel_spec, 1e-8)).astype(np.float32, copy=False)
+    frame_sr = float(sampling_rate) / float(hop_length)
+    pcen_s = _pcen_smoothing_coefficient(frame_sr, _PCEN_TIME_CONSTANT_SEC)
+    pcen_spec = pcen_transform(mel_spec, s=pcen_s).astype(np.float32, copy=False)
 
     meta = {
         "frame_count": int(actual_frame_count),
         "feature_steps": int(max_frames),
         "feature_channels": int(n_mels),
+        "pcen_s": float(pcen_s),
     }
-    return mel_spec, meta
+    return pcen_spec, meta
 
 
 def _process_one_group(
@@ -729,7 +781,7 @@ def _process_one_group(
             sampling_rate = _to_int(sample_meta.get("sampling_rate")) or _to_int(tdms_ret.get("sampling_rate"))
             if not sampling_rate or sampling_rate <= 0:
                 raise ValueError(f"非法 sampling_rate: {sampling_rate}")
-            feature_tensor, feature_meta = extract_mel_spectrogram_features(
+            feature_tensor, feature_meta = extract_pcen_spectrogram_features(
                 signal,
                 sampling_rate=int(sampling_rate),
                 n_fft=n_fft,
@@ -756,6 +808,12 @@ def _process_one_group(
                     "n_mels": int(n_mels),
                     "fmin": float(fmin),
                     "fmax": None if fmax is None else float(fmax),
+                    "pcen_time_constant_sec": float(_PCEN_TIME_CONSTANT_SEC),
+                    "pcen_s": float(feature_meta["pcen_s"]),
+                    "pcen_alpha": float(_PCEN_ALPHA),
+                    "pcen_delta": float(_PCEN_DELTA),
+                    "pcen_r": float(_PCEN_R),
+                    "pcen_eps": float(_PCEN_EPS),
                     "feature_steps": int(feature_meta["feature_steps"]),
                     "feature_channels": int(feature_meta["feature_channels"]),
                 }
@@ -817,9 +875,9 @@ def _write_feature_schema(
     fmin: float,
     fmax: float | None,
 ) -> None:
-    channel_names = [f"mel_{idx:03d}" for idx in range(int(n_mels))]
+    channel_names = [f"pcen_{idx:03d}" for idx in range(int(n_mels))]
     schema = {
-        "feature_version": "log_mel_spectrogram_v1",
+        "feature_version": "pcen_spectrogram_v1",
         "output_file_prefix": output_file_prefix,
         "output_format": _normalize_output_format(output_format),
         "compact_feature_column": COMPACT_FEATURE_COLUMN,
@@ -835,13 +893,18 @@ def _write_feature_schema(
         "max_frames": int(max_frames),
         "fmin": float(fmin),
         "fmax": None if fmax is None else float(fmax),
+        "pcen_time_constant_sec": float(_PCEN_TIME_CONSTANT_SEC),
+        "pcen_alpha": float(_PCEN_ALPHA),
+        "pcen_delta": float(_PCEN_DELTA),
+        "pcen_r": float(_PCEN_R),
+        "pcen_eps": float(_PCEN_EPS),
     }
     with (output_folder / SCHEMA_FILENAME).open("w", encoding="utf-8") as f:
         json.dump(schema, f, ensure_ascii=False, indent=2)
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="提取 DL 频谱特征并保存到 dl_dataset_csv")
+    parser = argparse.ArgumentParser(description="提取 PCEN 频谱特征并保存到 dl_dataset_csv")
     parser.add_argument("--config", default=str(DEFAULT_CONFIG_PATH), help=f"YAML 配置路径（默认: {DEFAULT_CONFIG_PATH}）")
     parser.add_argument("--feature-type", default=None, help="DL 特征类型：mel/pcen（仅 dl.features 入口使用）")
     parser.add_argument("--sample-view", action="append", default=[], help="sample_view.csv 路径，可重复传入")
@@ -849,11 +912,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--manifest-path", default=None, help="tdms_manifest.csv 路径")
     parser.add_argument("--label-records-db-path", default=None, help="label_records.db 路径")
     parser.add_argument("--output-feature-folder", default=None, help="特征输出目录")
-    parser.add_argument("--output-file-prefix", default=None, help=f"特征批次文件前缀（默认: {DEFAULT_OUTPUT_FILE_PREFIX}；pcen 入口默认 dl_pcen_spec）")
+    parser.add_argument("--output-file-prefix", default=None, help=f"特征批次文件前缀（默认: {DEFAULT_OUTPUT_FILE_PREFIX}）")
     parser.add_argument("--output-format", default=None, help="批次输出格式：pickle/csv（默认: pickle）")
     parser.add_argument("--n-fft", type=int, default=None, help="STFT n_fft")
     parser.add_argument("--hop-length", type=int, default=None, help="STFT hop_length")
-    parser.add_argument("--n-mels", type=int, default=None, help="频谱通道/bin 数")
+    parser.add_argument("--n-mels", type=int, default=None, help="PCEN/mel bin 数")
     parser.add_argument("--max-frames", type=int, default=None, help="最大时间帧数，超出截断，不足补零")
     parser.add_argument("--fmin", type=float, default=None, help="最低频率")
     parser.add_argument("--fmax", type=float, default=None, help="最高频率")
@@ -873,7 +936,7 @@ def run(args: argparse.Namespace) -> None:
     output_file_prefix = _to_text(args.output_file_prefix) or _to_text(extract_cfg.get("output_file_prefix")) or DEFAULT_OUTPUT_FILE_PREFIX
     output_format = _normalize_output_format(args.output_format or extract_cfg.get("output_format") or dl_cfg.get("output_format") or DEFAULT_OUTPUT_FORMAT)
     batch_size = _resolve_batch_size(cfg, args.batch_size)
-    n_fft, hop_length, n_mels, max_frames, fmin, fmax = _resolve_mel_params(
+    n_fft, hop_length, n_mels, max_frames, fmin, fmax = _resolve_pcen_params(
         cfg,
         cli_n_fft=args.n_fft,
         cli_hop_length=args.hop_length,
@@ -920,8 +983,9 @@ def run(args: argparse.Namespace) -> None:
     print(f"输出目录: {output_feature_folder}")
     print(f"sample_view 文件数: {len(sample_view_paths)}")
     print(
-        f"mel 配置: n_fft={n_fft}, hop_length={hop_length}, n_mels={n_mels}, "
-        f"max_frames={max_frames}, fmin={fmin}, fmax={fmax}"
+        f"PCEN 配置: n_fft={n_fft}, hop_length={hop_length}, n_mels={n_mels}, "
+        f"max_frames={max_frames}, fmin={fmin}, fmax={fmax}, "
+        f"time_constant_sec={_PCEN_TIME_CONSTANT_SEC}"
     )
     print(f"输出前缀: {output_file_prefix}")
     print(f"输出格式: {output_format}")

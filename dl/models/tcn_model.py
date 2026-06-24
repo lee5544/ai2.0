@@ -6,6 +6,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
+from .base_model import BaseModel
 from .common import normalize_channel_list, pick_config_value, to_bool, to_float, to_int, to_int_list
 
 
@@ -95,7 +96,7 @@ class _DilatedBlock(nn.Module):
 # TCN 分类器
 # ---------------------------------------------------------------------------
 
-class TCNClassifier(nn.Module):
+class TCNClassifier(BaseModel):
     """TCN（时序卷积网络）分类器，使用指数递增的膨胀卷积。
 
     输入张量形状: ``[batch, channels, steps]``
@@ -142,6 +143,8 @@ class TCNClassifier(nn.Module):
         True = 因果模式；False = 非因果模式（分类任务推荐，默认 False）。
     """
 
+    arch_name = "tcn"
+
     def __init__(
         self,
         *,
@@ -153,14 +156,20 @@ class TCNClassifier(nn.Module):
         hidden_dim: int = 128,
         causal: bool = False,
     ) -> None:
-        super().__init__()
         num_channels = normalize_channel_list(num_channels, default=[64, 64, 64, 64])
-        if int(in_channels) <= 0:
-            raise ValueError(f"in_channels 必须 > 0，当前: {in_channels}")
-        if int(num_classes) <= 1:
-            raise ValueError(f"num_classes 必须 > 1，当前: {num_classes}")
         if int(kernel_size) < 2:
             raise ValueError(f"kernel_size 必须 ≥ 2，当前: {kernel_size}")
+        super().__init__(
+            in_channels=in_channels,
+            num_classes=num_classes,
+            hyperparams={
+                "num_channels": list(num_channels),
+                "kernel_size": int(kernel_size),
+                "dropout": float(dropout),
+                "hidden_dim": int(hidden_dim),
+                "causal": bool(causal),
+            },
+        )
 
         blocks: list[nn.Module] = []
         prev_ch = int(in_channels)
@@ -197,15 +206,14 @@ class TCNClassifier(nn.Module):
         """返回模型的理论感受野（时间步数）。"""
         return self._receptive_field
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        if x.ndim != 3:
-            raise ValueError(f"TCNClassifier 期望输入维度为 3，当前: {tuple(x.shape)}")
+    def _forward_impl(self, x: torch.Tensor) -> torch.Tensor:
         x = self.tcn(x)         # [B, C, T]
         x = self.pool(x)        # [B, C, 1]
         return self.classifier(x)  # [B, num_classes]
 
     def extra_repr(self) -> str:
         return (
+            f"{super().extra_repr()}, "
             f"num_blocks={self.num_blocks}, "
             f"causal={self.causal}, "
             f"receptive_field={self._receptive_field}"
