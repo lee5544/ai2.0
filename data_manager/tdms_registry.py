@@ -67,6 +67,20 @@ class TdmsRegistry:
             }
         """
         stem = tdms_logical_stem(filename)
+        generated_parts = stem.split("__", 3)
+        if len(generated_parts) == 4 and generated_parts[0] in LINE_RULES:
+            original = generated_parts[3]
+            original_parsed = TdmsRegistry.parse_filename(
+                original,
+                rule=rule,
+                delimiter=delimiter,
+            )
+            return {
+                "sn": generated_parts[1],
+                "reference": generated_parts[2],
+                "time": original_parsed.get("time", ""),
+            }
+
         parts = stem.split(delimiter)
 
         def _get(idx):
@@ -126,9 +140,6 @@ class TdmsRegistry:
 
         if self._exists(storage_root, relative_path):
             return False
-        if self._exists_sn(storage_root, parsed.get("sn", "")):
-            return False
-
         created_time = datetime.now().isoformat(timespec="seconds")
 
         row = {
@@ -229,4 +240,3 @@ class TdmsRegistry:
         with open(self.manifest_path, "r", newline="", encoding="utf-8-sig") as f:
             reader = csv.DictReader(f)
             return list(reader)
-

@@ -953,6 +953,7 @@ class ConfirmSvReq(BaseModel):
 @app.post("/api/label/confirm_sv")
 def api_label_confirm_sv(req: ConfirmSvReq):
     """把 sample_view 自带的标签确认为正确 → 以 source=expert 写入数据库（仅 expert 模式）。"""
+    import time as _t
     s = get_session()
     if req.index < 0 or req.index >= len(s.sample_view):
         raise HTTPException(status_code=404, detail="sample index out of range")
@@ -962,19 +963,34 @@ def api_label_confirm_sv(req: ConfirmSvReq):
     if not lab:
         raise HTTPException(status_code=400, detail="该样本的 sample_view 没有标签")
     row = s.row(req.index)
-    conf = lab.get("reason_confidence")
+    sid = str(row.get("sample_id", ""))
+    if not str(lab.get("reason_name", "") or lab.get("reason_key", "")).strip():
+        raise HTTPException(status_code=400, detail="该 sample_view 行没有 reason 标签字段")
+    label_row = {
+        "line": str(row.get("line", "")),
+        "sn": str(row.get("sn", "")),
+        "sample_id": sid,
+        "timestamp": _t.strftime("%Y-%m-%dT%H:%M:%S"),
+        "source": "expert",
+        "result_key": lab.get("result_key", ""),
+        "result_id": lab.get("result_id", ""),
+        "result_name": lab.get("result_name", ""),
+        "reason_key": lab.get("reason_key", ""),
+        "reason_id": lab.get("reason_id", ""),
+        "reason_name": lab.get("reason_name", ""),
+        "reason_confidence": lab.get("reason_confidence", ""),
+        "label_version": lab.get("label_version", ""),
+        "note": lab.get("note", ""),
+    }
+    t0 = _t.perf_counter()
     try:
-        conf = float(conf) if str(conf).strip() else None
-    except Exception:
-        conf = None
-    s.label_table.add(
-        line=str(row.get("line", "")), sn=str(row.get("sn", "")),
-        sample_id=str(row.get("sample_id", "")),
-        reason_name=lab.get("reason_name", ""), reason_key=lab.get("reason_key", ""),
-        reason_confidence=conf, note=lab.get("note", ""), source="expert",
-    )
-    s.mark_changed(str(row.get("sample_id", "")))
-    return {"ok": True, "sample_id": str(row.get("sample_id", ""))}
+        hist = s.label_table.add_raw_event(label_row)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"写入 sample_view 标签失败: {e}")
+    s.mark_changed(sid)
+    return {"ok": True, "sample_id": sid, "history": hist,
+            "latest": hist[-1] if hist else None,
+            "write_ms": round((_t.perf_counter() - t0) * 1000, 1)}
 
 
 class ExportReq(BaseModel):
@@ -1212,6 +1228,15 @@ def api_prototype_import(req: PrototypeReq):
     if not req.sample_ids:
         raise HTTPException(status_code=400, detail="未选择样本")
     return {"ok": True, **prototype.import_prototypes(s, req.sample_ids, dest_root=req.dest_root or None)}
+
+
+@app.post("/api/prototype/update")
+def api_prototype_update():
+    from . import prototype
+    s = get_session()
+    if not prototype.can_operate(s):
+        raise HTTPException(status_code=403, detail="需要加载数据库且 source=expert 才能操作")
+    return {"ok": True, **prototype.update_prototypes(s)}
 
 
 @app.get("/")

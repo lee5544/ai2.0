@@ -17,12 +17,17 @@ from . import config as _config  # noqa: F401 确保 sys.path 注入
 from .config import LABEL_HISTORY_COLUMNS, TYPICAL_TAG
 
 from data_manager.label_rules import LABEL_RULES, Label
-from data_manager.label_internal_registry import LabelStore
+from data_manager.label_internal_registry import LabelStore, normalize_label_source_category
 
 # 共享 Label 运行时（reason/result 解析规则）
 RUNTIME = Label(LABEL_RULES)
 LABEL_VERSION = str(LABEL_RULES.get("meta", {}).get("version", "unknown"))
 DEFAULT_SOURCE = "expert"
+VISIBLE_LABEL_STATUSES = {"confirmed", "unconfirmed"}
+
+
+def _status_for_source(source: object) -> str:
+    return "confirmed" if normalize_label_source_category(str(source or "")) == "expert" else "unconfirmed"
 
 REASONS = [{"key": r["key"], "name": r["name"]} for r in RUNTIME.reasons.values()]
 CONFIDENCE_OPTIONS = {"强烈 0.9": 0.9, "中等 0.6": 0.6, "微弱 0.3": 0.3}
@@ -94,7 +99,7 @@ class LabelTable:
             self.store.database.auto_export = False
         except Exception:
             pass
-        self._cache: list[dict] | None = None      # 全部 confirmed 事件（raw，含 id）的内存缓存
+        self._cache: list[dict] | None = None      # 全部可见标签事件（raw，含 id/status）的内存缓存
         self._lock = threading.RLock()             # 保护缓存 + 写库（确认/删除/保存为并发即发即忘）
         # 镜像（外部数据库）双写：主存储=本地工作空间，每次标注后把该样本同步到外部 db（后台线程，不阻塞）。
         self.mirror_path: str | None = None
@@ -173,9 +178,9 @@ class LabelTable:
         sid = str(sample_id)
         with self._lock:                               # 仅快照本地事件，随后在锁外做外部慢写
             srs = self._srs
-            local = [dict(e) for e in (srs.list_label_events(sample_id=sid, statuses={"confirmed"}) if srs else [])]
+            local = [dict(e) for e in (srs.list_label_events(sample_id=sid, statuses=VISIBLE_LABEL_STATUSES) if srs else [])]
         try:
-            old = mdb.list_label_events(sample_id=sid, statuses={"confirmed"})
+            old = mdb.list_label_events(sample_id=sid, statuses=VISIBLE_LABEL_STATUSES)
             ids = [int(e["id"]) for e in old if e.get("id") is not None]
             if ids:
                 mdb.delete_label_events(ids)
@@ -206,7 +211,7 @@ class LabelTable:
             if srs is not None:
                 try:
                     self._cache = [reconcile_label_fields(dict(e))
-                                   for e in srs.list_label_events(statuses={"confirmed"})]
+                                   for e in srs.list_label_events(statuses=VISIBLE_LABEL_STATUSES)]
                 except Exception:
                     self._cache = []
             else:
@@ -227,7 +232,7 @@ class LabelTable:
         if srs is not None:
             try:
                 cache.extend(reconcile_label_fields(dict(e))
-                             for e in srs.list_label_events(sample_id=sid, statuses={"confirmed"}))
+                             for e in srs.list_label_events(sample_id=sid, statuses=VISIBLE_LABEL_STATUSES))
             except Exception:
                 pass
 
@@ -240,7 +245,12 @@ class LabelTable:
     def events_normalized(self) -> list[dict]:
         """全部事件（归一化）——供 snapshot / overview / list_view 使用，全部走内存。"""
         with self._lock:
-            return [self.store._normalize_row(e) for e in self._events_raw()]
+            rows = []
+            for event in self._events_raw():
+                row = self.store._normalize_row(event)
+                row["status"] = str(event.get("status", "") or "confirmed")
+                rows.append(row)
+            return rows
 
     def _import_event(self, row: dict) -> None:
         """写入一条标注；若该样本尚未在 samples 表登记（如来自扫描 TDMS 的新件），
@@ -274,6 +284,7 @@ class LabelTable:
             raise IndexError("event not found")
         new_row = {c: str(ev.get(c, "") or "") for c in LABEL_HISTORY_COLUMNS}
         new_row["source"] = "expert"
+        new_row["status"] = "confirmed"
         new_row["timestamp"] = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
         if self._srs is not None:
             self._import_event(new_row)
@@ -323,6 +334,7 @@ class LabelTable:
             "reason_name": reason.get("name"), "reason_confidence": reason_confidence,
             "label_version": LABEL_VERSION, "note": note,
         })
+        row["status"] = _status_for_source(row.get("source"))
         # 同样本「同日 + 同来源」去重：命中则更新该条，否则新增（从内存缓存判断，不读 DB）
         new_key = self.store._same_day_source_key(row)
         match_id = None
@@ -337,6 +349,42 @@ class LabelTable:
         self._refresh_sample(sample_id)          # 写后只补该样本，缓存即时一致
         self._enqueue_sync(sample_id)            # 异步同步该样本到外部数据库
         return decision
+
+    def add_raw_event(self, row: dict) -> list[dict]:
+      """按已解析好的标签字段写入一条事件，用于确认 sample_view 自带标签。"""
+      with self._lock:
+        raw = {c: str(row.get(c, "") or "") for c in LABEL_HISTORY_COLUMNS}
+        if not raw.get("line") or not raw.get("sn") or not raw.get("sample_id"):
+            raise ValueError("Label event requires line/sn/sample_id")
+        if not raw.get("source"):
+            raw["source"] = DEFAULT_SOURCE
+        if not raw.get("timestamp"):
+            raw["timestamp"] = datetime.now().isoformat(timespec="seconds")
+        raw["status"] = _status_for_source(raw.get("source"))
+
+        srs = getattr(self.store, "database", None)
+        if srs is None:
+            raise RuntimeError("当前标签库不支持数据库事件写入")
+
+        new_key = self.store._same_day_source_key(raw)
+        match_id = None
+        if new_key is not None:
+            for ev in self._sample_events_raw(raw["sample_id"]):
+                if self.store._same_day_source_key(self.store._normalize_row(ev)) == new_key:
+                    match_id = int(ev["id"])
+        if match_id is not None:
+            srs.update_label_event(
+                match_id,
+                line=raw["line"],
+                sn=raw["sn"],
+                sample_id=raw["sample_id"],
+                label=raw,
+            )
+        else:
+            self._import_event(raw)
+        self._refresh_sample(raw["sample_id"])
+        self._enqueue_sync(raw["sample_id"])
+        return self.history_for(raw["sample_id"])
 
     # ---- 最新标签映射（从内存缓存单遍扫描，不读 DB）----
     def latest_label_map(self) -> dict[str, dict]:
@@ -358,6 +406,7 @@ class LabelTable:
         for e in self._sample_events_raw(sample_id):
             row = self.store._normalize_row(e)
             row["_id"] = int(e.get("id", 0) or 0)
+            row["status"] = str(e.get("status", "") or "confirmed")
             out.append(row)
         return out
 

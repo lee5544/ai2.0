@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import re
+import csv
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Mapping, Optional
+from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional
 
 from data_manager.label_database import LabelDatabase, require_database
 
@@ -17,6 +18,39 @@ DEFAULT_LABEL_SOURCE_ALIASES = {
     "model": "model", "ai": "model", "auto": "model", "模型": "model",
 }
 SOURCE_CATEGORY_PREFIXES = ("expert", "operator", "model")
+INTERNAL_LABEL_CSV_COLUMNS = [
+    "view_name",
+    "line",
+    "sn",
+    "sample_id",
+    "result_key",
+    "result_id",
+    "result_name",
+    "reason_key",
+    "reason_id",
+    "reason_name",
+    "reason_confidence",
+    "label_version",
+    "note",
+    "timestamp",
+    "source",
+]
+LABEL_EVENT_CSV_COLUMNS = [
+    "line",
+    "sn",
+    "sample_id",
+    "timestamp",
+    "source",
+    "result_key",
+    "result_id",
+    "result_name",
+    "reason_key",
+    "reason_id",
+    "reason_name",
+    "reason_confidence",
+    "label_version",
+    "note",
+]
 
 
 def _label_to_text(value) -> str:
@@ -76,6 +110,125 @@ def build_prefixed_label_source(prefix: str, *parts: object) -> str:
 
 def build_operator_label_source(operator_id: object) -> str:
     return build_prefixed_label_source("operator", operator_id)
+
+
+def _read_csv(path: Path) -> list[dict[str, str]]:
+    for encoding in ("utf-8-sig", "utf-8", "gb18030", "gbk"):
+        try:
+            with path.open("r", encoding=encoding, newline="") as stream:
+                return [dict(row) for row in csv.DictReader(stream)]
+        except UnicodeDecodeError:
+            continue
+    raise UnicodeError(f"无法识别 CSV 编码: {path}")
+
+
+def _validate_internal_label_header(header: Iterable[str]) -> None:
+    names = {str(name or "").strip() for name in header}
+    missing = [column for column in INTERNAL_LABEL_CSV_COLUMNS if column not in names]
+    if missing:
+        raise ValueError(
+            "内部标签 CSV 缺少必需列："
+            + ", ".join(missing)
+            + "；当前仅支持统一内部标签事件表。"
+        )
+
+
+def _has_label_value(row: Mapping[str, object]) -> bool:
+    return any(
+        _label_to_text(row.get(column))
+        for column in ("result_key", "result_name", "reason_key", "reason_name")
+    )
+
+
+def _normalize_internal_label_row(row: Mapping[str, object], *, fallback_line: str = "") -> dict[str, str]:
+    normalized = {column: _label_to_text(row.get(column)) for column in LABEL_EVENT_CSV_COLUMNS}
+    if not normalized["line"]:
+        normalized["line"] = _label_to_text(fallback_line)
+    return normalized
+
+
+def import_label_csv(
+    db_path: str | Path,
+    csv_path: str | Path,
+    *,
+    line: str = "",
+) -> dict[str, Any]:
+    """Import the unified internal label event table into label_records.db."""
+    database_path = Path(db_path).expanduser().resolve()
+    input_path = Path(csv_path).expanduser().resolve()
+    if not input_path.is_file():
+        raise FileNotFoundError(f"标签 CSV 不存在: {input_path}")
+
+    rows = _read_csv(input_path)
+    if not rows:
+        return {
+            "format": "internal_label_event",
+            "imported_labels": 0,
+            "skipped_rows": 0,
+            "label_csv": str(input_path),
+            "errors": [],
+        }
+    _validate_internal_label_header(rows[0].keys())
+
+    database = LabelDatabase(database_path)
+    imported = 0
+    skipped = 0
+    errors: list[str] = []
+    for row_index, row in enumerate(rows, start=2):
+        normalized = _normalize_internal_label_row(row, fallback_line=line)
+        if not normalized["line"] or not normalized["sn"] or not normalized["sample_id"]:
+            skipped += 1
+            errors.append(f"第 {row_index} 行缺少 line/sn/sample_id")
+            continue
+        if not normalized["source"]:
+            skipped += 1
+            errors.append(f"第 {row_index} 行缺少 source")
+            continue
+        if not _has_label_value(normalized):
+            skipped += 1
+            continue
+        try:
+            database.append_label(
+                line=normalized["line"],
+                sn=normalized["sn"],
+                sample_id=normalized["sample_id"],
+                label=normalized,
+            )
+            imported += 1
+        except Exception as exc:
+            skipped += 1
+            errors.append(f"第 {row_index} 行导入失败: {type(exc).__name__}: {exc}")
+
+    return {
+        "format": "internal_label_event",
+        "imported_labels": imported,
+        "skipped_rows": skipped,
+        "label_csv": str(input_path),
+        "errors": errors,
+    }
+
+
+def import_label_csvs(
+    db_path: str | Path,
+    csv_paths: Iterable[str | Path],
+    *,
+    line: str = "",
+    progress: Callable[[int, int, Path], None] | None = None,
+) -> dict[str, Any]:
+    """Import multiple unified internal label CSV files in order."""
+    paths = [Path(path).expanduser().resolve() for path in csv_paths]
+    reports: list[dict[str, Any]] = []
+    for index, path in enumerate(paths, start=1):
+        if progress is not None:
+            progress(index, len(paths), path)
+        reports.append(import_label_csv(db_path, path, line=line))
+    return {
+        "files": reports,
+        "csv_count": len(reports),
+        "imported_labels": sum(int(item.get("imported_labels") or 0) for item in reports),
+        "skipped_rows": sum(int(item.get("skipped_rows") or 0) for item in reports),
+        "errors": [error for item in reports for error in (item.get("errors") or [])],
+    }
 
 
 class LabelStore:

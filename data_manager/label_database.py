@@ -8,8 +8,8 @@ from typing import Iterable, Mapping, Sequence
 from uuid import uuid4
 
 
-SCHEMA_VERSION = "2"
-LABEL_STATUSES = {"pending", "confirmed", "rejected"}
+SCHEMA_VERSION = "3"
+LABEL_STATUSES = {"unconfirmed", "pending", "confirmed", "rejected"}
 DB_FILENAME = "label_records.db"
 LEGACY_DB_FILENAME = "sample_records.db"
 
@@ -78,6 +78,25 @@ def _float_or_none(value: object) -> float | None:
 
 def _now() -> str:
     return datetime.now().isoformat(timespec="seconds")
+
+
+def _is_expert_source(source: object) -> bool:
+    raw = _text(source).lower()
+    return raw == "expert" or any(raw.startswith(prefix) for prefix in ("expert_", "expert-", "expert:", "expert."))
+
+
+def _effective_label_status(source: object, requested_status: object = "") -> str:
+    """Only expert-sourced labels are confirmed by default.
+
+    Non-expert labels are stored as unconfirmed even if an old caller passes
+    ``confirmed`` explicitly. ``rejected`` is preserved for manual rejection.
+    """
+    requested = _text(requested_status).lower()
+    if requested == "rejected":
+        return "rejected"
+    if requested == "pending":
+        return "pending"
+    return "confirmed" if _is_expert_source(source) else "unconfirmed"
 
 
 class LabelDatabase:
@@ -173,8 +192,8 @@ class LabelDatabase:
                     reason_confidence REAL,
                     label_version TEXT,
                     note TEXT,
-                    status TEXT NOT NULL DEFAULT 'confirmed'
-                        CHECK(status IN ('pending', 'confirmed', 'rejected')),
+                    status TEXT NOT NULL DEFAULT 'unconfirmed'
+                        CHECK(status IN ('unconfirmed', 'pending', 'confirmed', 'rejected')),
                     imported_at TEXT NOT NULL,
                     FOREIGN KEY(sample_pk) REFERENCES samples(id)
                         ON UPDATE CASCADE ON DELETE RESTRICT
@@ -239,6 +258,112 @@ class LabelDatabase:
                 """,
                 (SCHEMA_VERSION,),
             )
+            self._migrate_label_status_schema(connection)
+
+    @staticmethod
+    def _create_label_views(connection: sqlite3.Connection) -> None:
+        connection.executescript(
+            """
+            CREATE VIEW IF NOT EXISTS confirmed_label_events AS
+                SELECT * FROM label_events WHERE status = 'confirmed';
+
+            CREATE VIEW IF NOT EXISTS unlabeled_samples AS
+                SELECT s.*
+                FROM samples s
+                WHERE s.is_active = 1
+                  AND NOT EXISTS (
+                    SELECT 1 FROM label_events e
+                    WHERE e.sample_pk = s.id AND e.status = 'confirmed'
+                  );
+
+            CREATE VIEW IF NOT EXISTS latest_confirmed_labels AS
+                SELECT *
+                FROM (
+                    SELECT
+                        e.*,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY sample_pk
+                            ORDER BY timestamp DESC, id DESC
+                        ) AS rn
+                    FROM label_events e
+                    WHERE status = 'confirmed'
+                )
+                WHERE rn = 1;
+            """
+        )
+
+    def _migrate_label_status_schema(self, connection: sqlite3.Connection) -> None:
+        row = connection.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='label_events'"
+        ).fetchone()
+        sql = str(row[0] if row else "")
+        if "unconfirmed" in sql and "DEFAULT 'unconfirmed'" in sql:
+            return
+
+        connection.executescript(
+            """
+            DROP VIEW IF EXISTS confirmed_label_events;
+            DROP VIEW IF EXISTS unlabeled_samples;
+            DROP VIEW IF EXISTS latest_confirmed_labels;
+
+            ALTER TABLE label_events RENAME TO label_events__old_status_schema;
+
+            CREATE TABLE label_events (
+                id INTEGER PRIMARY KEY,
+                event_uuid TEXT NOT NULL UNIQUE,
+                sample_pk INTEGER NOT NULL,
+                timestamp TEXT NOT NULL,
+                source TEXT NOT NULL,
+                result_key TEXT,
+                result_id INTEGER,
+                result_name TEXT,
+                reason_key TEXT,
+                reason_id INTEGER,
+                reason_name TEXT,
+                reason_confidence REAL,
+                label_version TEXT,
+                note TEXT,
+                status TEXT NOT NULL DEFAULT 'unconfirmed'
+                    CHECK(status IN ('unconfirmed', 'pending', 'confirmed', 'rejected')),
+                imported_at TEXT NOT NULL,
+                FOREIGN KEY(sample_pk) REFERENCES samples(id)
+                    ON UPDATE CASCADE ON DELETE RESTRICT
+            );
+
+            INSERT INTO label_events(
+                id, event_uuid, sample_pk, timestamp, source,
+                result_key, result_id, result_name,
+                reason_key, reason_id, reason_name, reason_confidence,
+                label_version, note, status, imported_at
+            )
+            SELECT
+                id, event_uuid, sample_pk, timestamp, source,
+                result_key, result_id, result_name,
+                reason_key, reason_id, reason_name, reason_confidence,
+                label_version, note,
+                CASE
+                    WHEN status = 'rejected' THEN 'rejected'
+                    WHEN status = 'pending' THEN 'pending'
+                    WHEN lower(source) = 'expert'
+                         OR lower(source) LIKE 'expert\\_%' ESCAPE '\\'
+                         OR lower(source) LIKE 'expert-%'
+                         OR lower(source) LIKE 'expert:%'
+                         OR lower(source) LIKE 'expert.%'
+                    THEN 'confirmed'
+                    ELSE 'unconfirmed'
+                END AS status,
+                imported_at
+            FROM label_events__old_status_schema;
+
+            DROP TABLE label_events__old_status_schema;
+
+            CREATE INDEX IF NOT EXISTS idx_labels_sample_time
+                ON label_events(sample_pk, timestamp DESC, id DESC);
+            CREATE INDEX IF NOT EXISTS idx_labels_status_source
+                ON label_events(status, source);
+            """
+        )
+        self._create_label_views(connection)
 
     @staticmethod
     def _sample_values(row: Mapping[str, object], *, now: str) -> tuple[object, ...]:
@@ -402,12 +527,9 @@ class LabelDatabase:
         sn: str,
         sample_id: str,
         label: Mapping[str, object],
-        status: str = "confirmed",
+        status: str = "",
         event_uuid: str | None = None,
     ) -> int:
-        status = _text(status) or "confirmed"
-        if status not in LABEL_STATUSES:
-            raise ValueError(f"Unsupported label status: {status}")
         sample = self.get_sample(line=line, sn=sn, sample_id=sample_id)
         if sample is None:
             raise KeyError(f"Sample not found: line={line}, sn={sn}, sample_id={sample_id}")
@@ -415,6 +537,9 @@ class LabelDatabase:
         source = _text(label.get("source"))
         if not source:
             raise ValueError("Label event requires source")
+        status = _effective_label_status(source, status)
+        if status not in LABEL_STATUSES:
+            raise ValueError(f"Unsupported label status: {status}")
         with self.connect() as connection:
             cursor = connection.execute(
                 """
@@ -455,12 +580,12 @@ class LabelDatabase:
         default_status: str,
         imported_at: str,
     ) -> tuple[object, ...]:
-        status = _text(row.get("status")) or default_status
-        if status not in LABEL_STATUSES:
-            raise ValueError(f"Unsupported label status: {status}")
         source = _text(row.get("source"))
         if not source:
             raise ValueError(f"Label event requires source: {dict(row)}")
+        status = _effective_label_status(source, _text(row.get("status")) or default_status)
+        if status not in LABEL_STATUSES:
+            raise ValueError(f"Unsupported label status: {status}")
         return (
             _text(row.get("event_uuid")) or str(uuid4()),
             sample_pk,
@@ -483,9 +608,9 @@ class LabelDatabase:
         self,
         rows: Iterable[Mapping[str, object]],
         *,
-        default_status: str = "confirmed",
+        default_status: str = "",
     ) -> int:
-        if default_status not in LABEL_STATUSES:
+        if _text(default_status) and _text(default_status).lower() not in LABEL_STATUSES:
             raise ValueError(f"Unsupported label status: {default_status}")
         rows_list = list(rows)
         if not rows_list:
@@ -531,10 +656,10 @@ class LabelDatabase:
         self,
         rows: Iterable[Mapping[str, object]],
         *,
-        default_status: str = "confirmed",
+        default_status: str = "",
     ) -> int:
         """Replace all label events while preserving stable event IDs where supplied."""
-        if default_status not in LABEL_STATUSES:
+        if _text(default_status) and _text(default_status).lower() not in LABEL_STATUSES:
             raise ValueError(f"Unsupported label status: {default_status}")
         rows_list = list(rows)
         imported_at = _now()
@@ -559,7 +684,8 @@ class LabelDatabase:
                         imported_at=imported_at,
                     )
                 )
-            connection.execute("DELETE FROM label_events WHERE status=?", (default_status,))
+            delete_status = _text(default_status).lower() or "unconfirmed"
+            connection.execute("DELETE FROM label_events WHERE status=?", (delete_status,))
             if values:
                 connection.executemany(
                     """
@@ -583,16 +709,17 @@ class LabelDatabase:
         sn: str,
         sample_id: str,
         label: Mapping[str, object],
-        status: str = "confirmed",
+        status: str = "",
     ) -> None:
-        if status not in LABEL_STATUSES:
-            raise ValueError(f"Unsupported label status: {status}")
         sample = self.get_sample(line=line, sn=sn, sample_id=sample_id)
         if sample is None:
             raise KeyError(f"Sample not found: line={line}, sn={sn}, sample_id={sample_id}")
         source = _text(label.get("source"))
         if not source:
             raise ValueError("Label event requires source")
+        status = _effective_label_status(source, status)
+        if status not in LABEL_STATUSES:
+            raise ValueError(f"Unsupported label status: {status}")
         with self.connect() as connection:
             cursor = connection.execute(
                 """
@@ -632,10 +759,28 @@ class LabelDatabase:
             return 0
         placeholders = ",".join("?" for _ in ids)
         with self.connect() as connection:
-            cursor = connection.execute(
-                f"UPDATE label_events SET status=? WHERE id IN ({placeholders})",
-                (status, *ids),
-            )
+            if status == "confirmed":
+                cursor = connection.execute(
+                    f"""
+                    UPDATE label_events
+                    SET status = CASE
+                        WHEN lower(source) = 'expert'
+                             OR lower(source) LIKE 'expert\\_%' ESCAPE '\\'
+                             OR lower(source) LIKE 'expert-%'
+                             OR lower(source) LIKE 'expert:%'
+                             OR lower(source) LIKE 'expert.%'
+                        THEN 'confirmed'
+                        ELSE 'unconfirmed'
+                    END
+                    WHERE id IN ({placeholders})
+                    """,
+                    ids,
+                )
+            else:
+                cursor = connection.execute(
+                    f"UPDATE label_events SET status=? WHERE id IN ({placeholders})",
+                    (status, *ids),
+                )
             updated = int(cursor.rowcount)
         self._refresh_csv_exports()
         return updated
@@ -721,6 +866,9 @@ class LabelDatabase:
                 ).fetchone()[0],
                 "pending_labels": connection.execute(
                     "SELECT COUNT(*) FROM label_events WHERE status='pending'"
+                ).fetchone()[0],
+                "unconfirmed_labels": connection.execute(
+                    "SELECT COUNT(*) FROM label_events WHERE status='unconfirmed'"
                 ).fetchone()[0],
                 "unlabeled_samples": connection.execute(
                     "SELECT COUNT(*) FROM unlabeled_samples"

@@ -43,19 +43,6 @@ models:
       - {key: min_samples_leaf, label: 叶节点最小样本, type: int, default: 1, min: 1}
       - {key: max_features, label: 特征采样比例, type: float, default: 0.8, min: 0.01, max: 1}
 
-  brf:
-    module_name: ml.models.brf
-    class_name: BRFModel
-    display_name: Balanced RF
-    description: 平衡随机森林，适合类别不均衡数据。
-    parameter_key: rf_params
-    parameters:
-      - {key: n_estimators, label: 树数量, type: int, default: 100, min: 1}
-      - {key: max_depth, label: 最大深度, type: int, default: 8, min: 1}
-      - {key: min_samples_split, label: 节点最小切分样本, type: int, default: 2, min: 2}
-      - {key: min_samples_leaf, label: 叶节点最小样本, type: int, default: 1, min: 1}
-      - {key: max_features, label: 特征采样比例, type: float, default: 0.8, min: 0.01, max: 1}
-
   # custom:
   #   module_name: ml.CustomModel
   #   class_name: CustomModel

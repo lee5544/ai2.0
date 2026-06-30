@@ -21,19 +21,19 @@ results:
     - 不确定
     - 待确认
 reasons:
-  clean_normal:
-    id: 0
-    name: 正常
-    alias:
-    - 干净正常
-    - 无异常
-    parent: ok
   noisy_normal:
     id: -1
     name: 干扰
     alias:
     - 杂音干扰
     - 轻微噪声
+    parent: ok
+  clean_normal:
+    id: 0
+    name: 正常
+    alias:
+    - 干净正常
+    - 无异常
     parent: ok
   boundary:
     id: 2
@@ -101,7 +101,10 @@ reasons:
   dada:
     id: 109
     name: 哒哒_咔咔
-    alias: [咔咔, 哒哒音, 咔咔音]
+    alias:
+    - 咔咔
+    - 哒哒音
+    - 咔咔音
     parent: nok
   other:
     id: 199
@@ -114,16 +117,16 @@ meta:
   version: v1.1
   note: Noise label with alias support
   legacy_label_to_reason:
-    '-1': noisy_normal
     '0': clean_normal
     '2': boundary
     '10': sensor_error
     '11': tick_tock
     '12': friction
-    '121': friction_acc
     '13': noise
     '14': gear_chatter
     '15': chatter
     '16': other
-    '151': mada
+    '121': friction_acc
     '142': dada
+    '151': mada
+    '-1': noisy_normal

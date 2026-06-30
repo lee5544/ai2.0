@@ -469,6 +469,15 @@ def _resolve_line_from_relative_path(relative_path: Path, forced_line: str) -> s
 
 def _parse_filename(filename: str, *, rule: Dict[str, Any], delimiter: str = "_") -> Dict[str, str]:
     stem = tdms_logical_stem(filename)
+    generated_parts = stem.split("__", 3)
+    if len(generated_parts) == 4 and generated_parts[0] in _get_line_rules():
+        original = generated_parts[3]
+        original_parsed = _parse_filename(original, rule=rule, delimiter=delimiter)
+        return {
+            "sn": generated_parts[1],
+            "reference": generated_parts[2],
+            "time": original_parsed.get("time", ""),
+        }
     parts = stem.split(delimiter)
 
     def _get(index_spec: object) -> str:

@@ -354,7 +354,7 @@ class LabelSession:
         self.is_mock = is_mock
         self.default_source = default_source or "expert"
         self.has_db = bool(has_db)
-        # 本任务里被人工改动过的 sample_id（保存/确认/删除/标记典型）→ 列表里标绿、可筛选。
+        # 本任务里被人工改动过的 sample_id（保存/确认/删除/标记典型）→ 列表里标红、可筛选。
         # 跨重启持久：落在任务工作空间 forvia_label_v2/_data/changed/<task_key>.json。
         self.changed_state_path: Path | None = None
         self.changed_ids: set[str] = set()
@@ -412,6 +412,19 @@ class LabelSession:
         """有任意一条 source=expert 标注的 sample_id 集合。"""
         return {str(e.get("sample_id", "")) for e in events
                 if str(e.get("source", "")).strip().lower() == "expert"}
+
+    @staticmethod
+    def _confirmed_ids_from_events(events: list[dict]) -> set[str]:
+        """有任意一条 status=confirmed 的标签事件。
+
+        列表可以展示 unconfirmed 事件，但前端绿色底纹只使用这里的 confirmed 集合。
+        """
+        out: set[str] = set()
+        for event in events:
+            status = str(event.get("status", "") or "confirmed").strip().lower()
+            if status == "confirmed":
+                out.add(str(event.get("sample_id", "")))
+        return out
 
     def row(self, index: int) -> pd.Series:
         return self.sample_view.iloc[index]
@@ -493,13 +506,14 @@ class LabelSession:
         """列表总览数据 + 动态列。label_source 决定标签列取自哪：
         - 'db'：取自数据库/内部库（有库则 16 列、多事件展开成多行）。
         - 'sample_view'：取自 sample_view 行自带的列（不读库，不展开）。
-        has_expert：该样本是否存在任意 source=expert 的标注（用于列表标绿）。
+        has_expert：该样本是否存在任意 source=expert 的标注（保留给筛选/展示扩展，底纹不再使用）。
         """
         if expert_ids is None:
             _ev = events if events is not None else self.label_table.events_normalized()
             expert_ids = self._expert_ids_from_events(_ev)
+        confirmed_ids = self._confirmed_ids_from_events(events if events is not None else self.label_table.events_normalized())
         if self.has_db and label_source == "db":
-            columns = ["index", "is_input", "changed"] + LABEL_TABLE_COLUMNS + ["tdms"]
+            columns = ["index", "is_input", "changed"] + LABEL_TABLE_COLUMNS[:6] + ["status"] + LABEL_TABLE_COLUMNS[6:] + ["tdms"]
             rows = []
             if events is None:
                 events = self.label_table.events_normalized()
@@ -510,15 +524,20 @@ class LabelSession:
                 base = self._list_base_row(i, sv)
                 changed = base["sample_id"] in self.changed_ids
                 has_expert = base["sample_id"] in expert_ids
+                has_confirmed_label = base["sample_id"] in confirmed_ids
                 evs = events_by_sid.get(base["sample_id"], [])
                 if not evs:
                     rows.append({**base, "changed": changed, "has_expert": has_expert,
+                                 "has_confirmed_label": has_confirmed_label,
+                                 "status": "",
                                  **{c: "" for c in _LABEL_ONLY_COLS},
                                  "labeled": False, "typical": False})
                 else:
                     for e in sorted(evs, key=lambda x: str(x.get("timestamp", ""))):
                         note = str(e.get("note", "") or "")
                         rows.append({**base, "changed": changed, "has_expert": has_expert,
+                                     "has_confirmed_label": has_confirmed_label,
+                                     "status": str(e.get("status", "") or "confirmed"),
                                      **{c: str(e.get(c, "") or "") for c in _LABEL_ONLY_COLS},
                                      "labeled": bool(e.get("reason_name")),
                                      "typical": TYPICAL_TAG in note})
@@ -536,6 +555,7 @@ class LabelSession:
             row = {"index": i, "is_input": base["is_input"], "tdms": base["tdms"],
                    "changed": base["sample_id"] in self.changed_ids,
                    "has_expert": base["sample_id"] in expert_ids,
+                   "has_confirmed_label": base["sample_id"] in confirmed_ids,
                    "reference": base["reference"]}
             for c in sv_cols:
                 row[c] = str(sv.get(c, "") or "")
@@ -605,6 +625,9 @@ class LabelSession:
                 latest = self._latest_from_events(events)
             if expert_ids is None:
                 expert_ids = self._expert_ids_from_events(events)
+        else:
+            events = self.label_table.events_normalized()
+        confirmed_ids = self._confirmed_ids_from_events(events)
         rows = []
         for idx, sv in self.sample_view.iterrows():
             sid = str(sv.get("sample_id", ""))
@@ -632,6 +655,7 @@ class LabelSession:
                 "line": str(sv.get("line", "")),
                 "is_input": is_input not in ("False", "false", "0", ""),
                 "labeled": labeled,
+                "has_confirmed_label": sid in confirmed_ids,
                 "changed": sid in self.changed_ids,
                 "has_expert": sid in expert_ids,
                 "reference": self._reference_of(sv),

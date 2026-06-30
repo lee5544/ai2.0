@@ -130,6 +130,9 @@
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
         <h3 style="margin:0;font-size:15px">Prototype 典型件入库</h3>
         <button class="btn" @click="loadProto" :disabled="protoImporting">↻ 刷新</button>
+        <button class="btn" @click="updateProto" :disabled="protoImporting || protoUpdating">
+          <span v-if="protoUpdating" class="busy-spin"></span>{{ protoUpdating ? '更新中…' : '更新 Prototype' }}
+        </button>
         <label style="font-size:13px;color:var(--mut)">在Prototype库
           <select v-model="protoFilter" style="padding:5px 8px;border:1px solid var(--bd);border-radius:6px">
             <option value="all">全部</option><option value="in">是</option><option value="out">否</option>
@@ -362,6 +365,13 @@
           <option value="all">全部</option><option value="labeled">已标注</option><option value="unlabeled">未标注</option>
         </select>
       </label>
+      <label>confirmed 状态
+        <select v-model="filters.confirmed" @change="applyFilters">
+          <option value="all">全部</option>
+          <option value="confirmed">confirmed</option>
+          <option value="unconfirmed">unconfirmed</option>
+        </select>
+      </label>
       <label>线名
         <select v-model="filters.line" @change="applyFilters">
           <option value="all">全部</option>
@@ -529,7 +539,13 @@
                     </tr>
                   </tbody>
                 </table>
-                <div v-else style="padding:6px 2px;color:var(--mut);font-size:12px">（该样本在 sample_view 中无对应行）</div>
+                <div v-if="ch.svLabel && hasDb && defaultSource==='expert'" style="margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                  <button class="btn primary" @click="confirmSvLabel(ch)" :disabled="ch.busy">
+                    {{ ch.busy ? '写入中…' : '确认并写入数据库' }}
+                  </button>
+                  <span v-if="ch.msg" :style="{color: ch.err?'#b91c1c':'var(--mut)', fontSize:'13px'}">{{ ch.msg }}</span>
+                </div>
+                <div v-if="!ch.svLabel" style="padding:6px 2px;color:var(--mut);font-size:12px">（该样本在 sample_view 中无对应行）</div>
               </div>
             </div>
 
@@ -540,19 +556,19 @@
               <div style="padding:6px 12px;overflow:auto">
                 <table style="width:100%;border-collapse:collapse;font-size:12px">
                   <thead><tr style="text-align:left;color:var(--mut)">
-                    <th style="padding:4px 6px">timestamp</th><th>source</th><th>reason</th><th>conf</th><th>note</th>
+                    <th style="padding:4px 6px">timestamp</th><th>status</th><th>source</th><th>reason</th><th>conf</th><th>note</th>
                     <th v-if="canPrototype">操作</th>
                   </tr></thead>
                   <tbody>
                     <tr v-for="(h,i) in ch.history" :key="i" style="border-top:1px solid var(--bd)">
-                      <td style="padding:4px 6px">{{ h.timestamp }}</td><td>{{ h.source }}</td>
+                      <td style="padding:4px 6px">{{ h.timestamp }}</td><td>{{ h.status }}</td><td>{{ h.source }}</td>
                       <td>{{ h.reason_name }}</td><td>{{ h.reason_confidence }}</td><td>{{ h.note }}</td>
                       <td v-if="canPrototype" style="white-space:nowrap">
                         <button class="btn" style="padding:1px 7px;margin-right:4px" @click="confirmLabel(ch,i)">确认正确</button>
                         <button class="btn" style="padding:1px 7px" @click="deleteLabel(ch,i)">删除</button>
                       </td>
                     </tr>
-                    <tr v-if="!ch.history.length"><td :colspan="canPrototype?6:5" style="padding:8px;color:var(--mut)">暂无记录</td></tr>
+                    <tr v-if="!ch.history.length"><td :colspan="canPrototype?7:6" style="padding:8px;color:var(--mut)">暂无记录</td></tr>
                   </tbody>
                 </table>
                 <p v-if="canPrototype" class="hint" style="margin:6px 6px 2px;color:var(--mut);font-size:11px">
@@ -637,7 +653,7 @@ createApp({
       view: 'init', allRows: [], lines: [],
       stats: { total: 0, labeled: 0, unlabeled: 0, typical: 0 },
       isMock: false, taskActive: false, perf: '', labelSrc: 'db', fromSampleView: false, gotoN: 1, navIdx: 0,
-      filters: { status:'all', line:'all', reason:[], reference:[], changed:'all', typicalOnly:false, missingTdms:false },
+      filters: { status:'all', confirmed:'all', line:'all', reason:[], reference:[], changed:'all', typicalOnly:false, missingTdms:false },
       openFilter: '', reasonOptions: [], referenceOptions: [],
       currentSn: '', channels: [], listRows: [], listColumns: [],
       initForm: { name:'', sample_view_path:'', useSampleView:false, tdms_root:'', loadLabels:false, label_records_db_path:'', source:'operator', operatorName:'' },
@@ -647,7 +663,7 @@ createApp({
       projects: [], opening: '', taskMode: 'list',
       reg: { running:false, message:'', error:'' }, regLine: '', exportKind: 'labels',
       canPrototype: false, protoRows: [], protoSel: [], protoRoot: '', protoMsg: '', protoErr: false,
-      protoImporting: false, protoFilter: 'all', protoDest: '',
+      protoImporting: false, protoUpdating: false, protoFilter: 'all', protoDest: '',
       picker: { open:false, target:'', path:'', parent:'', dirs:[], files:[] }, roots: [],
       reasons: [], confidenceOptions: {},
       insertable: [],
@@ -933,6 +949,8 @@ createApp({
       const f = state.filters;
       if (f.status==='labeled' && !r.labeled) return false;
       if (f.status==='unlabeled' && r.labeled) return false;
+      if (f.confirmed==='confirmed' && !r.has_confirmed_label) return false;
+      if (f.confirmed==='unconfirmed' && r.has_confirmed_label) return false;
       if (f.line!=='all' && r.line!==f.line) return false;
       if (f.reason.length && !f.reason.includes(String(r.reason_name||''))) return false;
       if (f.reference.length && !f.reference.includes(String(r.reference||''))) return false;
@@ -1064,8 +1082,10 @@ createApp({
           body:JSON.stringify({index:ch.index})});
         const d = await r.json();
         if(!r.ok){ ch.err=true; ch.msg=d.detail||'确认失败'; return; }
-        ch.msg='已确认：sample_view 标签写入数据库（expert）';
-        await reloadHistory(ch); applyHistoryToRow(ch);
+        ch.msg=`已确认：sample_view 标签写入数据库（${d.write_ms||0}ms）`;
+        if(d.history) setHistory(ch, d.history);
+        else await reloadHistory(ch);
+        applyHistoryToRow(ch);
       } finally { ch.busy=false; }
     }
     // 用已刷新的 history 本地更新该样本的行（避免再拉整张表的 /overview）
@@ -1075,9 +1095,10 @@ createApp({
       const labeled = ch.history.length>0;
       const reason_name = last ? (last.reason_name||'') : '';
       const typical = !!(last && String(last.note||'').includes(TYP));
-      if(ch.row){ ch.row.labeled=labeled; ch.row.reason_name=reason_name; ch.row.typical=typical; ch.row.changed=true; }
+      const hasConfirmed = ch.history.some(h => String(h.status||'confirmed') === 'confirmed');
+      if(ch.row){ ch.row.labeled=labeled; ch.row.reason_name=reason_name; ch.row.typical=typical; ch.row.changed=true; ch.row.has_confirmed_label=hasConfirmed; }
       const r = state.allRows.find(x=>x.sample_id===ch.sample_id);
-      if(r){ r.labeled=labeled; r.reason_name=reason_name; r.typical=typical; r.changed=true; }
+      if(r){ r.labeled=labeled; r.reason_name=reason_name; r.typical=typical; r.changed=true; r.has_confirmed_label=hasConfirmed; }
     }
     // 用接口回带的 history 直接更新（少一次 DB 往返）
     function setHistory(ch, list){
@@ -1209,10 +1230,27 @@ createApp({
           body:JSON.stringify({sample_ids: state.protoSel, dest_root: state.protoDest||''})});
         const d = await r.json();
         if(!r.ok){ state.protoErr=true; state.protoMsg=d.detail||'导入失败'; return; }
-        state.protoMsg = `已移动 ${d.copied.length} 个到 ${d.prototype_root}，数据库标记 ${d.marked} 条，manifest 更新 ${d.manifest_updated||0} 条` + (d.errors.length?`；${d.errors.length} 个失败`:'');
+        const meta = d.metadata_refresh || {};
+        const refreshText = meta.skipped ? '数据库刷新跳过' : `数据库刷新 ${meta.ok ? '完成' : '失败'}${meta.lines?.length ? '：'+meta.lines.join(',') : ''}`;
+        state.protoMsg = `已移动 ${d.copied.length} 个到 ${d.prototype_root}，数据库标记 ${d.marked} 条，manifest 更新 ${d.manifest_updated||0} 条，${refreshText}` + (d.errors.length?`；${d.errors.length} 个失败`:'');
         await loadProto();   // 刷新候选（in_prototype 状态会更新）
       } catch(e){ state.protoErr=true; state.protoMsg=String(e); }
       finally { state.protoImporting=false; }
+    }
+    async function updateProto(){
+      if(state.protoUpdating) return;
+      state.protoMsg=''; state.protoErr=false; state.protoUpdating=true;
+      try {
+        const r = await fetch('/api/prototype/update',{method:'POST'});
+        const d = await r.json();
+        if(!r.ok || d.ok===false){ state.protoErr=true; state.protoMsg=d.detail||d.errors?.join('；')||'更新失败'; return; }
+        const tableRows = d.internal_tables?.rows ?? 0;
+        const tableFiles = d.internal_tables?.files?.length ?? 0;
+        const lines = d.lines?.length ? d.lines.join(',') : '无';
+        state.protoMsg = `Prototype 已更新：${lines}；内部表 ${tableFiles} 个，共 ${tableRows} 行` + (d.errors?.length?`；${d.errors.length} 个问题`:'');
+        await loadProto();
+      } catch(e){ state.protoErr=true; state.protoMsg=String(e); }
+      finally { state.protoUpdating=false; }
     }
     function setExportScope(scope){ state.exportScope = scope; loadLabelRows(); }
     async function loadLabelRows(){
@@ -1424,10 +1462,10 @@ createApp({
         columnDefs: gridColumns(), rowData: visibleRows(),
         defaultColDef:{ resizable:true, sortable:true },
         rowSelection:'single',
-        getRowStyle: p => {                                    // 本次修改→淡红(覆盖绿)；数据库已有标签→绿；否则无色
+        getRowStyle: p => {                                    // 本次修改→淡红(覆盖绿)；有 confirmed 标签→绿；否则无色
           if(!p.data) return null;
           if(p.data.changed) return { background:'#fecaca' };
-          if(p.data.labeled || p.data.has_expert) return { background:'#dcfce7' };
+          if(p.data.has_confirmed_label) return { background:'#dcfce7' };
           return null;
         },
         onRowDoubleClicked: e => goto(e.data.index),
@@ -1490,7 +1528,7 @@ createApp({
              loadProjects, openProject, deleteProject, newTask, editTask, registerTdms,
              onDrop, openPicker, openPickerModal, nativeDir, openExport, browse, joinPath, pickFile, pickDir,
              openTasks, loadLabelRows, setExportScope, exportNewTable, writeBackSV, pruneMissing,
-             openProto, loadProto, importProto, allProtoChecked, toggleAllProto, protoRowsView,
+             openProto, loadProto, importProto, updateProto, allProtoChecked, toggleAllProto, protoRowsView,
              tryNativeDialog, doInit, saveLabel, markTypical, openList, switchLabelSrc };
   }
 }).directive('click-outside', _ClickOutside).mount('#app');
