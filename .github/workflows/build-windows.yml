@@ -40,11 +40,16 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m pip install -r forvia_label_v2/requirements.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m pip install pyinstaller
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Build with PyInstaller
-        run: pyinstaller --clean --noconfirm forvia_label_v2/forvia_label_v2.spec
+        run: |
+          pyinstaller --clean --noconfirm forvia_label_v2/forvia_label_v2.spec
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Zip the dist folder
         run: |
