@@ -7,13 +7,14 @@ from __future__ import annotations
 
 import hashlib
 import json
-import shutil
 import threading
+import shutil
 from pathlib import Path
 
 import pandas as pd
 
 import tempfile
+from typing import Callable
 
 from .config import LABEL_HISTORY_COLUMNS, TYPICAL_TAG
 from .label_table import LabelTable
@@ -163,178 +164,6 @@ def complete_samples(sv: pd.DataFrame) -> pd.DataFrame:
     return sv
 
 
-# ---------- 路径解析 ----------
-class PathResolver:
-    """tdms_root + sample_view -> {sample_id: 实际 tdms 文件路径}。
-
-    只做"快速直接匹配"，绝不递归扫描整个 tdms_root（外接卷/海量目录会卡死）：
-      ① tdms_path 绝对路径；
-      ② tdms_root / relative_path（含 .tdms <-> .tdms.zst 互换、去掉多余前缀等变体）。
-    解析不到的样本留待加载时按需处理，不在初始化做全盘 rglob。
-    """
-
-    TDMS_EXTS = (".tdms.zst", ".tdms")
-
-    def __init__(self, tdms_root: str | Path | None, sample_view_dir: str | Path | None = None):
-        self.root = Path(tdms_root).expanduser() if tdms_root else None
-        self.sv_dir = Path(sample_view_dir).expanduser() if sample_view_dir else None
-        self._name_index: dict[str, Path] | None = None
-
-    def _ext_variants(self, rel: str) -> list[str]:
-        """生成 .tdms / .tdms.zst 互换的相对路径候选。"""
-        out = [rel]
-        low = rel.lower()
-        if low.endswith(".tdms.zst"):
-            out.append(rel[: -len(".zst")])              # 去掉 .zst
-        elif low.endswith(".tdms"):
-            out.append(rel + ".zst")                     # 加 .zst
-        return out
-
-    def _rel_variants(self, rel: str) -> list[str]:
-        """去掉相对路径里多余的 root 名前缀（如 relative_path 含 'factory_raw/'）。"""
-        variants = [rel]
-        if self.root is not None:
-            prefix = self.root.name + "/"
-            if rel.startswith(prefix):
-                variants.append(rel[len(prefix):])
-        # 仅文件名兜底（同名直接放在 root 下）
-        base = Path(rel).name
-        if base and base != rel:
-            variants.append(base)
-        return variants
-
-    def _suffix_after_root_name(self, path_str: str) -> str | None:
-        """取 path_str 中 tdms_root 目录名（如 factory_raw）之后的相对部分。
-
-        处理 tdms_path 绝对路径挂载前缀不同、relative_path 带 factory_raw/ 前缀等情况。
-        """
-        if not self.root:
-            return None
-        name = self.root.name
-        if not name:
-            return None
-        s = path_str.replace("\\", "/")
-        marker = "/" + name + "/"
-        if marker in s:
-            return s.split(marker, 1)[1]
-        if s.startswith(name + "/"):
-            return s[len(name) + 1:]
-        return None
-
-    def candidates(self, row: pd.Series, sn: str) -> list[Path]:
-        """按优先级返回所有候选路径（不判断存在性），供解析与诊断复用。"""
-        out: list[Path] = []
-        tp = str(row.get("tdms_path", "")).strip()
-        rp = str(row.get("relative_path", "")).strip()
-        # ① tdms_path 绝对路径（含扩展名互换）
-        if tp:
-            for cand in self._ext_variants(tp):
-                out.append(Path(cand).expanduser())
-        bases = [b for b in (self.root, self.sv_dir) if b is not None]
-        for base in bases:
-            # ② base / relative_path 变体
-            if rp:
-                for rel in self._rel_variants(rp):
-                    for cand in self._ext_variants(rel):
-                        out.append(base / cand)
-            # ③ 按 root 目录名(factory_raw)切分后拼接：兼容挂载前缀不同 / 前缀层级不一致
-            for src in (tp, rp):
-                suf = self._suffix_after_root_name(src) if src else None
-                if suf:
-                    for cand in self._ext_variants(suf):
-                        out.append(base / cand)
-            # ④ 直接放在 base 下的同名文件
-            if rp:
-                bn = Path(rp).name
-                for cand in self._ext_variants(bn):
-                    out.append(base / cand)
-        # 去重保序
-        seen, uniq = set(), []
-        for p in out:
-            k = str(p)
-            if k not in seen:
-                seen.add(k); uniq.append(p)
-        return uniq
-
-    def _name_idx(self) -> dict[str, Path]:
-        """按文件名建索引——只扫描 sample_view 所在目录（数据就在这里，且体量小），
-        绝不扫描庞大的 tdms_root，避免外接卷卡死。"""
-        if self._name_index is not None:
-            return self._name_index
-        idx: dict[str, Path] = {}
-        scan_dir = self.sv_dir
-        if scan_dir and scan_dir.exists():
-            count = 0
-            try:
-                for f in scan_dir.rglob("*"):
-                    if not f.is_file():
-                        continue
-                    nm = f.name
-                    if nm.endswith(self.TDMS_EXTS):
-                        idx.setdefault(nm, f)
-                        for ext in self.TDMS_EXTS:
-                            if nm.endswith(ext):
-                                idx.setdefault(nm[: -len(ext)], f)  # 去扩展名键
-                                break
-                        count += 1
-                        if count > 200000:   # 安全上限
-                            break
-            except Exception:
-                pass
-        self._name_index = idx
-        return idx
-
-    def _index_lookup(self, row: pd.Series) -> Path | None:
-        rp = str(row.get("relative_path", "")).strip()
-        tp = str(row.get("tdms_path", "")).strip()
-        base = Path(rp or tp).name
-        if not base:
-            return None
-        idx = self._name_idx()
-        if base in idx:
-            return idx[base]
-        for ext in self.TDMS_EXTS:           # 文件名扩展名互换后再查
-            if base.endswith(ext):
-                stem = base[: -len(ext)]
-                if stem in idx:
-                    return idx[stem]
-                for ext2 in self.TDMS_EXTS:
-                    if (stem + ext2) in idx:
-                        return idx[stem + ext2]
-        return None
-
-    def resolve_one(self, row: pd.Series, sn: str) -> Path | None:
-        for p in self.candidates(row, sn):
-            try:
-                if p.exists():
-                    return p
-            except Exception:
-                continue
-        return self._index_lookup(row)   # 兜底：sample_view 目录内按文件名匹配
-
-    def build(self, sample_view: pd.DataFrame) -> tuple[dict[str, Path], list[str]]:
-        """返回 (path_map[sample_id]=Path, 未解析 sample_id 列表)。"""
-        path_map: dict[str, Path] = {}
-        unresolved: list[str] = []
-        # 同一 sn 的多个 sample_id（up/down）共用一个 tdms 文件
-        sn_cache: dict[str, Path | None] = {}
-        for _, row in sample_view.iterrows():
-            sid = str(row.get("sample_id", "")).strip()
-            sn = str(row.get("sn", "")).strip()
-            if not sid:
-                continue
-            if sn in sn_cache:
-                resolved = sn_cache[sn]
-            else:
-                resolved = self.resolve_one(row, sn)
-                sn_cache[sn] = resolved
-            if resolved is not None:
-                path_map[sid] = resolved
-            else:
-                unresolved.append(sid)
-        return path_map, unresolved
-
-
 # ---------- 会话 ----------
 STATUS_LABEL = {"registered": "已注册", "unregistered": "未注册", "missing": "缺失"}
 
@@ -456,10 +285,29 @@ class LabelSession:
 
     def label_records(self, labeled_only: bool = True, changed_only: bool = False) -> list[dict]:
         """构造完整标签结果表（16 列）。labeled_only=True 只含有标注记录的行；
-        changed_only=True 只含本次任务里被人工改动过的样本（确认/删除/保存/标记典型）。"""
+        changed_only=True 只含本次任务里被人工改动过的样本当前最新标签。"""
         sv_by_id, idx_by_id = self._sv_lookup()
         changed = self.changed_ids if changed_only else None
         out = []
+        if labeled_only and changed is not None:
+            latest = self.latest_label_map()
+            for _, sv in self.sample_view.iterrows():
+                sid = str(sv.get("sample_id", ""))
+                if sid not in changed:
+                    continue
+                rec = latest.get(sid)
+                if not rec:
+                    continue
+                base = sv_by_id.get(sid, {})
+                row = {c: str(rec.get(c, "") or "") for c in LABEL_TABLE_COLUMNS}
+                row["sample_id"] = sid
+                row["group_name"] = base.get("group_name", "") or row.get("group_name", "")
+                row["channel_name"] = base.get("channel_name", "") or row.get("channel_name", "")
+                row["line"] = row["line"] or base.get("line", "")
+                row["sn"] = row["sn"] or base.get("sn", "")
+                row["index"] = idx_by_id.get(sid, -1)
+                out.append(row)
+            return out
         if labeled_only:
             for rec in self.label_table.events_normalized():
                 sid = str(rec.get("sample_id", ""))
@@ -739,18 +587,29 @@ def _app_data_dir() -> Path:
     return Path(__file__).resolve().parent.parent / "_data"
 
 
-def _workspace_dir() -> Path:
+def _workspace_dir(create: bool = True) -> Path:
     """持久工作空间根目录（标签库放这里，关机/重启后仍在；不用会被清理的临时目录）。"""
     d = _app_data_dir() / "workspace"
-    d.mkdir(parents=True, exist_ok=True)
+    if create:
+        d.mkdir(parents=True, exist_ok=True)
     return d
 
 
-def _task_workspace_dir(tdms_root: str | None) -> Path:
-    """按 TDMS 目录确定的任务工作空间子目录（确定性 → 重启后定位到同一份标签库）。"""
-    key = hashlib.md5(str(tdms_root or "default").encode("utf-8")).hexdigest()[:12]
-    d = _workspace_dir() / key
-    d.mkdir(parents=True, exist_ok=True)
+def _task_workspace_dir(
+    tdms_root: str | None,
+    sample_view_path: str | None = None,
+    db_path: str | Path | None = None,
+    create: bool = True,
+) -> Path:
+    """当前任务的本地工作空间。由数据源三元组确定，避免不同任务共用标签缓存。"""
+    key = hashlib.md5("|".join([
+        str(tdms_root or ""),
+        str(sample_view_path or ""),
+        str(db_path or ""),
+    ]).encode("utf-8")).hexdigest()[:12]
+    d = _workspace_dir(create=create) / key
+    if create:
+        d.mkdir(parents=True, exist_ok=True)
     return d
 
 
@@ -759,6 +618,25 @@ def _changed_state_path(tdms_root, sample_view_path, db_path) -> Path:
     key = hashlib.md5("|".join([str(tdms_root or ""), str(sample_view_path or ""),
                                 str(db_path or "")]).encode("utf-8")).hexdigest()[:12]
     return _app_data_dir() / "changed" / f"{key}.json"
+
+
+def delete_task_intermediate_files(tdms_root, sample_view_path, db_path) -> list[str]:
+    """删除任务本地中间文件：workspace 标签缓存和本次改动状态；不删除源数据/外部数据库。"""
+    removed: list[str] = []
+    for p in (
+        _task_workspace_dir(tdms_root, sample_view_path, db_path, create=False),
+        _changed_state_path(tdms_root, sample_view_path, db_path),
+    ):
+        try:
+            if p.is_dir():
+                shutil.rmtree(p)
+                removed.append(str(p))
+            elif p.exists():
+                p.unlink()
+                removed.append(str(p))
+        except Exception:
+            pass
+    return removed
 
 
 def _load_changed_ids(path: Path) -> set[str]:
@@ -780,11 +658,86 @@ def _writable_db_path(sample_view_path, is_mock, tdms_root=None) -> Path:
     return _task_workspace_dir(tdms_root) / "label_records.db"
 
 
+def _cache_sample_rows(sv: pd.DataFrame) -> list[dict]:
+    """本地标注缓存只保留当前任务样本索引，不缓存 TDMS 路径字段。"""
+    rows: list[dict] = []
+    seen: set[tuple[str, str, str]] = set()
+    for _, r in sv.iterrows():
+        key = (
+            str(r.get("line", "") or ""),
+            str(r.get("sn", "") or ""),
+            str(r.get("sample_id", "") or ""),
+        )
+        if not all(key) or key in seen:
+            continue
+        seen.add(key)
+        rows.append({
+            "line": key[0],
+            "sn": key[1],
+            "sample_id": key[2],
+            "group_name": str(r.get("group_name", "") or ""),
+            "channel_name": str(r.get("channel_name", "") or ""),
+            "sampling_rate": r.get("sampling_rate") or None,
+            "origin": "workspace_subset",
+        })
+    return rows
+
+
+def _remove_sqlite_files(db_path: Path) -> None:
+    for suffix in ("", "-wal", "-shm"):
+        try:
+            Path(str(db_path) + suffix).unlink(missing_ok=True)
+        except Exception:
+            pass
+
+
+ProgressCallback = Callable[[int, str], None]
+
+
+def _seed_workspace_db(
+    store_path: Path,
+    sv: pd.DataFrame,
+    external_db: Path | None,
+    progress: ProgressCallback | None = None,
+) -> None:
+    """用当前任务样本构建本地 workspace DB；外部库存在时只复制相关 label_events。"""
+    sample_rows = _cache_sample_rows(sv)
+    if external_db is not None and external_db.exists():
+        if progress:
+            progress(35, "构建本地标签工作空间")
+        _remove_sqlite_files(store_path)
+        local = LabelDatabase(store_path, auto_export=False)
+        local.replace_samples(sample_rows, all_samples=True)
+        keys = {(r["line"], r["sn"], r["sample_id"]) for r in sample_rows}
+        if progress:
+            progress(48, "读取外部标签事件")
+        external = LabelDatabase(external_db, auto_export=False)
+        events = [
+            row for row in external.list_label_events(statuses={"confirmed", "unconfirmed"})
+            if (str(row.get("line", "")), str(row.get("sn", "")), str(row.get("sample_id", ""))) in keys
+        ]
+        if events:
+            if progress:
+                progress(62, f"写入本地标签事件 {len(events)} 条")
+            local.import_label_events(events)
+    elif not store_path.exists():
+        if progress:
+            progress(35, "创建本地标签工作空间")
+        LabelDatabase(store_path, auto_export=False).replace_samples(sample_rows, all_samples=True)
+    else:
+        if progress:
+            progress(35, "更新本地标签工作空间")
+        LabelDatabase(store_path, auto_export=False).upsert_samples(sample_rows)
+
+
 def init_session(sample_view_path: str | None = None,
                  tdms_root: str | None = None,
                  label_records_db_path: str | None = None,
-                 source: str = "expert") -> LabelSession:
+                 source: str = "expert",
+                 progress: ProgressCallback | None = None) -> LabelSession:
     global SESSION
+    if progress:
+        progress(3, "初始化任务")
     # 先回收上一个任务的镜像后台线程，否则旧 LabelTable（含整份事件缓存）会被线程引用而无法释放，
     # 反复切换/重载任务会导致内存持续增长。
     if SESSION is not None and getattr(SESSION, "label_table", None) is not None:
@@ -794,6 +747,8 @@ def init_session(sample_view_path: str | None = None,
             pass
     # 数据库文件夹/文件 → 现成 db 文件 + 数据库文件夹（用于 manifest 查找 / 无 sample_view 时生成）
     db_file, db_folder = _resolve_db(label_records_db_path)
+    if progress:
+        progress(10, "读取样本来源")
 
     # sample_view 生成规则（由"第二步是否勾选 sample_view"决定）：
     #  · 勾选（给了 sample_view 路径）→ 按 sample_view 生成；
@@ -807,11 +762,15 @@ def init_session(sample_view_path: str | None = None,
         sv = csv_sv
     elif tdms_root:                                           # 不勾选 → 根据文件夹(扫描 TDMS)创立
         try:
+            if progress:
+                progress(14, "扫描 TDMS 目录生成样本")
             sv = build_sample_view_from_tdms(tdms_root)
         except Exception:
             sv = None
     if (sv is None or sv.empty) and db_file is not None:      # 兜底：扫描不到再按数据库生成
         try:
+            if progress:
+                progress(20, "从数据库样本表生成任务样本")
             sv = build_sample_view_from_db(db_file)
         except Exception:
             sv = None
@@ -857,30 +816,25 @@ def init_session(sample_view_path: str | None = None,
                     empty = sv[target].astype(str).str.strip() == ""
 
     # 补齐每个 tdms 的 up/down 原子，并标记原始输入样本
+    if progress:
+        progress(28, "规范化 sample_id / up-down 样本")
     sv = complete_samples(sv)
 
-    # 标注主存储 = 本地工作空间 forvia_label_v2/_data/workspace/<key>/label_records.db
-    # （快、可离线，导出/写回都从它出）。若加载了外部数据库：首次打开把它整库拷过来作为种子（含
-    # samples + 历史标签），并设为镜像——之后每次标注在本地写完，再异步“立即写入”外部数据库（双写）。
+    # 标注主存储 = 本地工作空间 forvia_label_v2/_data/workspace/<key>/label_records.db。
+    # 若加载了外部数据库，只把当前任务样本与对应标签事件复制到本地；外部库仍是最终主库，
+    # 之后每次标注在本地写完，再异步同步回外部数据库。
     # 不在打开的数据文件夹里落任何文件（只有导出/写回时才写 csv 到打开的文件夹）。
     if is_mock:
         store_path = Path(tempfile.gettempdir()) / "forvia_v2_mock_label_records.db"
         mirror_db_path = None
     else:
-        store_path = _task_workspace_dir(tdms_root) / "label_records.db"
+        store_path = _task_workspace_dir(tdms_root, sample_view_path, db_file) / "label_records.db"
         mirror_db_path = str(db_file) if (db_file is not None and Path(db_file).exists()) else None
-        if mirror_db_path is not None and not store_path.exists():
-            try:
-                shutil.copy2(mirror_db_path, store_path)   # 种子：把外部库整库拷到工作空间
-            except Exception:
-                pass
-    seed_new = not Path(store_path).exists()
+        _seed_workspace_db(store_path, sv, Path(mirror_db_path) if mirror_db_path else None, progress)
 
     try:
-        # 工作空间新建且无外部种子时，用 sample_view 登记样本
-        if seed_new and str(store_path).endswith(".db"):
-            LabelDatabase(store_path, auto_export=False).replace_samples(
-                sv.fillna("").to_dict("records"), all_samples=True)
+        if progress:
+            progress(70, "加载本地标签事件缓存")
         label_table = LabelTable(store_path)
         if is_mock:   # 演示模式：种子标签
             rows = mock_label_history(sv).to_dict("records")
@@ -893,11 +847,15 @@ def init_session(sample_view_path: str | None = None,
 
     if mirror_db_path is not None:        # 双写：标注同步到外部数据库
         try:
+            if progress:
+                progress(78, "建立外部数据库同步通道")
             label_table.set_mirror(mirror_db_path)
         except Exception:
             pass
 
     # tdms 定位 + 注册状态：源数据文件夹=tdms_root；数据库文件夹里找 manifest
+    if progress:
+        progress(84, "读取 tdms_manifest.csv 并解析路径")
     locator = TdmsLocator(tdms_root, manifest=ManifestAdapter(db_folder))
     # 若 sample_view 的 line 为空（db samples 无 line），用 tdms_manifest.csv 按 sn 回填，
     # 否则按 (line,sn) 找不到 tdms → 全部“缺失”。
@@ -983,6 +941,8 @@ def init_session(sample_view_path: str | None = None,
     SESSION.changed_state_path = _changed_state_path(tdms_root, sample_view_path,
                                                      label_records_db_path)
     SESSION.changed_ids = _load_changed_ids(SESSION.changed_state_path)
+    if progress:
+        progress(100, "初始化完成")
     return SESSION
 
 

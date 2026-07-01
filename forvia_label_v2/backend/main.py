@@ -33,6 +33,30 @@ from .tdms_loader import downsample, load_sample
 
 app = FastAPI(title="Forvia 标注 v2")
 
+_INIT_PROGRESS_LOCK = threading.Lock()
+_INIT_PROGRESS = {"running": False, "percent": 0, "message": "未开始", "error": ""}
+
+
+def _set_init_progress(percent: int, message: str, *, running: bool | None = None, error: str = "") -> None:
+    with _INIT_PROGRESS_LOCK:
+        _INIT_PROGRESS.update({
+            "percent": max(0, min(100, int(percent))),
+            "message": str(message or ""),
+            "error": str(error or ""),
+        })
+        if running is not None:
+            _INIT_PROGRESS["running"] = bool(running)
+
+
+def _init_progress_callback(percent: int, message: str) -> None:
+    _set_init_progress(percent, message, running=True)
+
+
+@app.get("/api/init/progress")
+def api_init_progress():
+    with _INIT_PROGRESS_LOCK:
+        return dict(_INIT_PROGRESS)
+
 def _find_frontend_dir() -> Path:
     """前端目录：开发时在 backend 上一级；打包后 PyInstaller 把它放在
     <_MEIPASS>/forvia_label_v2/frontend（见 .spec datas）。逐个候选取第一个存在的。"""
@@ -107,17 +131,21 @@ class InitReq(BaseModel):
 
 @app.post("/api/init")
 def api_init(req: InitReq):
+    _set_init_progress(0, "准备初始化", running=True)
     try:
         s = init_session(req.sample_view_path or None,
                          req.tdms_root or None,
                          req.label_records_db_path or None,
-                         source=req.source or "expert")
+                         source=req.source or "expert",
+                         progress=_init_progress_callback)
     except Exception as e:
+        _set_init_progress(100, "初始化失败", running=False, error=str(e))
         raise HTTPException(status_code=400, detail=f"初始化失败: {e}")
     # 成功后自动保存为"任务"，下次可一键进入（仅当指定了真实路径）
     if req.sample_view_path or req.tdms_root:
         from . import projects_store
         projects_store.add_project(req.model_dump())
+    _set_init_progress(100, "初始化完成", running=False)
     return {"ok": True, **api_config()}
 
 
@@ -177,20 +205,33 @@ def api_projects_open(pid: str):
     p = projects_store.get_project(pid)
     if p is None:
         raise HTTPException(status_code=404, detail="任务不存在")
+    _set_init_progress(0, "准备打开任务", running=True)
     try:
         init_session(p.get("sample_view_path") or None,
                      p.get("tdms_root") or None,
                      p.get("label_records_db_path") or None,
-                     source=p.get("source") or "operator")
+                     source=p.get("source") or "operator",
+                     progress=_init_progress_callback)
     except Exception as e:
+        _set_init_progress(100, "打开任务失败", running=False, error=str(e))
         raise HTTPException(status_code=400, detail=f"打开任务失败: {e}")
     projects_store.touch(pid)
+    _set_init_progress(100, "任务打开完成", running=False)
     return {"ok": True, **api_config()}
 
 
 @app.delete("/api/projects/{pid}")
 def api_projects_delete(pid: str):
-    return {"ok": projects_store.delete_project(pid)}
+    project = projects_store.get_project(pid) or {}
+    removed = []
+    if project:
+        from .session import delete_task_intermediate_files
+        removed = delete_task_intermediate_files(
+            project.get("tdms_root"),
+            project.get("sample_view_path"),
+            project.get("label_records_db_path"),
+        )
+    return {"ok": projects_store.delete_project(pid), "removed_intermediate": removed}
 
 
 @app.get("/api/roots")
@@ -298,6 +339,7 @@ def api_config():
         "sample_view_path": DEFAULT_SAMPLE_VIEW_PATH,
         "tdms_root": s.tdms_root,
         "label_records_db_path": s.label_records_db_path,
+        "label_workspace_db_path": str(getattr(s.label_table, "path", "") or ""),
         "is_mock": s.is_mock,
         "has_db": s.has_db,
         "default_source": s.default_source,
@@ -514,19 +556,23 @@ def api_list_view():
 
 
 @app.get("/api/label_records")
-def api_label_records(labeled_only: bool = True, changed_only: bool = False):
+def api_label_records(labeled_only: bool = True, changed_only: bool = False, sample_id: str = ""):
     """完整标签结果表（16 列）。labeled_only=True 只含做过标注的记录；
     changed_only=True 只含本次任务改动过的样本。"""
     from .session import LABEL_TABLE_COLUMNS
     s = get_session()
+    rows = s.label_records(labeled_only=labeled_only, changed_only=changed_only)
+    if sample_id:
+        rows = [r for r in rows if str(r.get("sample_id", "")) == sample_id]
     return {"columns": LABEL_TABLE_COLUMNS,
-            "rows": s.label_records(labeled_only=labeled_only, changed_only=changed_only),
+            "rows": rows,
             "has_db": s.has_db, "changed_count": len(s.changed_ids)}
 
 
 class LabelExportReq(BaseModel):
     out_path: str = ""
     changed_only: bool = True   # 默认只导出本次任务改动过的标签
+    sample_id: str = ""
 
 
 @app.post("/api/label_records/export")
@@ -537,6 +583,8 @@ def api_label_records_export(req: LabelExportReq):
     from .session import LABEL_TABLE_COLUMNS
     s = get_session()
     rows = s.label_records(labeled_only=True, changed_only=req.changed_only)
+    if req.sample_id:
+        rows = [r for r in rows if str(r.get("sample_id", "")) == req.sample_id]
     out = req.out_path
     base = Path(s.sample_view_path).expanduser().parent if s.sample_view_path else Path(tempfile.gettempdir())
     if not out:

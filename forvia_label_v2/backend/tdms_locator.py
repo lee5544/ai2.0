@@ -1,10 +1,8 @@
 """TDMS 定位 + 注册状态判定。
 
 解析顺序（每条样本 line, sn）：
-  ① 数据库(label_records.db / manifest) 按 (line, sn) 查登记路径 → 命中存在 = 已注册
-  ② sample_view 自带 tdms_path / 源数据文件夹+relative_path 直接命中（快）
-  ③ find_tdms(源数据文件夹, line, sn)：限 line 子目录、文件名含 sn
-  都找不到 = 缺失；②③命中但不在登记表 = 未注册
+  ① 只按 tdms_manifest.csv 查路径/reference/缺失状态
+  ② manifest 不存在或没有该 SN，即缺失
 状态：registered / unregistered / missing
 """
 from __future__ import annotations
@@ -28,8 +26,7 @@ def _safe_exists(p) -> bool:
 class ManifestAdapter:
     """登记适配器。
 
-    - 注册集合 reg_keys：样本是否已登记。来源 label_records.db 的 samples 表
-      （按 line/sn/sample_id）+ tdms_manifest.csv（按 line/sn）。db 的 samples 表无路径列。
+    - 注册集合 reg_keys：样本是否已登记。来源 tdms_manifest.csv（按 line/sn）。
     - 路径表 path_map：(line, sn) -> tdms 绝对路径，仅来自 tdms_manifest.csv。
     """
 
@@ -54,47 +51,7 @@ class ManifestAdapter:
             return
         self._loaded = True
         if self.folder and self.folder.exists():
-            self._load_sqlite()
             self._load_csv()
-
-    def _load_sqlite(self) -> None:
-        """读 samples 表 → 注册集合（line,sn,sample_id 与 line,sn）。samples 无路径列。"""
-        dbs = []
-        for d in self._candidate_dirs():
-            dbs += list(d.glob("*.db"))
-        import sqlite3
-        for db in dbs:
-            try:
-                con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
-                cur = con.cursor()
-                tables = [r[0] for r in cur.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table'")]
-                for t in tables:
-                    cols = [c[1].lower() for c in cur.execute(f"PRAGMA table_info({t})")]
-                    if "line" in cols and "sn" in cols:
-                        has_sid = "sample_id" in cols
-                        sel = "line, sn" + (", sample_id" if has_sid else "")
-                        path_col = next((c for c in ("tdms_path", "relative_path",
-                                         "storage_root", "path") if c in cols), None)
-                        q = f"SELECT {sel}{', ' + path_col if path_col else ''} FROM {t}"
-                        for row in cur.execute(q):
-                            line, sn = _norm(row[0]), _norm(row[1])
-                            self.reg_keys.add((line, sn))
-                            if sn:
-                                self.sn_keys.add(sn)
-                                if line:
-                                    self.line_by_sn.setdefault(sn, line)
-                            if has_sid:
-                                self.reg_keys.add((line, sn, _norm(row[2])))
-                            if path_col:
-                                p = row[-1]
-                                if p:
-                                    self.path_map.setdefault((line, sn), str(p))
-                                    if sn:
-                                        self.path_by_sn.setdefault(sn, str(p))
-                con.close()
-            except Exception:
-                continue
 
     def _load_csv(self) -> None:
         cands = []
@@ -113,7 +70,7 @@ class ManifestAdapter:
                         if line:
                             self.reg_keys.add((line, sn))
                             self.line_by_sn.setdefault(sn, line)
-                        sr = str(row.get("storage_root", "") or "").strip()
+                        sr = str(row.get("tdms_storage_root") or row.get("storage_root") or "").strip()
                         rp = str(row.get("relative_path", "") or "").strip()
                         tp = str(row.get("tdms_path", "") or "").strip()
                         full = tp or (str(Path(sr) / rp) if (sr and rp) else rp)
@@ -134,10 +91,9 @@ class ManifestAdapter:
         return bool(self.reg_keys)
 
     def is_registered(self, line: str, sn: str, sample_id: str = "") -> bool:
+        del sample_id
         self._load()
         ln, s = _norm(line), _norm(sn)
-        if sample_id and (ln, s, _norm(sample_id)) in self.reg_keys:
-            return True
         if (ln, s) in self.reg_keys:
             return True
         return s in self.sn_keys        # line 缺失时按 sn 判断
@@ -213,7 +169,7 @@ class TdmsLocator:
                 return path
         return None
 
-    # ---------- 直接路径（sample_view 自带 tdms_path / relative_path）----------
+    # ---------- manifest 路径拼接辅助 ----------
     def _ext_variants(self, s: str) -> list[str]:
         out = [s]
         low = s.lower()
@@ -262,61 +218,26 @@ class TdmsLocator:
                 out.append(self.root / c)
         return out
 
-    def _direct(self, row) -> Path | None:
-        tp = str(row.get("tdms_path", "") or "").strip()
-        for cand in (self._ext_variants(tp) if tp else []):
-            p = Path(cand).expanduser()
-            try:
-                if p.exists():
-                    return p
-            except Exception:
-                pass
-        rp = str(row.get("relative_path", "") or "").strip()
-        if self.root and rp:
-            for cand in self._ext_variants(rp):
-                for p in (self._overlap_join(self.root, cand), self.root / cand):
-                    try:
-                        if p.exists():
-                            return p
-                    except Exception:
-                        pass
-        return None
-
     # ---------- 综合解析：返回 (path|None, status) ----------
     def resolve(self, row) -> tuple[Path | None, str]:
-        """解析 tdms 路径。为加载海量样本（上万行）时不卡顿，**不做逐样本的磁盘存在性检查**：
-        manifest / sample_view 已给出路径就直接信任（拼成绝对路径返回）。真正文件是否存在，
-        留到打开该样本、读取 tdms 时再判断。只有完全没有路径线索时才扫描目录。"""
+        """解析 tdms 路径。页面路径/缺失状态只以 tdms_manifest.csv 为准。"""
         line = str(row.get("line", "") or "")
         sn = str(row.get("sn", "") or "")
-        sample_id = str(row.get("sample_id", "") or "")
-        registered = self.manifest.is_registered(line, sn, sample_id) if self.manifest else False
-        status = "registered" if registered else "unregistered"
+        manifest_available = self.manifest.available() if self.manifest else False
 
-        # ① manifest 登记路径（信任，不校验存在）
-        if self.manifest is not None:
-            reg = self.manifest.get(line, sn)
-            if reg:
-                p = Path(reg).expanduser()
-                if not p.is_absolute() and self.root is not None:
-                    p = self._overlap_join(self.root, reg)
-                return p, "registered"
-        # ② sample_view 自带 tdms_path（绝对路径，信任）
-        tp = str(row.get("tdms_path", "") or "").strip()
-        if tp:
-            return Path(tp).expanduser(), status
-        # ③ sample_view 自带 relative_path（与 tdms_root 重叠合并）
-        rp = str(row.get("relative_path", "") or "").strip()
-        if rp and self.root is not None:
-            return self._overlap_join(self.root, rp), status
-        # ④ 没有任何路径线索 → 扫描目录（按 line 建索引，缓存；命中文件名含 sn）
-        p = self.find_tdms(line, sn)
-        if p is not None:
-            return p, status
+        # manifest 是页面路径/缺失状态的唯一口径，信任登记路径，不逐样本校验存在。
+        if self.manifest is None or not manifest_available:
+            return None, "missing"
+        reg = self.manifest.get(line, sn)
+        if reg:
+            p = Path(reg).expanduser()
+            if not p.is_absolute() and self.root is not None:
+                p = self._overlap_join(self.root, reg)
+            return p, "registered"
         return None, "missing"
 
     def explain(self, row) -> dict:
-        """诊断：列出该样本尝试过的候选路径与是否存在，便于排查"缺失"。"""
+        """诊断：只列出 manifest 路径候选，便于排查"缺失"。"""
         line = str(row.get("line", "") or "")
         sn = str(row.get("sn", "") or "")
         sid = str(row.get("sample_id", "") or "")
@@ -326,21 +247,10 @@ class TdmsLocator:
             tried.append({"src": "manifest原始值", "path": reg, "exists": _safe_exists(reg)})
             for p in self._manifest_abs_candidates(reg):
                 tried.append({"src": "manifest拼接", "path": str(p), "exists": _safe_exists(p)})
-        tp = str(row.get("tdms_path", "") or "").strip()
-        for cand in (self._ext_variants(tp) if tp else []):
-            p = Path(cand).expanduser()
-            tried.append({"src": "tdms_path", "path": str(p), "exists": _safe_exists(p)})
-        rp = str(row.get("relative_path", "") or "").strip()
-        if self.root and rp:
-            for cand in self._ext_variants(rp):
-                p = self.root / cand
-                tried.append({"src": "tdms_root/relative_path", "path": str(p), "exists": _safe_exists(p)})
-        line_dirs = [str(d) for d in self._line_dirs(line)] if self.root else []
-        ft = self.find_tdms(line, sn)
         return {
             "line": line, "sn": sn, "registered": self.manifest.is_registered(line, sn, sid) if self.manifest else False,
-            "find_tdms_line_dirs": line_dirs,
-            "find_tdms_result": str(ft) if ft else "",
+            "find_tdms_line_dirs": [],
+            "find_tdms_result": "",
             "tried": tried,
         }
 

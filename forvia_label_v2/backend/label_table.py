@@ -117,12 +117,19 @@ class LabelTable:
             self._sync_thread = threading.Thread(target=self._mirror_worker, daemon=True)
             self._sync_thread.start()
 
-    def _enqueue_sync(self, sample_id) -> None:
+    def _enqueue_sync(self, sample_id, line: str = "", sn: str = "") -> None:
         if self._sync_q is not None:
             try:
-                self._sync_q.put_nowait(str(sample_id))
+                self._sync_q.put_nowait((str(line or ""), str(sn or ""), str(sample_id or "")))
             except Exception:
                 pass
+
+    def _enqueue_event_sync(self, event: dict, sample_id: str = "") -> None:
+        self._enqueue_sync(
+            sample_id or event.get("sample_id", ""),
+            line=str(event.get("line", "") or ""),
+            sn=str(event.get("sn", "") or ""),
+        )
 
     def _mirror(self):
         """惰性在后台线程里打开镜像数据库连接（SQLite 连接需在使用它的线程创建）。"""
@@ -139,12 +146,12 @@ class LabelTable:
 
     def _mirror_worker(self) -> None:
         while True:
-            sid = self._sync_q.get()
-            if sid is None:                  # 哨兵：停止信号（task 切换时回收线程，避免老 LabelTable 泄漏）
+            key = self._sync_q.get()
+            if key is None:                  # 哨兵：停止信号（task 切换时回收线程，避免老 LabelTable 泄漏）
                 self._sync_q.task_done()
                 break
             try:
-                self._sync_sample_to_mirror(sid)
+                self._sync_sample_to_mirror(key)
             except Exception:
                 pass
             finally:
@@ -170,17 +177,27 @@ class LabelTable:
                         pass
                     break
 
-    def _sync_sample_to_mirror(self, sample_id: str) -> None:
+    def _sync_sample_to_mirror(self, key) -> None:
         """用本地工作空间里该样本的当前事件，覆盖外部数据库里同一样本的事件（删后插）。"""
         mdb = self._mirror()
         if mdb is None:
             return
-        sid = str(sample_id)
+        if isinstance(key, tuple):
+            line, sn, sid = (str(x or "") for x in key)
+        else:
+            line, sn, sid = "", "", str(key or "")
+        if not line or not sn or not sid:
+            return
         with self._lock:                               # 仅快照本地事件，随后在锁外做外部慢写
             srs = self._srs
-            local = [dict(e) for e in (srs.list_label_events(sample_id=sid, statuses=VISIBLE_LABEL_STATUSES) if srs else [])]
+            local = [
+                dict(e) for e in (
+                    srs.list_label_events(line=line, sn=sn, sample_id=sid, statuses=VISIBLE_LABEL_STATUSES)
+                    if srs else []
+                )
+            ]
         try:
-            old = mdb.list_label_events(sample_id=sid, statuses=VISIBLE_LABEL_STATUSES)
+            old = mdb.list_label_events(line=line, sn=sn, sample_id=sid, statuses=VISIBLE_LABEL_STATUSES)
             ids = [int(e["id"]) for e in old if e.get("id") is not None]
             if ids:
                 mdb.delete_label_events(ids)
@@ -190,12 +207,11 @@ class LabelTable:
             return
         rows = [{k: e.get(k) for k in e.keys() if k != "id"} for e in local]
         try:
+            mdb.upsert_samples([{"line": line, "sn": sn, "sample_id": sid}])
             mdb.import_label_events(rows)
         except Exception:                              # 样本未登记 → 先登记再重试
             try:
-                f0 = local[0]
-                mdb.upsert_samples([{"line": f0.get("line", ""), "sn": f0.get("sn", ""),
-                                     "sample_id": sid}])
+                mdb.upsert_samples([{"line": line, "sn": sn, "sample_id": sid}])
                 mdb.import_label_events(rows)
             except Exception:
                 pass
@@ -289,7 +305,7 @@ class LabelTable:
         if self._srs is not None:
             self._import_event(new_row)
             self._refresh_sample(sample_id)
-            self._enqueue_sync(sample_id)
+            self._enqueue_event_sync(new_row, sample_id)
         return self.history_for(sample_id)
 
     # ---- 删除：物理删一条（单条 DELETE + 更新缓存）----
@@ -304,7 +320,7 @@ class LabelTable:
             srs.delete_label_events([eid])
             cache = self._events_raw()
             cache[:] = [e for e in cache if int(e.get("id", -1) or -1) != eid]
-            self._enqueue_sync(sample_id)
+            self._enqueue_event_sync(ev, sample_id)
         return self.history_for(sample_id)
 
     # ---- 写入一条标注（快速路径：仅按 sample_id 查询 + 单条 insert/update，不读/重写整表）----
@@ -347,7 +363,7 @@ class LabelTable:
         else:
             self._import_event(row)              # 样本未登记会自动先登记
         self._refresh_sample(sample_id)          # 写后只补该样本，缓存即时一致
-        self._enqueue_sync(sample_id)            # 异步同步该样本到外部数据库
+        self._enqueue_event_sync(row, sample_id) # 异步同步该样本到外部数据库
         return decision
 
     def add_raw_event(self, row: dict) -> list[dict]:
@@ -383,7 +399,7 @@ class LabelTable:
         else:
             self._import_event(raw)
         self._refresh_sample(raw["sample_id"])
-        self._enqueue_sync(raw["sample_id"])
+        self._enqueue_event_sync(raw)
         return self.history_for(raw["sample_id"])
 
     # ---- 最新标签映射（从内存缓存单遍扫描，不读 DB）----
@@ -427,7 +443,7 @@ class LabelTable:
         srs.update_label_event(int(ev["id"]), line=str(ev.get("line", "")),
                                sn=str(ev.get("sn", "")), sample_id=str(sample_id), label=row)
         self._refresh_sample(sample_id)
-        self._enqueue_sync(sample_id)
+        self._enqueue_event_sync(row, sample_id)
         return True
 
     # ---- 标记典型异音（方案 A：note 标记，作用于最新行）----
@@ -452,7 +468,7 @@ class LabelTable:
         srs.update_label_event(int(ev["id"]), line=str(ev.get("line", "")),
                                sn=str(ev.get("sn", "")), sample_id=str(sample_id), label=row)
         self._refresh_sample(sample_id)
-        self._enqueue_sync(sample_id)
+        self._enqueue_event_sync(row, sample_id)
         return True
 
     def _set_typical_legacy(self, sample_id: str, flag: bool) -> bool:

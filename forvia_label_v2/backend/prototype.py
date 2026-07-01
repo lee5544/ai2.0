@@ -74,38 +74,9 @@ def _path_from_fields(data_root: Path | None, tdms_path: str, storage_root: str,
 
 
 def _load_sample_paths(session) -> dict[str, Path]:
-    """从 samples 表按 sample_id 兜底取路径；Prototype 页不应只依赖当前 sample_view。"""
-    db = _label_db_path(session)
-    data_root = _data_root(session)
-    if db is None:
-        return {}
-    out: dict[str, Path] = {}
-    try:
-        con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
-        con.row_factory = sqlite3.Row
-        cols = {r[1] for r in con.execute("PRAGMA table_info(samples)")}
-        if {"sample_id", "tdms_path", "relative_path"} <= cols:
-            storage_col = "tdms_storage_root" if "tdms_storage_root" in cols else "storage_root"
-            if storage_col not in cols:
-                storage_col = "''"
-            for row in con.execute(
-                f"SELECT sample_id, tdms_path, relative_path, {storage_col} AS storage_root FROM samples"
-            ):
-                sid = str(row["sample_id"] or "").strip()
-                if not sid or sid in out:
-                    continue
-                p = _path_from_fields(
-                    data_root,
-                    str(row["tdms_path"] or ""),
-                    str(row["storage_root"] or ""),
-                    str(row["relative_path"] or ""),
-                )
-                if p is not None:
-                    out[sid] = p
-        con.close()
-    except Exception:
-        return out
-    return out
+    """TDMS 路径只从 tdms_manifest.csv 取；samples 表不再保存路径。"""
+    del session
+    return {}
 
 
 def _load_manifest_paths(session) -> dict[tuple[str, str], Path]:
@@ -381,8 +352,6 @@ def _latest_confirmed_expert_labels_for_prototype(session) -> dict[str, dict]:
             FROM label_events e
             JOIN samples s ON s.id = e.sample_pk
             WHERE s.is_active = 1
-              AND s.tdms_storage_root = 'factory_raw'
-              AND s.relative_path LIKE s.line || '/prototype/%'
               AND e.status = 'confirmed'
               AND (
                 lower(e.source) = 'expert'
@@ -430,7 +399,11 @@ def write_prototype_internal_tables(session, *, lines: set[str] | None = None) -
 
     for sid, lab in _latest_confirmed_expert_labels_for_prototype(session).items():
         line = str(lab.get("line", "") or "").strip()
+        sn = str(lab.get("sn", "") or "").strip()
         if not line or (lines and line not in lines):
+            continue
+        path = _resolve_candidate_path(session, sid, line, sn, sample_paths, manifest_paths)
+        if not _is_under_line_prototype(path, line=line, data_root=data_root):
             continue
         rows_by_line.setdefault(line, {}).setdefault(sid, _internal_label_row(lab))
 

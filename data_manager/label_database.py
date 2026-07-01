@@ -8,7 +8,7 @@ from typing import Iterable, Mapping, Sequence
 from uuid import uuid4
 
 
-SCHEMA_VERSION = "3"
+SCHEMA_VERSION = "4"
 LABEL_STATUSES = {"unconfirmed", "pending", "confirmed", "rejected"}
 DB_FILENAME = "label_records.db"
 LEGACY_DB_FILENAME = "sample_records.db"
@@ -165,9 +165,6 @@ class LabelDatabase:
                     sampling_rate INTEGER,
                     reference TEXT NOT NULL DEFAULT '',
                     time TEXT NOT NULL DEFAULT '',
-                    tdms_storage_root TEXT NOT NULL DEFAULT '',
-                    relative_path TEXT NOT NULL DEFAULT '',
-                    tdms_path TEXT NOT NULL DEFAULT '',
                     sample_type TEXT NOT NULL DEFAULT 'channel',
                     sample_config TEXT,
                     origin TEXT NOT NULL DEFAULT 'index',
@@ -237,20 +234,7 @@ class LabelDatabase:
                     WHERE rn = 1;
                 """
             )
-            sample_columns = {
-                str(row[1]) for row in connection.execute("PRAGMA table_info(samples)")
-            }
-            for column_name in (
-                "reference",
-                "time",
-                "tdms_storage_root",
-                "relative_path",
-                "tdms_path",
-            ):
-                if column_name not in sample_columns:
-                    connection.execute(
-                        f"ALTER TABLE samples ADD COLUMN {column_name} TEXT NOT NULL DEFAULT ''"
-                    )
+            self._migrate_sample_schema(connection)
             connection.execute(
                 """
                 INSERT INTO schema_meta(key, value) VALUES('schema_version', ?)
@@ -259,6 +243,76 @@ class LabelDatabase:
                 (SCHEMA_VERSION,),
             )
             self._migrate_label_status_schema(connection)
+
+    def _migrate_sample_schema(self, connection: sqlite3.Connection) -> None:
+        sample_columns = {
+            str(row[1]) for row in connection.execute("PRAGMA table_info(samples)")
+        }
+        for column_name in ("reference", "time"):
+            if column_name not in sample_columns:
+                connection.execute(
+                    f"ALTER TABLE samples ADD COLUMN {column_name} TEXT NOT NULL DEFAULT ''"
+                )
+        drop_columns = [c for c in ("tdms_storage_root", "relative_path", "tdms_path") if c in sample_columns]
+        if not drop_columns:
+            return
+        for column_name in drop_columns:
+            try:
+                connection.execute(f"ALTER TABLE samples DROP COLUMN {column_name}")
+            except sqlite3.OperationalError:
+                self._rebuild_samples_without_path_columns(connection)
+                return
+
+    @staticmethod
+    def _rebuild_samples_without_path_columns(connection: sqlite3.Connection) -> None:
+        connection.executescript(
+            """
+            DROP VIEW IF EXISTS confirmed_label_events;
+            DROP VIEW IF EXISTS unlabeled_samples;
+            DROP VIEW IF EXISTS latest_confirmed_labels;
+
+            ALTER TABLE samples RENAME TO samples__old_path_schema;
+
+            CREATE TABLE samples (
+                id INTEGER PRIMARY KEY,
+                line TEXT NOT NULL,
+                sn TEXT NOT NULL,
+                sample_id TEXT NOT NULL,
+                group_name TEXT NOT NULL DEFAULT '',
+                channel_name TEXT NOT NULL DEFAULT '',
+                sampling_rate INTEGER,
+                reference TEXT NOT NULL DEFAULT '',
+                time TEXT NOT NULL DEFAULT '',
+                sample_type TEXT NOT NULL DEFAULT 'channel',
+                sample_config TEXT,
+                origin TEXT NOT NULL DEFAULT 'index',
+                is_active INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN (0, 1)),
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                UNIQUE(line, sn, sample_id)
+            );
+
+            INSERT INTO samples(
+                id, line, sn, sample_id, group_name, channel_name, sampling_rate,
+                reference, time, sample_type, sample_config, origin, is_active, created_at, updated_at
+            )
+            SELECT
+                id, line, sn, sample_id, group_name, channel_name, sampling_rate,
+                COALESCE(reference, ''), COALESCE(time, ''),
+                sample_type, sample_config, origin, is_active, created_at, updated_at
+            FROM samples__old_path_schema;
+
+            DROP TABLE samples__old_path_schema;
+
+            CREATE INDEX IF NOT EXISTS idx_samples_line_sn
+                ON samples(line, sn);
+            CREATE INDEX IF NOT EXISTS idx_samples_sample_id
+                ON samples(sample_id);
+            CREATE INDEX IF NOT EXISTS idx_samples_active
+                ON samples(is_active, line);
+            """
+        )
+        LabelDatabase._create_label_views(connection)
 
     @staticmethod
     def _create_label_views(connection: sqlite3.Connection) -> None:
@@ -384,9 +438,6 @@ class LabelDatabase:
             _int_or_none(row.get("sampling_rate")),
             _text(row.get("reference")),
             _text(row.get("time")),
-            _text(row.get("tdms_storage_root")),
-            _text(row.get("relative_path")),
-            _text(row.get("tdms_path")),
             _text(row.get("sample_type")) or "channel",
             _text(sample_config),
             _text(row.get("origin")) or "index",
@@ -405,18 +456,15 @@ class LabelDatabase:
                 """
                 INSERT INTO samples(
                     line, sn, sample_id, group_name, channel_name, sampling_rate,
-                    reference, time, tdms_storage_root, relative_path, tdms_path,
+                    reference, time,
                     sample_type, sample_config, origin, is_active, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(line, sn, sample_id) DO UPDATE SET
                     group_name=excluded.group_name,
                     channel_name=excluded.channel_name,
                     sampling_rate=excluded.sampling_rate,
                     reference=excluded.reference,
                     time=excluded.time,
-                    tdms_storage_root=excluded.tdms_storage_root,
-                    relative_path=excluded.relative_path,
-                    tdms_path=excluded.tdms_path,
                     sample_type=excluded.sample_type,
                     sample_config=excluded.sample_config,
                     origin=excluded.origin,
@@ -468,18 +516,15 @@ class LabelDatabase:
                     """
                     INSERT INTO samples(
                         line, sn, sample_id, group_name, channel_name, sampling_rate,
-                        reference, time, tdms_storage_root, relative_path, tdms_path,
+                        reference, time,
                         sample_type, sample_config, origin, is_active, created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(line, sn, sample_id) DO UPDATE SET
                         group_name=excluded.group_name,
                         channel_name=excluded.channel_name,
                         sampling_rate=excluded.sampling_rate,
                         reference=excluded.reference,
                         time=excluded.time,
-                        tdms_storage_root=excluded.tdms_storage_root,
-                        relative_path=excluded.relative_path,
-                        tdms_path=excluded.tdms_path,
                         sample_type=excluded.sample_type,
                         sample_config=excluded.sample_config,
                         origin=excluded.origin,
@@ -837,10 +882,7 @@ class LabelDatabase:
                     s.sn,
                     s.sample_id,
                     s.reference,
-                    s.time,
-                    s.tdms_storage_root,
-                    s.relative_path,
-                    s.tdms_path
+                    s.time
                 FROM label_events e
                 JOIN samples s ON s.id=e.sample_pk
                 {where}

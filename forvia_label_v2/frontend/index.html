@@ -64,6 +64,9 @@
     .progress .bar { height:10px; border-radius:99px; background:#eef0f2; overflow:hidden; }
     .progress .bar > i { display:block; height:100%; background:var(--acc); }
     .progress .lab { font-size:12px; color:var(--mut); margin-bottom:3px; }
+    .progress.big { flex:none; padding:14px 0 16px; }
+    .progress.big .bar { height:22px; }
+    .progress.big .lab { font-size:15px; font-weight:700; color:var(--fg); margin-bottom:8px; }
     .meta { padding:10px 18px; font-size:14px; display:flex; gap:18px; flex-wrap:wrap; align-items:center; border-bottom:1px solid var(--bd); }
     .meta .k { color:var(--mut); margin-right:4px; }
     .star { color:#d97706; }
@@ -174,7 +177,7 @@
   <div v-show="view==='task'" class="wrap" style="max-width:none;margin:0 auto">
     <div class="card" style="padding:16px">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
-        <h3 style="margin:0;font-size:15px">{{ exportScope==='changed' ? '本次改动标签' : '全部标签' }}（{{ labelRows.length }} 条）</h3>
+        <h3 style="margin:0;font-size:15px">{{ exportScope==='changed' ? '本次改动结果' : '当前 sample 全部标签' }}（{{ labelRows.length }} 条）</h3>
         <div style="display:inline-flex;border:1px solid var(--bd);border-radius:7px;overflow:hidden">
           <button class="btn" :class="{primary: exportScope==='changed'}" style="border:0;border-radius:0"
                   @click="setExportScope('changed')">仅本次改动</button>
@@ -182,7 +185,7 @@
                   @click="setExportScope('all')">全部</button>
         </div>
         <button class="btn" @click="loadLabelRows">↻ 刷新</button>
-        <span class="hint" style="font-size:12px"><template v-if="exportScope==='changed'">仅含本次任务改动过的样本（确认/删除/保存/标记典型）</template><template v-else>含全部已标注样本</template><template v-if="labelRows.length>labelRowCap">；预览前 {{ labelRowCap }} 条，导出含全部 {{ labelRows.length }} 条</template></span>
+        <span class="hint" style="font-size:12px"><template v-if="exportScope==='changed'">全部本次改动 sample 的当前最新结果，不含过去 label 事件</template><template v-else>当前 sample：{{ currentExportSampleId() || '未选择' }}；仅含这条 sample 的全部已标注记录</template><template v-if="labelRows.length>labelRowCap">；预览前 {{ labelRowCap }} 条，导出含全部 {{ labelRows.length }} 条</template></span>
         <button class="btn primary" style="margin-left:auto" :disabled="!labelRows.length" @click="exportNewTable">⬇ 导出新表格</button>
         <button class="btn" :disabled="!labelRows.length" @click="writeBackSV">↩ 写回 sample_view</button>
       </div>
@@ -200,7 +203,7 @@
         </table>
       </div>
       <p v-if="runMsg" :style="{color: runErr?'#b91c1c':'var(--mut)', fontSize:'13px', marginTop:'8px'}">{{ runMsg }}</p>
-      <p class="hint" style="margin-top:6px">仅展示当前任务做过标注动作的记录（16 列）。"导出新表格"另存为 CSV；"写回 sample_view"把最新标签写回输入的 sample_view.csv。</p>
+      <p class="hint" style="margin-top:6px">“仅本次改动”展示全部已改动 sample 的当前最新结果（16 列，不含过去 label 事件）。"导出新表格"另存为 CSV；"写回 sample_view"把最新标签写回输入的 sample_view.csv。</p>
     </div>
   </div>
 
@@ -214,6 +217,10 @@
           <h3 style="margin:0;font-size:15px">任务</h3>
           <button class="btn primary" style="margin-left:auto" @click="newTask">＋ 创建任务</button>
         </div>
+        <div v-if="opening" class="progress big">
+          <div class="lab">{{ initProgress.message || '准备打开任务' }} <span v-if="initProgress.percent">· {{ initProgress.percent }}%</span></div>
+          <div class="bar"><i :style="{width:(initProgress.percent||0)+'%'}"></i></div>
+        </div>
         <div v-if="!projects.length" class="hint">暂无任务，点"＋ 创建任务"。</div>
         <div v-for="p in projects" :key="p.id" class="proj-row" :style="{opacity: p.valid ? 1 : 0.55}"
              :title="(p.missing_paths&&p.missing_paths.length) ? ('以下路径失效：\n'+p.missing_paths.map(m=>m.field+'：'+m.path).join('\n')) : ''">
@@ -226,12 +233,16 @@
             <div class="hint" style="margin:2px 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
               {{ p.sample_view_path }} · tdms: {{ p.tdms_root || '—' }}<span v-if="p.label_records_db_path"> · db: {{ p.label_records_db_path }}</span>
             </div>
+            <div v-if="opening===p.id" class="progress" style="margin-top:8px;max-width:520px">
+              <div class="lab">{{ initProgress.message || '准备打开任务' }} <span v-if="initProgress.percent">· {{ initProgress.percent }}%</span></div>
+              <div class="bar"><i :style="{width:(initProgress.percent||0)+'%'}"></i></div>
+            </div>
             <div v-if="p.missing_paths && p.missing_paths.length" style="margin:3px 0 0;color:#b91c1c;font-size:12px">
               ⚠ 失效路径：
               <span v-for="(m,mi) in p.missing_paths" :key="mi">{{ mi?'、':'' }}<b>{{ m.field }}</b>（{{ m.path }}）</span>
             </div>
           </div>
-          <button class="btn primary" @click="openProject(p)" :disabled="!p.valid">打开</button>
+          <button class="btn primary" @click="openProject(p)" :disabled="!p.valid || opening===p.id">{{ opening===p.id ? '打开中' : '打开' }}</button>
           <button class="btn" @click="editTask(p)">详情</button>
           <button class="btn" @click="deleteProject(p)">✕</button>
         </div>
@@ -295,6 +306,10 @@
       <div style="margin-top:14px; display:flex; gap:10px; align-items:center">
         <button class="btn primary" @click="doInit" :disabled="initing">{{ initing ? '加载中…' : '加载并开始标注' }}</button>
         <span v-if="initMsg" :style="{color: initErr ? '#b91c1c' : 'var(--mut)'}">{{ initMsg }}</span>
+      </div>
+      <div v-if="initing || initProgress.message" class="progress" style="margin-top:12px">
+        <div class="lab">{{ initProgress.message || '准备初始化' }} <span v-if="initProgress.percent">· {{ initProgress.percent }}%</span></div>
+        <div class="bar"><i :style="{width:(initProgress.percent||0)+'%'}"></i></div>
       </div>
       <p class="hint" style="margin-top:12px">不选择时使用内置演示数据。不勾选③则从空标签开始。单通道输入会自动补齐该 tdms 的 up/down，并在列表"输入"列标出原始输入样本。</p>
     </div>
@@ -424,6 +439,9 @@
       <button v-if="hasDb && stats.unresolved>0" class="btn" @click="pruneMissing">🗑 删除无 tdms 的登记（{{ stats.unresolved }}）</button>
       <span class="stats">共 <b>{{ stats.total }}</b> · 已标 <b>{{ stats.labeled }}</b> · 未标 <b>{{ stats.unlabeled }}</b> · 典型 <b>{{ stats.typical }}</b> · tdms 已注册 <b>{{ stats.registered }}</b>/未注册 <b>{{ stats.unregistered }}</b>/缺失 <b>{{ stats.unresolved }}</b></span>
     </div>
+    <div class="hint" style="margin:6px 0 8px">
+      底纹说明：红色 = 本次任务已改动（保存/确认/删除/标记典型），优先覆盖绿色；绿色 = 当前任务标签库存在 confirmed 标签事件。
+    </div>
     <div id="grid" class="ag-theme-quartz"></div>
     <div class="hint">双击任意一行 → 进入该样本的标注视图。表头可排序、按列筛选。</div>
   </div>
@@ -463,8 +481,9 @@
       <!-- 通道并列 -->
       <div class="channels-row">
         <div class="channel-col" v-for="ch in channels" :key="ch.index">
-          <div class="ch-head">
+          <div class="ch-head" @click="currentSampleId=ch.sample_id" title="点击设为导出表格结果的当前 sample">
             <span :style="{color: ch.row.is_input ? '#dc2626' : 'inherit'}">{{ ch.direction==='down' ? '⬇' : '⬆' }} {{ ch.sample_id }}</span>
+            <span v-if="currentSampleId===ch.sample_id" class="tag ok">当前导出</span>
             <span v-if="ch.row.is_input" style="color:#dc2626;font-size:12px;font-weight:600">来自输入表格</span>
             <span v-else style="color:var(--mut);font-size:12px;font-weight:400">补全</span>
             <span v-if="ch.row.labeled" class="tag ok">已标注 · {{ ch.row.reason_name }}</span>
@@ -655,10 +674,11 @@ createApp({
       isMock: false, taskActive: false, perf: '', labelSrc: 'db', fromSampleView: false, gotoN: 1, navIdx: 0,
       filters: { status:'all', confirmed:'all', line:'all', reason:[], reference:[], changed:'all', typicalOnly:false, missingTdms:false },
       openFilter: '', reasonOptions: [], referenceOptions: [],
-      currentSn: '', channels: [], listRows: [], listColumns: [],
+      currentSn: '', currentSampleId: '', channels: [], listRows: [], listColumns: [],
       initForm: { name:'', sample_view_path:'', useSampleView:false, tdms_root:'', loadLabels:false, label_records_db_path:'', source:'operator', operatorName:'' },
       operatorNameOptions: ['hetao'],
       initing: false, initMsg: '', initErr: false, dragTarget: '',
+      initProgress: { running:false, percent:0, message:'', error:'' },
       sources: ['expert','operator'], hasDb: false, defaultSource: 'expert', refreshing: false,
       projects: [], opening: '', taskMode: 'list',
       reg: { running:false, message:'', error:'' }, regLine: '', exportKind: 'labels',
@@ -672,6 +692,25 @@ createApp({
       opMsg:'', opErr:false,
     });
     let gridApi = null;
+    let initProgressTimer = null;
+
+    async function pollInitProgress(){
+      try {
+        const d = await fetch('/api/init/progress').then(r=>r.json());
+        state.initProgress = d;
+        if(d.error){ state.initErr=true; state.initMsg=d.error; }
+      } catch(e) {}
+    }
+    function startInitProgress(message='准备初始化'){
+      state.initProgress = { running:true, percent:0, message, error:'' };
+      if(initProgressTimer) clearInterval(initProgressTimer);
+      initProgressTimer = setInterval(pollInitProgress, 350);
+      pollInitProgress();
+    }
+    function stopInitProgress(){
+      pollInitProgress();
+      if(initProgressTimer){ clearInterval(initProgressTimer); initProgressTimer=null; }
+    }
 
     // ---- 文件浏览器（浏览后端本机文件系统，本地/远程都可用）----
     function joinPath(base, name){ return base ? (base.replace(/\/$/,'') + '/' + name) : name; }
@@ -749,6 +788,7 @@ createApp({
     }
     async function openProject(p){
       state.opening = p.id; state.initMsg=''; state.initErr=false;
+      startInitProgress('准备打开任务');
       // 同步回填到表单，便于查看
       state.initForm.sample_view_path = p.sample_view_path || '';
       state.initForm.tdms_root = p.tdms_root || '';
@@ -768,7 +808,7 @@ createApp({
         state.view = 'list';
         loadProjects();
       } catch(e){ state.initErr=true; state.initMsg=String(e); }
-      finally { state.opening=''; }
+      finally { state.opening=''; stopInitProgress(); }
     }
     async function deleteProject(p){
       await fetch(`/api/projects/${p.id}`, {method:'DELETE'});
@@ -841,7 +881,13 @@ createApp({
       setMsg(false,'');
       try {
         const body = {out_path: dir};
-        if(kind==='label_records') body.changed_only = (state.exportScope==='changed');
+        if(kind==='label_records'){
+          body.changed_only = (state.exportScope==='changed');
+          if(!body.changed_only){
+            body.sample_id = currentExportSampleId();
+            if(!body.sample_id){ setMsg(true, '请先在列表或逐条标注中选中一个 sample'); return; }
+          }
+        }
         const r = await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},
           body:JSON.stringify(body)});
         const d = await r.json();
@@ -862,6 +908,7 @@ createApp({
     }
     async function doInit(){
       state.initing = true; state.initMsg=''; state.initErr=false;
+      startInitProgress('准备初始化');
       try {
         const body = {
           name: state.initForm.name,
@@ -881,7 +928,7 @@ createApp({
         state.taskActive = true;
         state.view = 'list';
       } catch(e){ state.initErr=true; state.initMsg = String(e); }
-      finally { state.initing = false; }
+      finally { state.initing = false; stopInitProgress(); }
     }
 
     const pct = computed(() => state.stats.total ? Math.round(state.stats.labeled / state.stats.total * 100) : 0);
@@ -889,7 +936,7 @@ createApp({
 
     // sample_view 形式（无数据库）
     const svColumnDefs = [
-      { headerName:'#', field:'index', width:80, filter:'agNumberColumnFilter' },
+      { headerName:'#', field:'_sample_no', width:70, pinned:'left' },
       { headerName:'sn', field:'sn', width:130, filter:true },
       { headerName:'sample_id', field:'sample_id', width:160, filter:true },
       { headerName:'line', field:'line', width:100, filter:true },
@@ -905,7 +952,7 @@ createApp({
     ];
     // 完整 16 列（始终展示；无数据库时标签列留空，有数据库多记录展开多行）
     const dbColumnDefs = [
-      { headerName:'#', field:'index', width:70, filter:'agNumberColumnFilter' },
+      { headerName:'#', field:'_sample_no', width:70, pinned:'left' },
       { headerName:'输入', field:'is_input', width:70, valueFormatter:p=>p.value?'✓':'补全' },
       { headerName:'line', field:'line', width:90, filter:true },
       { headerName:'sn', field:'sn', width:120, filter:true },
@@ -930,7 +977,7 @@ createApp({
       const cols = state.listColumns || [];
       if (!cols.length) return dbColumnDefs;
       return cols.map(c => {
-        if (c === 'index') return { headerName:'#', field:'index', width:70, filter:'agNumberColumnFilter' };
+        if (c === 'index') return { headerName:'#', field:'_sample_no', width:70, pinned:'left' };
         if (c === 'changed') return { headerName:'本次改动', field:'changed', width:100, filter:true,
           valueFormatter:p=>p.value?'● 已改动':'',
           cellStyle:p=> p.value ? {color:'#16a34a', fontWeight:'700'} : null };
@@ -943,7 +990,28 @@ createApp({
 
     function visibleRows() {
       const f = state.filters;
-      return state.listRows.filter(rowMatchesFilter);
+      return numberSampleRows(state.listRows.filter(rowMatchesFilter));
+    }
+    function numberSampleRows(rows){
+      const seen = new Map();
+      let n = 0;
+      return rows.map(r => {
+        const sid = String(r.sample_id || r.index || '');
+        if(!seen.has(sid)) seen.set(sid, ++n);
+        r._sample_no = seen.get(sid);
+        return r;
+      });
+    }
+    function renumberDisplayedRows(){
+      if(!gridApi) return;
+      const seen = new Map();
+      let n = 0;
+      gridApi.forEachNodeAfterFilterAndSort(node => {
+        const sid = String(node.data?.sample_id || node.data?.index || '');
+        if(!seen.has(sid)) seen.set(sid, ++n);
+        node.data._sample_no = seen.get(sid);
+      });
+      gridApi.refreshCells({force:true, columns:['_sample_no']});
     }
     function rowMatchesFilter(r){
       const f = state.filters;
@@ -960,7 +1028,7 @@ createApp({
       if (f.changed==='no' && r.changed) return false;
       return true;
     }
-    function applyFilters(){ if(gridApi) gridApi.setGridOption('rowData', visibleRows()); }
+    function applyFilters(){ if(gridApi){ gridApi.setGridOption('rowData', visibleRows()); setTimeout(renumberDisplayedRows, 0); } }
 
     // 来自 sample_view 面板的列（取当前 SN 各通道行的列并集，保持顺序）
     const svLabelCols = computed(() => {
@@ -1256,8 +1324,14 @@ createApp({
     async function loadLabelRows(){
       state.runMsg=''; state.runErr=false;
       const co = state.exportScope==='changed' ? 'true' : 'false';
+      let sid = '';
+      if(state.exportScope!=='changed'){
+        const currentSid = currentExportSampleId();
+        if(!currentSid){ state.labelRows=[]; state.runMsg='请先在列表或逐条标注中选中一个 sample'; return; }
+        sid = '&sample_id=' + encodeURIComponent(currentSid);
+      }
       try {
-        const d = await fetch(`/api/label_records?labeled_only=true&changed_only=${co}`).then(x=>x.json());
+        const d = await fetch(`/api/label_records?labeled_only=true&changed_only=${co}${sid}`).then(x=>x.json());
         state.labelCols = (d.columns||[]).concat([]);  // 16 列，不含内部 index
         state.labelRows = d.rows || [];
       } catch(e){ state.labelRows=[]; state.runErr=true; state.runMsg=String(e); }
@@ -1320,13 +1394,21 @@ createApp({
       }
     }
     let _loadToken = 0;
-    async function loadGroup(sn){
+    function currentExportSampleId(){
+      if(state.currentSampleId) return state.currentSampleId;
+      const ch = state.channels.find(c=>c.row?.is_input) || state.channels[0];
+      return ch ? String(ch.sample_id || '') : '';
+    }
+    async function loadGroup(sn, sampleId=''){
       const token = ++_loadToken;          // 标记本次导航，过期的加载不再渲染
       const tAll=performance.now();
       purgeChannelPlots();
       state.currentSn = sn; state.opMsg='';
       const _i = snList.value.indexOf(sn); if(_i>=0) state.navIdx=_i;   // 记住在筛选列表中的位置
       state.channels = state.allRows.filter(r => r.sn === sn).map(makeChannel);
+      const preferred = sampleId || (state.channels.some(c=>c.sample_id===state.currentSampleId) ? state.currentSampleId : '');
+      const fallback = state.channels.find(c=>c.row?.is_input) || state.channels[0];
+      state.currentSampleId = preferred || (fallback ? String(fallback.sample_id || '') : '');
       const tFetch=performance.now();
       await Promise.all(state.channels.map(loadChannel));
       if(token !== _loadToken) return;     // 已被更晚的点击取代 → 丢弃这次渲染
@@ -1388,7 +1470,7 @@ createApp({
       const row = state.allRows[index];
       if (!row) return;
       state.view = 'label';
-      loadGroup(row.sn);
+      loadGroup(row.sn, row.sample_id);
     }
     function prevGroup(){
       const list=snList.value, i=list.indexOf(state.currentSn);
@@ -1468,6 +1550,8 @@ createApp({
           if(p.data.has_confirmed_label) return { background:'#dcfce7' };
           return null;
         },
+        onFilterChanged: renumberDisplayedRows,
+        onSortChanged: renumberDisplayedRows,
         onRowDoubleClicked: e => goto(e.data.index),
       });
     }
@@ -1527,7 +1611,7 @@ createApp({
              confirmLabel, deleteLabel, confirmSvLabel,
              loadProjects, openProject, deleteProject, newTask, editTask, registerTdms,
              onDrop, openPicker, openPickerModal, nativeDir, openExport, browse, joinPath, pickFile, pickDir,
-             openTasks, loadLabelRows, setExportScope, exportNewTable, writeBackSV, pruneMissing,
+             openTasks, loadLabelRows, setExportScope, exportNewTable, writeBackSV, pruneMissing, currentExportSampleId,
              openProto, loadProto, importProto, updateProto, allProtoChecked, toggleAllProto, protoRowsView,
              tryNativeDialog, doInit, saveLabel, markTypical, openList, switchLabelSrc };
   }
