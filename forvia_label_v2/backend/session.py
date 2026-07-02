@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sqlite3
 import threading
 import shutil
 from pathlib import Path
@@ -694,6 +695,11 @@ def _remove_sqlite_files(db_path: Path) -> None:
 ProgressCallback = Callable[[int, str], None]
 
 
+def _sqlite_is_malformed(exc: BaseException) -> bool:
+    msg = str(exc).lower()
+    return "database disk image is malformed" in msg or "file is not a database" in msg
+
+
 def _seed_workspace_db(
     store_path: Path,
     sv: pd.DataFrame,
@@ -711,11 +717,16 @@ def _seed_workspace_db(
         keys = {(r["line"], r["sn"], r["sample_id"]) for r in sample_rows}
         if progress:
             progress(48, "读取外部标签事件")
-        external = LabelDatabase(external_db, auto_export=False)
-        events = [
-            row for row in external.list_label_events(statuses={"confirmed", "unconfirmed"})
-            if (str(row.get("line", "")), str(row.get("sn", "")), str(row.get("sample_id", ""))) in keys
-        ]
+        try:
+            external = LabelDatabase(external_db, auto_export=False)
+            events = [
+                row for row in external.list_label_events(statuses={"confirmed", "unconfirmed"})
+                if (str(row.get("line", "")), str(row.get("sn", "")), str(row.get("sample_id", ""))) in keys
+            ]
+        except sqlite3.DatabaseError as exc:
+            if _sqlite_is_malformed(exc):
+                raise RuntimeError(f"外部标签数据库损坏，无法读取: {external_db}") from exc
+            raise
         if events:
             if progress:
                 progress(62, f"写入本地标签事件 {len(events)} 条")
@@ -727,7 +738,13 @@ def _seed_workspace_db(
     else:
         if progress:
             progress(35, "更新本地标签工作空间")
-        LabelDatabase(store_path, auto_export=False).upsert_samples(sample_rows)
+        try:
+            LabelDatabase(store_path, auto_export=False).upsert_samples(sample_rows)
+        except sqlite3.DatabaseError as exc:
+            if not _sqlite_is_malformed(exc):
+                raise
+            _remove_sqlite_files(store_path)
+            LabelDatabase(store_path, auto_export=False).replace_samples(sample_rows, all_samples=True)
 
 
 def init_session(sample_view_path: str | None = None,
@@ -841,9 +858,14 @@ def init_session(sample_view_path: str | None = None,
             label_table.store._write_all(
                 [{c: str(r.get(c, "") or "") for c in LABEL_HISTORY_COLUMNS} for r in rows])
     except Exception:
-        # 工作空间库不可用 → 退回持久可写位置，保证不崩且重启仍在
-        store_path = _writable_db_path(sample_view_path, is_mock, tdms_root)
-        label_table = LabelTable(store_path)
+        if not is_mock:
+            _remove_sqlite_files(store_path)
+            _seed_workspace_db(store_path, sv, Path(mirror_db_path) if mirror_db_path else None, progress)
+            label_table = LabelTable(store_path)
+        else:
+            # 演示库不可用 → 删除后重建。
+            _remove_sqlite_files(store_path)
+            label_table = LabelTable(store_path)
 
     if mirror_db_path is not None:        # 双写：标注同步到外部数据库
         try:
