@@ -18,7 +18,8 @@ STORE_FILE = Path(os.environ.get(
     str(_APP_DATA_DIR / "projects.json"),
 )).expanduser()
 
-FIELDS = ("name", "sample_view_path", "tdms_root", "label_records_db_path", "source")
+FIELDS = ("name", "sample_view_path", "tdms_root", "label_records_db_path", "source", "workspace_id")
+DATA_FIELDS = ("sample_view_path", "tdms_root", "label_records_db_path", "source")
 
 
 def _load() -> list[dict]:
@@ -59,9 +60,16 @@ def add_project(data: dict) -> dict:
     now = time.time()
     for it in items:
         if it.get("name") == cfg["name"] and it.get("sample_view_path") == cfg["sample_view_path"]:
+            if not cfg["workspace_id"]:
+                cfg["workspace_id"] = str(it.get("workspace_id", "") or "")
+            if (any(str(it.get(k, "") or "") != cfg[k] for k in DATA_FIELDS)
+                    and cfg["workspace_id"] == str(it.get("workspace_id", "") or "")):
+                cfg["workspace_id"] = uuid.uuid4().hex
             it.update(cfg); it["last_used_at"] = now
             _save(items)
             return it
+    if not cfg["workspace_id"]:
+        cfg["workspace_id"] = uuid.uuid4().hex
     cfg["id"] = uuid.uuid4().hex[:8]
     cfg["created_at"] = now
     cfg["last_used_at"] = now

@@ -127,6 +127,7 @@ class InitReq(BaseModel):
     tdms_root: str = ""
     label_records_db_path: str = ""   # 空 = 不加载标签（从空表开始）
     source: str = "expert"             # 默认标注来源 operator / expert
+    workspace_id: str = ""
 
 
 @app.post("/api/init")
@@ -137,6 +138,7 @@ def api_init(req: InitReq):
                          req.tdms_root or None,
                          req.label_records_db_path or None,
                          source=req.source or "expert",
+                         workspace_id=req.workspace_id or None,
                          progress=_init_progress_callback)
     except Exception as e:
         _set_init_progress(100, "初始化失败", running=False, error=str(e))
@@ -190,6 +192,7 @@ class SaveProjectReq(BaseModel):
     tdms_root: str = ""
     label_records_db_path: str = ""
     source: str = "operator"
+    workspace_id: str = ""
 
 
 @app.post("/api/projects")
@@ -211,6 +214,7 @@ def api_projects_open(pid: str):
                      p.get("tdms_root") or None,
                      p.get("label_records_db_path") or None,
                      source=p.get("source") or "operator",
+                     workspace_id=p.get("workspace_id") or None,
                      progress=_init_progress_callback)
     except Exception as e:
         _set_init_progress(100, "打开任务失败", running=False, error=str(e))
@@ -230,6 +234,7 @@ def api_projects_delete(pid: str):
             project.get("tdms_root"),
             project.get("sample_view_path"),
             project.get("label_records_db_path"),
+            project.get("workspace_id"),
         )
     return {"ok": projects_store.delete_project(pid), "removed_intermediate": removed}
 
@@ -379,14 +384,28 @@ def api_refresh(label_source: str = "db", force: int = 0):
     if force:
         s.label_table.invalidate_cache()
     events, latest = s.snapshot()
-    expert_ids = s._expert_ids_from_events(events)
+    label_status_map = s._label_status_map_from_events(events)
     return {
-        "overview": s.build_overview(latest=latest, label_source=label_source, expert_ids=expert_ids),
-        "list": s.list_view(events=events, label_source=label_source, expert_ids=expert_ids),
+        "overview": s.build_overview(latest=latest, label_source=label_source, label_status_map=label_status_map),
+        "list": s.list_view(events=events, label_source=label_source, label_status_map=label_status_map),
         "has_db": s.has_db,
         "default_source": s.default_source,
         "from_sample_view": getattr(s, "from_sample_view", False),
     }
+
+
+class ReferenceLabelStatsReq(BaseModel):
+    source: str = "all"
+    references: list[str] = []
+    label_statuses: list[str] = []
+
+
+@app.post("/api/reference_label_stats")
+def api_reference_label_stats(req: ReferenceLabelStatsReq):
+    if not req.references:
+        raise HTTPException(status_code=400, detail="请先选择 reference")
+    return get_session().reference_label_stats(req.references, source=req.source,
+                                               label_statuses=req.label_statuses)
 
 
 # note 里需要清掉的"导入残留字段"键（result=... 及其映射等）
@@ -545,7 +564,8 @@ def api_db_prune_missing():
         con.close()
     # 重建会话以刷新（无 sample_view 时会按精简后的 db 重新生成）
     init_session(s.sample_view_path or None, s.tdms_root or None,
-                 s.label_records_db_path or None, source=s.default_source)
+                 s.label_records_db_path or None, source=s.default_source,
+                 workspace_id=getattr(s, "workspace_id", "") or None)
     return {"ok": True, "deleted_samples": ds, "deleted_events": de}
 
 

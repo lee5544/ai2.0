@@ -18,6 +18,7 @@ import tempfile
 from typing import Callable
 
 from .config import LABEL_HISTORY_COLUMNS, TYPICAL_TAG
+from .label_table import RUNTIME
 from .label_table import LabelTable
 from .mock import mock_label_history, mock_sample_view
 from .tdms_locator import ManifestAdapter, TdmsLocator
@@ -167,6 +168,14 @@ def complete_samples(sv: pd.DataFrame) -> pd.DataFrame:
 
 # ---------- 会话 ----------
 STATUS_LABEL = {"registered": "已注册", "unregistered": "未注册", "missing": "缺失"}
+LABEL_STATUS_NAMES = {
+    "all": "全部",
+    "expert": "专家标注",
+    "operator_consistent": "员工多个且一致",
+    "operator_conflict": "员工多个但不一致",
+    "operator_single": "员工单个",
+    "unlabeled": "无专家/员工标注",
+}
 
 
 class LabelSession:
@@ -229,8 +238,12 @@ class LabelSession:
             cur = latest.get(sid)
             if cur is None or ts >= cur[0]:
                 latest[sid] = (ts, r)
-        return {sid: {k: str(v.get(k, "") or "") for k in LABEL_HISTORY_COLUMNS}
-                for sid, (_, v) in latest.items()}
+        out = {}
+        for sid, (_, v) in latest.items():
+            row = {k: str(v.get(k, "") or "") for k in LABEL_HISTORY_COLUMNS}
+            row["status"] = str(v.get("status", "") or "")
+            out[sid] = row
+        return out
 
     def latest_label_map(self, events: list[dict] | None = None) -> dict[str, dict]:
         if events is None:
@@ -241,19 +254,42 @@ class LabelSession:
     def _expert_ids_from_events(events: list[dict]) -> set[str]:
         """有任意一条 source=expert 标注的 sample_id 集合。"""
         return {str(e.get("sample_id", "")) for e in events
-                if str(e.get("source", "")).strip().lower() == "expert"}
+                if LabelSession._source_category(e.get("source")) == "expert"}
 
     @staticmethod
-    def _confirmed_ids_from_events(events: list[dict]) -> set[str]:
-        """有任意一条 status=confirmed 的标签事件。
+    def _source_category(source: object) -> str:
+        s = str(source or "").strip().lower()
+        for key in ("expert", "operator"):
+            if s == key or any(s.startswith(f"{key}{sep}") for sep in ("_", "-", ":", ".")):
+                return key
+        return s
 
-        列表可以展示 unconfirmed 事件，但前端绿色底纹只使用这里的 confirmed 集合。
-        """
-        out: set[str] = set()
+    @staticmethod
+    def _label_signature(event: dict) -> tuple[str, str]:
+        result = str(event.get("result_key") or event.get("result_name") or "").strip()
+        reason = str(event.get("reason_key") or event.get("reason_name") or "").strip()
+        return result, reason
+
+    @classmethod
+    def _label_status_map_from_events(cls, events: list[dict]) -> dict[str, dict[str, str]]:
+        by_sid: dict[str, list[dict]] = {}
         for event in events:
-            status = str(event.get("status", "") or "confirmed").strip().lower()
-            if status == "confirmed":
-                out.add(str(event.get("sample_id", "")))
+            sid = str(event.get("sample_id", ""))
+            if sid:
+                by_sid.setdefault(sid, []).append(event)
+        out: dict[str, dict[str, str]] = {}
+        for sid, evs in by_sid.items():
+            if any(cls._source_category(e.get("source")) == "expert" for e in evs):
+                key = "expert"
+            else:
+                ops = [e for e in evs if cls._source_category(e.get("source")) == "operator"]
+                if len(ops) >= 2:
+                    key = "operator_consistent" if len({cls._label_signature(e) for e in ops}) == 1 else "operator_conflict"
+                elif len(ops) == 1:
+                    key = "operator_single"
+                else:
+                    key = "unlabeled"
+            out[sid] = {"key": key, "name": LABEL_STATUS_NAMES[key]}
         return out
 
     def row(self, index: int) -> pd.Series:
@@ -351,33 +387,33 @@ class LabelSession:
 
     def list_view(self, events: list[dict] | None = None,
                   label_source: str = "db",
-                  expert_ids: set[str] | None = None) -> dict:
+                  label_status_map: dict[str, dict[str, str]] | None = None) -> dict:
         """列表总览数据 + 动态列。label_source 决定标签列取自哪：
         - 'db'：取自数据库/内部库（有库则 16 列、多事件展开成多行）。
         - 'sample_view'：取自 sample_view 行自带的列（不读库，不展开）。
-        has_expert：该样本是否存在任意 source=expert 的标注（保留给筛选/展示扩展，底纹不再使用）。
         """
-        if expert_ids is None:
-            _ev = events if events is not None else self.label_table.events_normalized()
-            expert_ids = self._expert_ids_from_events(_ev)
-        confirmed_ids = self._confirmed_ids_from_events(events if events is not None else self.label_table.events_normalized())
+        if events is None:
+            events = self.label_table.events_normalized()
+        if label_status_map is None:
+            label_status_map = self._label_status_map_from_events(events)
+        expert_ids = self._expert_ids_from_events(events)
         if self.has_db and label_source == "db":
-            columns = ["index", "is_input", "changed"] + LABEL_TABLE_COLUMNS[:6] + ["status"] + LABEL_TABLE_COLUMNS[6:] + ["tdms"]
+            columns = ["index", "is_input", "changed", "label_status_name"] + LABEL_TABLE_COLUMNS[:6] + ["status"] + LABEL_TABLE_COLUMNS[6:] + ["tdms"]
             rows = []
-            if events is None:
-                events = self.label_table.events_normalized()
             events_by_sid: dict[str, list] = {}
             for rec in events:
                 events_by_sid.setdefault(str(rec.get("sample_id", "")), []).append(rec)
             for i, (_, sv) in enumerate(self.sample_view.iterrows()):
                 base = self._list_base_row(i, sv)
                 changed = base["sample_id"] in self.changed_ids
-                has_expert = base["sample_id"] in expert_ids
-                has_confirmed_label = base["sample_id"] in confirmed_ids
+                label_status = label_status_map.get(base["sample_id"], {"key": "unlabeled", "name": LABEL_STATUS_NAMES["unlabeled"]})
+                has_expert = label_status["key"] == "expert"
+                confirmed_status = "confirmed" if base["sample_id"] in expert_ids else "unconfirmed"
                 evs = events_by_sid.get(base["sample_id"], [])
                 if not evs:
                     rows.append({**base, "changed": changed, "has_expert": has_expert,
-                                 "has_confirmed_label": has_confirmed_label,
+                                 "confirmed_status": confirmed_status,
+                                 "label_status_key": label_status["key"], "label_status_name": label_status["name"],
                                  "status": "",
                                  **{c: "" for c in _LABEL_ONLY_COLS},
                                  "labeled": False, "typical": False})
@@ -385,7 +421,8 @@ class LabelSession:
                     for e in sorted(evs, key=lambda x: str(x.get("timestamp", ""))):
                         note = str(e.get("note", "") or "")
                         rows.append({**base, "changed": changed, "has_expert": has_expert,
-                                     "has_confirmed_label": has_confirmed_label,
+                                     "confirmed_status": confirmed_status,
+                                     "label_status_key": label_status["key"], "label_status_name": label_status["name"],
                                      "status": str(e.get("status", "") or "confirmed"),
                                      **{c: str(e.get(c, "") or "") for c in _LABEL_ONLY_COLS},
                                      "labeled": bool(e.get("reason_name")),
@@ -396,15 +433,18 @@ class LabelSession:
         # =='sample_view' 时只用 sample_view 自带的列（不读库）。
         sv_cols = [c for c in self.sample_view.columns if c != "is_input"]
         extra = [c for c in _LABEL_ONLY_COLS if c not in sv_cols]
-        columns = ["index", "is_input", "changed"] + sv_cols + extra + ["tdms"]
+        columns = ["index", "is_input", "changed", "label_status_name"] + sv_cols + extra + ["tdms"]
         latest = self.latest_label_map(events) if label_source == "db" else {}
         rows = []
         for i, (_, sv) in enumerate(self.sample_view.iterrows()):
             base = self._list_base_row(i, sv)
+            label_status = label_status_map.get(base["sample_id"], {"key": "unlabeled", "name": LABEL_STATUS_NAMES["unlabeled"]})
             row = {"index": i, "is_input": base["is_input"], "tdms": base["tdms"],
                    "changed": base["sample_id"] in self.changed_ids,
-                   "has_expert": base["sample_id"] in expert_ids,
-                   "has_confirmed_label": base["sample_id"] in confirmed_ids,
+                   "has_expert": label_status["key"] == "expert",
+                   "confirmed_status": "confirmed" if base["sample_id"] in expert_ids else "unconfirmed",
+                   "label_status_key": label_status["key"],
+                   "label_status_name": label_status["name"],
                    "reference": base["reference"]}
             for c in sv_cols:
                 row[c] = str(sv.get(c, "") or "")
@@ -467,19 +507,20 @@ class LabelSession:
 
     def build_overview(self, latest: dict | None = None,
                        label_source: str = "db",
-                       expert_ids: set[str] | None = None) -> dict:
-        if latest is None or expert_ids is None:
+                       label_status_map: dict[str, dict[str, str]] | None = None) -> dict:
+        if latest is None or label_status_map is None:
             events = self.label_table.events_normalized()
             if latest is None:
                 latest = self._latest_from_events(events)
-            if expert_ids is None:
-                expert_ids = self._expert_ids_from_events(events)
+            if label_status_map is None:
+                label_status_map = self._label_status_map_from_events(events)
         else:
             events = self.label_table.events_normalized()
-        confirmed_ids = self._confirmed_ids_from_events(events)
+        expert_ids = self._expert_ids_from_events(events)
         rows = []
         for idx, sv in self.sample_view.iterrows():
             sid = str(sv.get("sample_id", ""))
+            label_status = label_status_map.get(sid, {"key": "unlabeled", "name": LABEL_STATUS_NAMES["unlabeled"]})
             if label_source == "sample_view":
                 lab = self._sv_label_fields(sv)
                 labeled = bool(lab.get("reason_name") or lab.get("reason_key"))
@@ -504,11 +545,14 @@ class LabelSession:
                 "line": str(sv.get("line", "")),
                 "is_input": is_input not in ("False", "false", "0", ""),
                 "labeled": labeled,
-                "has_confirmed_label": sid in confirmed_ids,
                 "changed": sid in self.changed_ids,
-                "has_expert": sid in expert_ids,
+                "has_expert": label_status["key"] == "expert",
+                "confirmed_status": "confirmed" if sid in expert_ids else "unconfirmed",
+                "label_status_key": label_status["key"],
+                "label_status_name": label_status["name"],
                 "reference": self._reference_of(sv),
                 "reason_name": str(lab.get("reason_name", "")),
+                "status": str(lab.get("status", "")),
                 "source": str(lab.get("source", "")),
                 "typical": TYPICAL_TAG in note,
                 "tdms": tdms_label,
@@ -530,6 +574,161 @@ class LabelSession:
             "is_mock": self.is_mock,
             "has_db": self.has_db,
             "tdms_root": self.tdms_root,
+        }
+
+    @staticmethod
+    def _source_matches(event_source: object, source: str) -> bool:
+        want = str(source or "").strip().lower()
+        if not want or want in ("all", "全部"):
+            return True
+        have = str(event_source or "").strip().lower()
+        if want in ("expert", "operator"):
+            return LabelSession._source_category(have) == want
+        return have == want
+
+    @staticmethod
+    def _count_label(counter: dict[str, int], value: object) -> None:
+        key = str(value or "").strip()
+        if key:
+            counter[key] = counter.get(key, 0) + 1
+
+    @staticmethod
+    def _fmt_counts(counter: dict[str, int]) -> str:
+        if not counter:
+            return "-"
+        return "，".join(f"{k}:{v}" for k, v in sorted(counter.items(), key=lambda kv: (-kv[1], kv[0])))
+
+    @staticmethod
+    def _label_order(name: str, kind: str) -> tuple[int, str]:
+        values = RUNTIME.reasons.values() if kind == "reason" else RUNTIME.results.values()
+        for item in values:
+            if str(item.get("name", "")) == str(name):
+                try:
+                    return int(item.get("id")), str(name)
+                except (TypeError, ValueError):
+                    break
+        return 10**9, str(name)
+
+    def reference_label_stats(self, references: list[str], source: str = "all",
+                              label_statuses: list[str] | None = None) -> dict:
+        """按输入 reference 顺序统计标签覆盖与有效训练标签分布。"""
+        events = self.label_table.events_normalized()
+        label_status_map = self._label_status_map_from_events(events)
+        status_set = {str(x or "").strip() for x in (label_statuses or []) if str(x or "").strip()}
+        valid_statuses = {"expert", "operator_consistent"}
+
+        def sid_in_status(sid: str) -> bool:
+            if not status_set:
+                return True
+            st = label_status_map.get(sid, {"key": "unlabeled"})["key"]
+            return st in status_set
+
+        wanted = []
+        seen_refs = set()
+        for ref in references:
+            ref = str(ref or "").strip()
+            if ref and ref not in seen_refs:
+                wanted.append(ref)
+                seen_refs.add(ref)
+
+        all_ref_samples: dict[str, set[str]] = {}
+        all_ref_tdms: dict[str, set[tuple[str, str]]] = {}
+        sample_ref: dict[str, str] = {}
+        for _, sv in self.sample_view.iterrows():
+            ref = self._reference_of(sv)
+            sid = str(sv.get("sample_id", "") or "")
+            line = str(sv.get("line", "") or "")
+            sn = str(sv.get("sn", "") or "")
+            if not ref or not sid:
+                continue
+            sample_ref[sid] = ref
+            all_ref_samples.setdefault(ref, set()).add(sid)
+            all_ref_tdms.setdefault(ref, set()).add((line, sn))
+
+        items = {
+            ref: {
+                "reference": ref,
+                "exists": ref in all_ref_samples,
+                "tdms_count": len(all_ref_tdms.get(ref, set())),
+                "sample_count": len(all_ref_samples.get(ref, set())),
+                "labeled_sample_count": 0,
+                "confirmed_count": 0,
+                "valid_label_count": 0,
+                "_labeled_samples": set(),
+                "_confirmed_samples": set(),
+                "_valid_samples": set(),
+                "_result_counts": {},
+                "_reason_counts": {},
+            }
+            for ref in wanted
+        }
+
+        events_by_sid: dict[str, list[dict]] = {}
+        for event in events:
+            if not self._source_matches(event.get("source"), source):
+                continue
+            sid = str(event.get("sample_id", "") or "")
+            events_by_sid.setdefault(sid, []).append(event)
+            ref = sample_ref.get(sid)
+            if ref not in items:
+                continue
+            item = items[ref]
+            item["_labeled_samples"].add(str(event.get("sample_id", "") or ""))
+            if self._source_category(event.get("source")) == "expert":
+                item["_confirmed_samples"].add(sid)
+
+        for sid, evs in events_by_sid.items():
+            ref = sample_ref.get(sid)
+            if ref not in items or not sid_in_status(sid):
+                continue
+            status = label_status_map.get(sid, {"key": "unlabeled"})["key"]
+            if status not in valid_statuses:
+                continue
+            if status == "expert":
+                candidates = [e for e in evs if self._source_category(e.get("source")) == "expert"]
+            else:
+                candidates = [e for e in evs if self._source_category(e.get("source")) == "operator"]
+            if not candidates:
+                continue
+            event = sorted(candidates, key=lambda e: str(e.get("timestamp", "") or ""))[-1]
+            item = items[ref]
+            item["_valid_samples"].add(sid)
+            self._count_label(item["_result_counts"], event.get("result_name") or event.get("result_key"))
+            self._count_label(item["_reason_counts"], event.get("reason_name") or event.get("reason_key"))
+
+        out = []
+        total_result_counts: dict[str, int] = {}
+        total_reason_counts: dict[str, int] = {}
+        for ref in wanted:
+            item = items[ref]
+            result_counts = item.pop("_result_counts")
+            reason_counts = item.pop("_reason_counts")
+            item["labeled_sample_count"] = len(item.pop("_labeled_samples"))
+            item["confirmed_count"] = len(item.pop("_confirmed_samples"))
+            item["valid_label_count"] = len(item.pop("_valid_samples"))
+            item["result_counts"] = result_counts
+            item["reason_counts"] = reason_counts
+            item["result_distribution"] = self._fmt_counts(result_counts)
+            item["reason_distribution"] = self._fmt_counts(reason_counts)
+            for k, v in result_counts.items():
+                total_result_counts[k] = total_result_counts.get(k, 0) + v
+            for k, v in reason_counts.items():
+                total_reason_counts[k] = total_reason_counts.get(k, 0) + v
+            out.append(item)
+
+        return {
+            "source": source or "all",
+            "label_statuses": sorted(status_set),
+            "result_labels": sorted(total_result_counts, key=lambda k: self._label_order(k, "result")),
+            "reason_labels": sorted(total_reason_counts, key=lambda k: self._label_order(k, "reason")),
+            "reference_count": len(wanted),
+            "found_count": sum(1 for x in out if x["exists"]),
+            "missing_count": sum(1 for x in out if not x["exists"]),
+            "labeled_sample_count": sum(int(x["labeled_sample_count"]) for x in out),
+            "confirmed_count": sum(int(x["confirmed_count"]) for x in out),
+            "valid_label_count": sum(int(x["valid_label_count"]) for x in out),
+            "sample_count": sum(int(x["sample_count"]) for x in out),
+            "items": out,
         }
 
 
@@ -600,33 +799,38 @@ def _task_workspace_dir(
     tdms_root: str | None,
     sample_view_path: str | None = None,
     db_path: str | Path | None = None,
+    workspace_id: str | None = None,
     create: bool = True,
 ) -> Path:
     """当前任务的本地工作空间。由数据源三元组确定，避免不同任务共用标签缓存。"""
-    key = hashlib.md5("|".join([
-        str(tdms_root or ""),
-        str(sample_view_path or ""),
-        str(db_path or ""),
-    ]).encode("utf-8")).hexdigest()[:12]
+    key = str(workspace_id or "").strip()
+    if not key:
+        key = hashlib.md5("|".join([
+            str(tdms_root or ""),
+            str(sample_view_path or ""),
+            str(db_path or ""),
+        ]).encode("utf-8")).hexdigest()[:12]
     d = _workspace_dir(create=create) / key
     if create:
         d.mkdir(parents=True, exist_ok=True)
     return d
 
 
-def _changed_state_path(tdms_root, sample_view_path, db_path) -> Path:
+def _changed_state_path(tdms_root, sample_view_path, db_path, workspace_id: str | None = None) -> Path:
     """本任务"被人工改动过"集合的持久文件（按三条数据源路径确定，跨重启稳定）。"""
-    key = hashlib.md5("|".join([str(tdms_root or ""), str(sample_view_path or ""),
-                                str(db_path or "")]).encode("utf-8")).hexdigest()[:12]
+    key = str(workspace_id or "").strip()
+    if not key:
+        key = hashlib.md5("|".join([str(tdms_root or ""), str(sample_view_path or ""),
+                                    str(db_path or "")]).encode("utf-8")).hexdigest()[:12]
     return _app_data_dir() / "changed" / f"{key}.json"
 
 
-def delete_task_intermediate_files(tdms_root, sample_view_path, db_path) -> list[str]:
+def delete_task_intermediate_files(tdms_root, sample_view_path, db_path, workspace_id: str | None = None) -> list[str]:
     """删除任务本地中间文件：workspace 标签缓存和本次改动状态；不删除源数据/外部数据库。"""
     removed: list[str] = []
     for p in (
-        _task_workspace_dir(tdms_root, sample_view_path, db_path, create=False),
-        _changed_state_path(tdms_root, sample_view_path, db_path),
+        _task_workspace_dir(tdms_root, sample_view_path, db_path, workspace_id, create=False),
+        _changed_state_path(tdms_root, sample_view_path, db_path, workspace_id),
     ):
         try:
             if p.is_dir():
@@ -751,6 +955,7 @@ def init_session(sample_view_path: str | None = None,
                  tdms_root: str | None = None,
                  label_records_db_path: str | None = None,
                  source: str = "expert",
+                 workspace_id: str | None = None,
                  progress: ProgressCallback | None = None) -> LabelSession:
     global SESSION
     if progress:
@@ -844,8 +1049,9 @@ def init_session(sample_view_path: str | None = None,
     if is_mock:
         store_path = Path(tempfile.gettempdir()) / "forvia_v2_mock_label_records.db"
         mirror_db_path = None
+        _seed_workspace_db(store_path, sv, None, progress)
     else:
-        store_path = _task_workspace_dir(tdms_root, sample_view_path, db_file) / "label_records.db"
+        store_path = _task_workspace_dir(tdms_root, sample_view_path, db_file, workspace_id) / "label_records.db"
         mirror_db_path = str(db_file) if (db_file is not None and Path(db_file).exists()) else None
         _seed_workspace_db(store_path, sv, Path(mirror_db_path) if mirror_db_path else None, progress)
 
@@ -865,6 +1071,7 @@ def init_session(sample_view_path: str | None = None,
         else:
             # 演示库不可用 → 删除后重建。
             _remove_sqlite_files(store_path)
+            _seed_workspace_db(store_path, sv, None, progress)
             label_table = LabelTable(store_path)
 
     if mirror_db_path is not None:        # 双写：标注同步到外部数据库
@@ -946,6 +1153,7 @@ def init_session(sample_view_path: str | None = None,
                            sample_view_path=sample_view_path or "",
                            default_source=source,
                            has_db=db_file is not None)
+    SESSION.workspace_id = workspace_id or ""
     SESSION.from_sample_view = from_sample_view   # 第二步勾选了 sample_view → 展示"来自 sample_view"面板
     # tdms_manifest.csv（数据库文件夹）里的 reference 列 → (line,sn) 映射，供列表 reference 筛选
     try:
@@ -961,7 +1169,7 @@ def init_session(sample_view_path: str | None = None,
         SESSION.reference_by_sn = {}
     # 跨重启加载"被人工改动过"集合（落在任务工作空间）
     SESSION.changed_state_path = _changed_state_path(tdms_root, sample_view_path,
-                                                     label_records_db_path)
+                                                     label_records_db_path, workspace_id)
     SESSION.changed_ids = _load_changed_ids(SESSION.changed_state_path)
     if progress:
         progress(100, "初始化完成")

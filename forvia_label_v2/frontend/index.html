@@ -53,6 +53,27 @@
     .btn.primary { background:var(--acc); color:#fff; border-color:var(--acc); }
     .stats { margin-left:auto; font-size:13px; color:var(--mut); }
     .stats b { color:var(--fg); }
+    .stat-card { border:1px solid var(--bd); border-radius:10px; margin:8px 0 12px; overflow:visible; background:#fff; }
+    .stat-card .body { padding:10px 12px; }
+    .stat-form { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; }
+    .stat-form label { display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--mut); }
+    .stat-form input, .stat-form textarea { border:1px solid var(--bd); border-radius:7px; padding:6px 8px; font-size:13px; }
+    .stat-form textarea { width:420px; min-height:68px; resize:vertical; }
+    .stat-summary { display:flex; gap:16px; flex-wrap:wrap; margin:10px 0; font-size:13px; color:var(--mut); }
+    .stat-summary b { color:var(--fg); }
+    .stat-scroll { max-height:52vh; overflow:auto; }
+    .stat-table { width:100%; border-collapse:collapse; font-size:12px; }
+    .stat-table th, .stat-table td { padding:6px 8px; border-top:1px solid var(--bd); vertical-align:middle; }
+    .stat-table td { text-align:left; }
+    .stat-table th { color:var(--mut); font-weight:600; background:#fafbfc; position:sticky; z-index:2; text-align:center; vertical-align:middle; }
+    .stat-table thead tr:first-child th { top:0; }
+    .stat-table thead tr:nth-child(2) th { top:31px; }
+    .stat-table .group-head { text-align:center; color:var(--fg); }
+    .stat-table tbody tr:nth-child(even) { background:#f8fafc; }
+    .stat-table tbody tr:hover { background:#eef2f7; }
+    .stat-table td.num { text-align:center; white-space:nowrap; }
+    .stat-table .dist { min-width:74px; text-align:center; white-space:nowrap; font-variant-numeric:tabular-nums; }
+    .stat-table .sub { display:block; font-size:11px; font-weight:500; color:var(--mut); line-height:1.15; margin-top:2px; }
     .badge { font-size:11px; padding:1px 7px; border-radius:99px; background:#fff7ed; color:#c2410c; border:1px solid #fed7aa; }
     #grid { width:100%; height: calc(100vh - 170px); }
     .hint { font-size:12px; color:var(--mut); margin-top:6px; }
@@ -375,18 +396,6 @@
       <button class="btn" @click="reload(true)" :disabled="refreshing" style="display:inline-flex;align-items:center;gap:6px">
         <span v-if="refreshing" class="busy-spin"></span>{{ refreshing ? '刷新中…' : '↻ 刷新' }}
       </button>
-      <label>标注状态
-        <select v-model="filters.status" @change="applyFilters">
-          <option value="all">全部</option><option value="labeled">已标注</option><option value="unlabeled">未标注</option>
-        </select>
-      </label>
-      <label>confirmed 状态
-        <select v-model="filters.confirmed" @change="applyFilters">
-          <option value="all">全部</option>
-          <option value="confirmed">confirmed</option>
-          <option value="unconfirmed">unconfirmed</option>
-        </select>
-      </label>
       <label>线名
         <select v-model="filters.line" @change="applyFilters">
           <option value="all">全部</option>
@@ -397,6 +406,25 @@
         <select v-model="labelSrc" @change="switchLabelSrc">
           <option value="db">数据库</option>
           <option value="sample_view" :disabled="!fromSampleView">sample_view</option>
+        </select>
+      </label>
+      <label class="ms-label">标签状态</label>
+      <div class="ms" v-click-outside="() => openFilter==='labelStatus' && (openFilter='')">
+        <button class="btn" @click="openFilter = openFilter==='labelStatus' ? '' : 'labelStatus'">
+          {{ filters.labelStatus.length ? '已选 '+filters.labelStatus.length : '全部' }} ▾
+        </button>
+        <div v-if="openFilter==='labelStatus'" class="ms-panel">
+          <div class="ms-act"><a @click="filters.labelStatus=[]; applyFilters()">全部</a></div>
+          <label v-for="opt in labelStatusOptions" :key="opt.key" class="ms-item">
+            <input type="checkbox" :value="opt.key" v-model="filters.labelStatus" @change="applyFilters" /> {{ opt.name }}
+          </label>
+        </div>
+      </div>
+      <label>confirmed 状态
+        <select v-model="filters.confirmed" @change="applyFilters">
+          <option value="all">全部</option>
+          <option value="confirmed">confirmed</option>
+          <option value="unconfirmed">unconfirmed</option>
         </select>
       </label>
       <!-- reference 多选 -->
@@ -436,11 +464,88 @@
       </label>
       <label><input type="checkbox" v-model="filters.typicalOnly" @change="applyFilters" /> 仅典型异音 ★</label>
       <label><input type="checkbox" v-model="filters.missingTdms" @change="applyFilters" /> 仅 tdms 缺失</label>
+      <button class="btn" @click="openReferenceStats">Reference 标签统计</button>
       <button v-if="hasDb && stats.unresolved>0" class="btn" @click="pruneMissing">🗑 删除无 tdms 的登记（{{ stats.unresolved }}）</button>
       <span class="stats">共 <b>{{ stats.total }}</b> · 已标 <b>{{ stats.labeled }}</b> · 未标 <b>{{ stats.unlabeled }}</b> · 典型 <b>{{ stats.typical }}</b> · tdms 已注册 <b>{{ stats.registered }}</b>/未注册 <b>{{ stats.unregistered }}</b>/缺失 <b>{{ stats.unresolved }}</b></span>
     </div>
     <div class="hint" style="margin:6px 0 8px">
-      底纹说明：红色 = 本次任务已改动（保存/确认/删除/标记典型），优先覆盖绿色；绿色 = 当前任务标签库存在 confirmed 标签事件。
+      底纹说明：红色 = 本次任务已改动（保存/确认/删除/标记典型），优先覆盖绿色；绿色 = 专家标注。标签状态按专家/员工标签规则分类。
+    </div>
+    <div v-if="refStats.open" class="stat-card">
+      <div class="card-h">Reference 标签统计</div>
+      <div class="body">
+        <div class="stat-form">
+          <label class="ms-label">标签状态</label>
+          <div class="ms" v-click-outside="() => openFilter==='refStatStatus' && (openFilter='')">
+            <button class="btn" @click="openFilter = openFilter==='refStatStatus' ? '' : 'refStatStatus'">
+              {{ refStats.labelStatus.length ? '已选 '+refStats.labelStatus.length : '全部' }} ▾
+            </button>
+            <div v-if="openFilter==='refStatStatus'" class="ms-panel">
+              <div class="ms-act"><a @click="refStats.labelStatus=[]">全部</a></div>
+              <label v-for="opt in labelStatusOptions" :key="opt.key" class="ms-item">
+                <input type="checkbox" :value="opt.key" v-model="refStats.labelStatus" /> {{ opt.name }}
+              </label>
+            </div>
+          </div>
+          <label class="ms-label">reference</label>
+          <div class="ms" v-click-outside="() => openFilter==='refStatReference' && (openFilter='')">
+            <button class="btn" @click="openFilter = openFilter==='refStatReference' ? '' : 'refStatReference'">
+              {{ refStats.reference.length ? '已选 '+refStats.reference.length : '全部' }} ▾
+            </button>
+            <div v-if="openFilter==='refStatReference'" class="ms-panel">
+              <div class="ms-act"><a @click="refStats.reference=[]">全部</a></div>
+              <label v-for="rf in referenceOptions" :key="rf" class="ms-item">
+                <input type="checkbox" :value="rf" v-model="refStats.reference" /> {{ rf }}
+              </label>
+              <div v-if="!referenceOptions.length" class="ms-empty">无 reference</div>
+            </div>
+          </div>
+          <button class="btn primary" @click="runReferenceStats" :disabled="refStats.loading">
+            {{ refStats.loading ? '统计中…' : '统计' }}
+          </button>
+          <button class="btn" @click="refStats.open=false">收起</button>
+        </div>
+        <div v-if="refStats.error" style="margin-top:8px;color:#b91c1c;font-size:13px">{{ refStats.error }}</div>
+        <template v-if="refStats.result">
+          <div class="stat-summary">
+            <span>标签状态: <b>{{ refStats.result.label_statuses.length ? refStats.result.label_statuses.length+' 个' : '全部' }}</b></span>
+            <span>reference 数: <b>{{ refStats.result.reference_count }}</b></span>
+            <span>找到: <b>{{ refStats.result.found_count }}</b></span>
+            <span>未找到: <b>{{ refStats.result.missing_count }}</b></span>
+            <span>已标注 sample: <b>{{ refStats.result.labeled_sample_count }}</b>/<b>{{ refStats.result.sample_count }}</b></span>
+            <span>confirmed: <b>{{ refStats.result.confirmed_count }}</b></span>
+            <span>专家/一致: <b>{{ refStats.result.valid_label_count }}</b></span>
+          </div>
+          <div class="stat-scroll">
+            <table class="stat-table">
+              <thead>
+                <tr>
+                  <th rowspan="2">reference</th><th rowspan="2">状态</th><th rowspan="2">TDMS数</th><th rowspan="2">样本数</th><th rowspan="2">已标注样本</th><th rowspan="2">确认标签<span class="sub">confirmed数</span></th><th rowspan="2">有效标签<span class="sub">专家/一致数</span></th>
+                  <th v-if="refStatsResultLabels.length" :colspan="refStatsResultLabels.length" class="group-head">RESULT</th>
+                  <th v-if="refStatsReasonLabels.length" :colspan="refStatsReasonLabels.length" class="group-head">REASON</th>
+                </tr>
+                <tr>
+                  <th v-for="name in refStatsResultLabels" :key="'result-'+name" class="dist">{{ name }}</th>
+                  <th v-for="name in refStatsReasonLabels" :key="'reason-'+name" class="dist">{{ name }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="r in refStats.result.items" :key="r.reference">
+                  <td>{{ r.reference }}</td>
+                  <td>{{ r.exists ? '找到' : '未找到' }}</td>
+                  <td class="num">{{ r.tdms_count }}</td>
+                  <td class="num">{{ r.sample_count }}</td>
+                  <td class="num">{{ r.labeled_sample_count }}</td>
+                  <td class="num">{{ r.confirmed_count }}</td>
+                  <td class="num">{{ r.valid_label_count }}</td>
+                  <td v-for="name in refStatsResultLabels" :key="'rv-'+r.reference+'-'+name" class="dist">{{ r.result_counts[name] || 0 }}</td>
+                  <td v-for="name in refStatsReasonLabels" :key="'rn-'+r.reference+'-'+name" class="dist">{{ r.reason_counts[name] || 0 }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </template>
+      </div>
     </div>
     <div id="grid" class="ag-theme-quartz"></div>
     <div class="hint">双击任意一行 → 进入该样本的标注视图。表头可排序、按列筛选。</div>
@@ -672,10 +777,18 @@ createApp({
       view: 'init', allRows: [], lines: [],
       stats: { total: 0, labeled: 0, unlabeled: 0, typical: 0 },
       isMock: false, taskActive: false, perf: '', labelSrc: 'db', fromSampleView: false, gotoN: 1, navIdx: 0,
-      filters: { status:'all', confirmed:'all', line:'all', reason:[], reference:[], changed:'all', typicalOnly:false, missingTdms:false },
+      filters: { labelStatus:[], confirmed:'all', line:'all', reason:[], reference:[], changed:'all', typicalOnly:false, missingTdms:false },
+      labelStatusOptions: [
+        {key:'expert', name:'专家标注（确认标签、有效标签）'},
+        {key:'operator_consistent', name:'员工多个且一致（有效标签）'},
+        {key:'operator_conflict', name:'员工多个但不一致'},
+        {key:'operator_single', name:'员工单个'},
+        {key:'unlabeled', name:'无专家/员工标注'},
+      ],
       openFilter: '', reasonOptions: [], referenceOptions: [],
       currentSn: '', currentSampleId: '', channels: [], listRows: [], listColumns: [],
-      initForm: { name:'', sample_view_path:'', useSampleView:false, tdms_root:'', loadLabels:false, label_records_db_path:'', source:'operator', operatorName:'' },
+      initForm: { name:'', sample_view_path:'', useSampleView:false, tdms_root:'', loadLabels:false, label_records_db_path:'', source:'operator', operatorName:'', workspace_id:'' },
+      editingProject: null,
       operatorNameOptions: ['hetao'],
       initing: false, initMsg: '', initErr: false, dragTarget: '',
       initProgress: { running:false, percent:0, message:'', error:'' },
@@ -689,6 +802,7 @@ createApp({
       insertable: [],
       taskTypes: [], taskForm: { task_id:'', scope:'all', params:{} }, runs: [], runMsg:'', runErr:false,
       labelRows: [], labelCols: [], labelRowCap: 500, exportScope: 'changed',
+      refStats: { open:false, labelStatus:[], reference:[], loading:false, error:'', result:null },
       opMsg:'', opErr:false,
     });
     let gridApi = null;
@@ -766,8 +880,13 @@ createApp({
     function openExport(){ state.exportKind='labels'; nativeDir('export'); }
 
     // ---- 任务（列表/表单两级）----
+    function newWorkspaceId(){
+      if (window.crypto && crypto.randomUUID) return crypto.randomUUID().replace(/-/g, '');
+      return Date.now().toString(16) + Math.random().toString(16).slice(2);
+    }
     function newTask(){
-      state.initForm = { name:'', sample_view_path:'', useSampleView:false, tdms_root:'', loadLabels:false, label_records_db_path:'', source:'operator' };
+      state.initForm = { name:'', sample_view_path:'', useSampleView:false, tdms_root:'', loadLabels:false, label_records_db_path:'', source:'operator', operatorName:'', workspace_id:newWorkspaceId() };
+      state.editingProject = null;
       state.initMsg=''; state.initErr=false;
       state.taskMode = 'form';
     }
@@ -776,6 +895,13 @@ createApp({
         name: p.name || '', sample_view_path: p.sample_view_path || '', useSampleView: !!p.sample_view_path,
         tdms_root: p.tdms_root || '', loadLabels: !!p.label_records_db_path,
         label_records_db_path: p.label_records_db_path || '', source: p.source || 'operator',
+        operatorName: '', workspace_id: p.workspace_id || '',
+      };
+      state.editingProject = {
+        sample_view_path: p.sample_view_path || '',
+        tdms_root: p.tdms_root || '',
+        label_records_db_path: p.label_records_db_path || '',
+        source: p.source || 'operator',
       };
       state.initMsg=''; state.initErr=false;
       state.taskMode = 'form';
@@ -793,6 +919,7 @@ createApp({
       state.initForm.sample_view_path = p.sample_view_path || '';
       state.initForm.tdms_root = p.tdms_root || '';
       state.initForm.label_records_db_path = p.label_records_db_path || '';
+      state.initForm.workspace_id = p.workspace_id || '';
       state.initForm.loadLabels = !!p.label_records_db_path;
       // 还原 source：operator_xxx → source=operator + operatorName=xxx
       const _src = p.source || 'operator';
@@ -917,7 +1044,14 @@ createApp({
           label_records_db_path: state.initForm.loadLabels ? state.initForm.label_records_db_path : '',
           source: (state.initForm.source==='operator' && state.initForm.operatorName)
                     ? 'operator_'+state.initForm.operatorName : state.initForm.source,
+          workspace_id: state.initForm.workspace_id || '',
         };
+        const old = state.editingProject;
+        if (old && ['sample_view_path','tdms_root','label_records_db_path','source'].some(k => String(old[k]||'') !== String(body[k]||''))) {
+          body.workspace_id = newWorkspaceId();
+        }
+        if (!old && !body.workspace_id) body.workspace_id = newWorkspaceId();
+        state.initForm.workspace_id = body.workspace_id;
         const r = await fetch('/api/init',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
         const d = await r.json();
         if(!r.ok){ state.initErr=true; state.initMsg = d.detail || '初始化失败'; return; }
@@ -925,6 +1059,7 @@ createApp({
         await reload();
         loadProjects();   // 刷新"我的任务"（已自动保存本次配置）
         state.currentSn = ''; state.channels = [];
+        state.editingProject = null;
         state.taskActive = true;
         state.view = 'list';
       } catch(e){ state.initErr=true; state.initMsg = String(e); }
@@ -982,6 +1117,7 @@ createApp({
           valueFormatter:p=>p.value?'● 已改动':'',
           cellStyle:p=> p.value ? {color:'#16a34a', fontWeight:'700'} : null };
         if (c === 'is_input') return { headerName:'输入', field:'is_input', width:70, valueFormatter:p=>p.value?'✓':'补全' };
+        if (c === 'label_status_name') return { headerName:'标签状态', field:c, width:140, filter:true };
         if (c === 'note') return { headerName:'note', field:'note', flex:1, minWidth:140, filter:true };
         const w = (c==='sample_id'||c==='timestamp') ? 150 : (c.length>10?120:95);
         return { headerName:c, field:c, width:w, filter:true };
@@ -1015,10 +1151,8 @@ createApp({
     }
     function rowMatchesFilter(r){
       const f = state.filters;
-      if (f.status==='labeled' && !r.labeled) return false;
-      if (f.status==='unlabeled' && r.labeled) return false;
-      if (f.confirmed==='confirmed' && !r.has_confirmed_label) return false;
-      if (f.confirmed==='unconfirmed' && r.has_confirmed_label) return false;
+      if (f.labelStatus.length && !f.labelStatus.includes(String(r.label_status_key||''))) return false;
+      if (f.confirmed !== 'all' && String(r.confirmed_status||'') !== f.confirmed) return false;
       if (f.line!=='all' && r.line!==f.line) return false;
       if (f.reason.length && !f.reason.includes(String(r.reason_name||''))) return false;
       if (f.reference.length && !f.reference.includes(String(r.reference||''))) return false;
@@ -1043,14 +1177,23 @@ createApp({
     // 导出表格只预览前 labelRowCap 条，避免大表全量渲染撑爆内存（导出/写回仍含全部）
     const labelRowsView = computed(() => state.labelRows.slice(0, state.labelRowCap));
     // reason / reference 多选下拉的可选值：由后端 /api/refresh 计算返回（见 reload()）。
+    const refStatsResultLabels = computed(() => (state.refStats.result && state.refStats.result.result_labels) || []);
+    const refStatsReasonLabels = computed(() => (state.refStats.result && state.refStats.result.reason_labels) || []);
 
     function cardIcon(c){ return c.category==='waveform' ? '📈' : (c.category==='spectrum' ? '🌈' : '🧩'); }
 
     // ---- SN 分组导航（逐条标注只走"列表总览筛选后"的 SN）----
+    function displayedListRows(){
+      if(gridApi){
+        const rows = [];
+        gridApi.forEachNodeAfterFilterAndSort(node => { if(node.data) rows.push(node.data); });
+        if(rows.length) return rows;
+      }
+      return state.listRows.filter(rowMatchesFilter);
+    }
     const snList = computed(() => {
       const seen = new Set(), out = [];
-      for (const r of state.allRows){
-        if(!rowMatchesFilter(r)) continue;          // 应用与列表总览相同的筛选
+      for (const r of displayedListRows()){
         if(!seen.has(r.sn)){ seen.add(r.sn); out.push(r.sn); }
       }
       return out;
@@ -1142,6 +1285,24 @@ createApp({
       try { ch.svLabel = (await fetch(`/api/sample/${ch.index}/sv_label`).then(x=>x.json())).label || null; }
       catch(e){ ch.svLabel = null; }
     }
+    function sourceCategory(src){
+      const s = String(src || '').trim().toLowerCase();
+      for(const k of ['expert','operator']){
+        if(s===k || ['_','-',':','.'].some(sep=>s.startsWith(k+sep))) return k;
+      }
+      return s;
+    }
+    function labelSignature(h){
+      return `${h.result_key || h.result_name || ''}||${h.reason_key || h.reason_name || ''}`;
+    }
+    function labelStatusFromHistory(list){
+      if((list||[]).some(h=>sourceCategory(h.source || h._src)==='expert')) return ['expert','专家标注'];
+      const ops = (list||[]).filter(h=>sourceCategory(h.source || h._src)==='operator');
+      if(ops.length >= 2) return [new Set(ops.map(labelSignature)).size===1 ? 'operator_consistent' : 'operator_conflict',
+                               new Set(ops.map(labelSignature)).size===1 ? '员工多个且一致' : '员工多个但不一致'];
+      if(ops.length === 1) return ['operator_single','员工单个'];
+      return ['unlabeled','无专家/员工标注'];
+    }
     async function confirmSvLabel(ch){
       if(ch.busy) return;
       ch.busy=true; ch.err=false; ch.msg='';
@@ -1163,10 +1324,13 @@ createApp({
       const labeled = ch.history.length>0;
       const reason_name = last ? (last.reason_name||'') : '';
       const typical = !!(last && String(last.note||'').includes(TYP));
-      const hasConfirmed = ch.history.some(h => String(h.status||'confirmed') === 'confirmed');
-      if(ch.row){ ch.row.labeled=labeled; ch.row.reason_name=reason_name; ch.row.typical=typical; ch.row.changed=true; ch.row.has_confirmed_label=hasConfirmed; }
+      const [labelStatusKey, labelStatusName] = labelStatusFromHistory(ch.history);
+      const confirmedStatus = labelStatusKey === 'expert' ? 'confirmed' : 'unconfirmed';
+      if(ch.row){ ch.row.labeled=labeled; ch.row.reason_name=reason_name; ch.row.typical=typical; ch.row.changed=true; ch.row.has_expert=labelStatusKey==='expert'; ch.row.label_status_key=labelStatusKey; ch.row.label_status_name=labelStatusName; ch.row.confirmed_status=confirmedStatus; }
       const r = state.allRows.find(x=>x.sample_id===ch.sample_id);
-      if(r){ r.labeled=labeled; r.reason_name=reason_name; r.typical=typical; r.changed=true; r.has_confirmed_label=hasConfirmed; }
+      if(r){ r.labeled=labeled; r.reason_name=reason_name; r.typical=typical; r.changed=true; r.has_expert=labelStatusKey==='expert'; r.label_status_key=labelStatusKey; r.label_status_name=labelStatusName; r.confirmed_status=confirmedStatus; }
+      for(const row of state.listRows){ if(row.sample_id === ch.sample_id) row.confirmed_status = confirmedStatus; }
+      for(const row of state.channels){ if(row.sample_id === ch.sample_id) row.row.confirmed_status = confirmedStatus; }
     }
     // 用接口回带的 history 直接更新（少一次 DB 往返）
     function setHistory(ch, list){
@@ -1399,13 +1563,25 @@ createApp({
       const ch = state.channels.find(c=>c.row?.is_input) || state.channels[0];
       return ch ? String(ch.sample_id || '') : '';
     }
-    async function loadGroup(sn, sampleId=''){
+    function channelRowsForSn(sn, preferredIndex=null){
+      const byId = new Map();
+      for(const r of displayedListRows().filter(x => x.sn === sn)){
+        const sid = String(r.sample_id || '');
+        if(!sid) continue;
+        const old = byId.get(sid);
+        if(!old || r.index === preferredIndex || String(r.timestamp||'') > String(old.timestamp||'')){
+          byId.set(sid, r);
+        }
+      }
+      return Array.from(byId.values());
+    }
+    async function loadGroup(sn, sampleId='', preferredIndex=null){
       const token = ++_loadToken;          // 标记本次导航，过期的加载不再渲染
       const tAll=performance.now();
       purgeChannelPlots();
       state.currentSn = sn; state.opMsg='';
       const _i = snList.value.indexOf(sn); if(_i>=0) state.navIdx=_i;   // 记住在筛选列表中的位置
-      state.channels = state.allRows.filter(r => r.sn === sn).map(makeChannel);
+      state.channels = channelRowsForSn(sn, preferredIndex).map(makeChannel);
       const preferred = sampleId || (state.channels.some(c=>c.sample_id===state.currentSampleId) ? state.currentSampleId : '');
       const fallback = state.channels.find(c=>c.row?.is_input) || state.channels[0];
       state.currentSampleId = preferred || (fallback ? String(fallback.sample_id || '') : '');
@@ -1460,17 +1636,17 @@ createApp({
       const i = snPos.value;
       const nextSn = (i>=0 && i<snList.value.length-1) ? snList.value[i+1] : null;
       if(!nextSn) return;
-      const idxs = state.allRows.filter(r=>r.sn===nextSn).map(r=>r.index);
+      const idxs = displayedListRows().filter(r=>r.sn===nextSn).map(r=>r.index);
       if(!idxs.length) return;
       fetch('/api/prefetch',{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({indices:idxs})}).catch(()=>{});
     }
 
-    function goto(index){
-      const row = state.allRows[index];
+    function goto(rowOrIndex){
+      const row = (typeof rowOrIndex === 'object') ? rowOrIndex : state.allRows[rowOrIndex];
       if (!row) return;
       state.view = 'label';
-      loadGroup(row.sn, row.sample_id);
+      loadGroup(row.sn, row.sample_id, row.index);
     }
     function prevGroup(){
       const list=snList.value, i=list.indexOf(state.currentSn);
@@ -1544,15 +1720,15 @@ createApp({
         columnDefs: gridColumns(), rowData: visibleRows(),
         defaultColDef:{ resizable:true, sortable:true },
         rowSelection:'single',
-        getRowStyle: p => {                                    // 本次修改→淡红(覆盖绿)；有 confirmed 标签→绿；否则无色
+        getRowStyle: p => {                                    // 本次修改→淡红(覆盖绿)；专家标注→绿；否则无色
           if(!p.data) return null;
           if(p.data.changed) return { background:'#fecaca' };
-          if(p.data.has_confirmed_label) return { background:'#dcfce7' };
+          if(p.data.has_expert) return { background:'#dcfce7' };
           return null;
         },
         onFilterChanged: renumberDisplayedRows,
         onSortChanged: renumberDisplayedRows,
-        onRowDoubleClicked: e => goto(e.data.index),
+        onRowDoubleClicked: e => goto(e.data),
       });
     }
 
@@ -1563,6 +1739,31 @@ createApp({
       if(!r.ok){ alert(d.detail||'删除失败'); return; }
       alert(`已删除 ${d.deleted_samples} 个样本登记、${d.deleted_events} 条标签事件`);
       await reload();
+    }
+    function openReferenceStats(){
+      state.refStats.open = true;
+      state.refStats.error = '';
+      if(!state.refStats.reference.length && state.filters.reference.length){
+        state.refStats.reference = [...state.filters.reference];
+      }
+    }
+    async function runReferenceStats(){
+      const references = state.refStats.reference.length ? state.refStats.reference : state.referenceOptions;
+      if(!references.length){ state.refStats.error='请先选择 reference'; return; }
+      state.refStats.loading = true; state.refStats.error = '';
+      try {
+        const r = await fetch('/api/reference_label_stats', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({source:'all', references, label_statuses:state.refStats.labelStatus})
+        });
+        const d = await r.json();
+        if(!r.ok){ state.refStats.error=d.detail||'统计失败'; return; }
+        state.refStats.result = d;
+      } catch(e) {
+        state.refStats.error = String(e);
+      } finally {
+        state.refStats.loading = false;
+      }
     }
     async function reload(force){
       state.refreshing = true;
@@ -1606,6 +1807,7 @@ createApp({
       if (!cfg.is_mock && cfg.n_samples > 0) { await reload(); state.taskActive = true; state.view = 'list'; }
     });
     return { ...toRefs(state), pct, snPct, snList, snPos, pickerDirMode, currentTaskParams, svLabelCols, labelRowsView,
+             refStatsResultLabels, refStatsReasonLabels,
              applyFilters, reload, goto, cardIcon,
              prevGroup, nextGroup, goSnIndex, isAdvShown, toggleCard, applyCardParams, resetCardParams, acceptSuggestion,
              confirmLabel, deleteLabel, confirmSvLabel,
@@ -1613,7 +1815,8 @@ createApp({
              onDrop, openPicker, openPickerModal, nativeDir, openExport, browse, joinPath, pickFile, pickDir,
              openTasks, loadLabelRows, setExportScope, exportNewTable, writeBackSV, pruneMissing, currentExportSampleId,
              openProto, loadProto, importProto, updateProto, allProtoChecked, toggleAllProto, protoRowsView,
-             tryNativeDialog, doInit, saveLabel, markTypical, openList, switchLabelSrc };
+             tryNativeDialog, doInit, saveLabel, markTypical, openList, switchLabelSrc,
+             openReferenceStats, runReferenceStats };
   }
 }).directive('click-outside', _ClickOutside).mount('#app');
 </script>
