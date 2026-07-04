@@ -71,6 +71,9 @@
     .stat-table .group-head { text-align:center; color:var(--fg); }
     .stat-table tbody tr:nth-child(even) { background:#f8fafc; }
     .stat-table tbody tr:hover { background:#eef2f7; }
+    .stat-table tbody tr.selected { background:#eff6ff; }
+    .stat-table tbody tr.merge-row { background:#fff7ed; font-weight:700; }
+    .stat-table .check { width:38px; text-align:center; }
     .stat-table td.num { text-align:center; white-space:nowrap; }
     .stat-table .dist { min-width:74px; text-align:center; white-space:nowrap; font-variant-numeric:tabular-nums; }
     .stat-table .sub { display:block; font-size:11px; font-weight:500; color:var(--mut); line-height:1.15; margin-top:2px; }
@@ -520,6 +523,7 @@
             <table class="stat-table">
               <thead>
                 <tr>
+                  <th rowspan="2" class="check"><input type="checkbox" :checked="allRefStatsChecked" @change="toggleAllRefStats($event)" /></th>
                   <th rowspan="2">reference</th><th rowspan="2">状态</th><th rowspan="2">TDMS数</th><th rowspan="2">样本数</th><th rowspan="2">已标注样本</th><th rowspan="2">确认标签<span class="sub">confirmed数</span></th><th rowspan="2">有效标签<span class="sub">专家/一致数</span></th>
                   <th v-if="refStatsResultLabels.length" :colspan="refStatsResultLabels.length" class="group-head">RESULT</th>
                   <th v-if="refStatsReasonLabels.length" :colspan="refStatsReasonLabels.length" class="group-head">REASON</th>
@@ -530,7 +534,20 @@
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="r in refStats.result.items" :key="r.reference">
+                <tr v-if="refStatsMerged" class="merge-row">
+                  <td class="check">{{ refStats.selected.length }}</td>
+                  <td>合并统计</td>
+                  <td>已选</td>
+                  <td class="num">{{ refStatsMerged.tdms_count }}</td>
+                  <td class="num">{{ refStatsMerged.sample_count }}</td>
+                  <td class="num">{{ refStatsMerged.labeled_sample_count }}</td>
+                  <td class="num">{{ refStatsMerged.confirmed_count }}</td>
+                  <td class="num">{{ refStatsMerged.valid_label_count }}</td>
+                  <td v-for="name in refStatsResultLabels" :key="'mrv-'+name" class="dist">{{ refStatsMerged.result_counts[name] || 0 }}</td>
+                  <td v-for="name in refStatsReasonLabels" :key="'mrn-'+name" class="dist">{{ refStatsMerged.reason_counts[name] || 0 }}</td>
+                </tr>
+                <tr v-for="r in refStats.result.items" :key="r.reference" :class="{selected: refStats.selected.includes(r.reference)}">
+                  <td class="check"><input type="checkbox" :value="r.reference" v-model="refStats.selected" /></td>
                   <td>{{ r.reference }}</td>
                   <td>{{ r.exists ? '找到' : '未找到' }}</td>
                   <td class="num">{{ r.tdms_count }}</td>
@@ -756,7 +773,11 @@
 
       </div>
     </template>
-    <p v-else style="color:var(--mut); padding:18px">从列表双击一行进入。</p>
+    <div v-else style="color:var(--mut); padding:18px">
+      <p v-if="opMsg" :style="{color: opErr?'#b91c1c':'var(--mut)', margin:'0 0 8px'}">{{ opMsg }}</p>
+      <p v-else style="margin:0">从列表双击一行进入。</p>
+      <button v-if="currentSn" class="btn" style="margin-top:8px" @click="view='list'">返回列表检查筛选</button>
+    </div>
   </div>
 </div>
 
@@ -802,7 +823,7 @@ createApp({
       insertable: [],
       taskTypes: [], taskForm: { task_id:'', scope:'all', params:{} }, runs: [], runMsg:'', runErr:false,
       labelRows: [], labelCols: [], labelRowCap: 500, exportScope: 'changed',
-      refStats: { open:false, labelStatus:[], reference:[], loading:false, error:'', result:null },
+      refStats: { open:false, labelStatus:[], reference:[], selected:[], loading:false, error:'', result:null },
       opMsg:'', opErr:false,
     });
     let gridApi = null;
@@ -1179,6 +1200,28 @@ createApp({
     // reason / reference 多选下拉的可选值：由后端 /api/refresh 计算返回（见 reload()）。
     const refStatsResultLabels = computed(() => (state.refStats.result && state.refStats.result.result_labels) || []);
     const refStatsReasonLabels = computed(() => (state.refStats.result && state.refStats.result.reason_labels) || []);
+    const allRefStatsChecked = computed(() => {
+      const items = (state.refStats.result && state.refStats.result.items) || [];
+      return !!items.length && items.every(r => state.refStats.selected.includes(r.reference));
+    });
+    const refStatsMerged = computed(() => {
+      const items = (state.refStats.result && state.refStats.result.items) || [];
+      const picked = new Set(state.refStats.selected);
+      const rows = items.filter(r => picked.has(r.reference));
+      if(!rows.length) return null;
+      const out = { tdms_count:0, sample_count:0, labeled_sample_count:0, confirmed_count:0,
+                    valid_label_count:0, result_counts:{}, reason_counts:{} };
+      for(const r of rows){
+        out.tdms_count += Number(r.tdms_count||0);
+        out.sample_count += Number(r.sample_count||0);
+        out.labeled_sample_count += Number(r.labeled_sample_count||0);
+        out.confirmed_count += Number(r.confirmed_count||0);
+        out.valid_label_count += Number(r.valid_label_count||0);
+        for(const [k,v] of Object.entries(r.result_counts||{})) out.result_counts[k] = (out.result_counts[k]||0) + Number(v||0);
+        for(const [k,v] of Object.entries(r.reason_counts||{})) out.reason_counts[k] = (out.reason_counts[k]||0) + Number(v||0);
+      }
+      return out;
+    });
 
     function cardIcon(c){ return c.category==='waveform' ? '📈' : (c.category==='spectrum' ? '🌈' : '🧩'); }
 
@@ -1563,9 +1606,24 @@ createApp({
       const ch = state.channels.find(c=>c.row?.is_input) || state.channels[0];
       return ch ? String(ch.sample_id || '') : '';
     }
+    function sampleIdSet(rows){
+      return new Set(rows.map(r => String(r.sample_id || '')).filter(Boolean));
+    }
+    function filteredRowsForSn(sn){
+      const shown = displayedListRows().filter(x => x.sn === sn);
+      return shown.length ? shown : state.listRows.filter(r => r.sn === sn && rowMatchesFilter(r));
+    }
+    function makeChannelNote(sn, rows){
+      const total = sampleIdSet(state.listRows.filter(r => r.sn === sn));
+      const shown = sampleIdSet(rows);
+      if(!shown.size) return `当前筛选下 SN ${sn} 没有可显示样本；可能被标签状态、confirmed、reference、reason 或列筛选排除了。`;
+      if(total.size > shown.size) return `当前筛选只显示 ${shown.size}/${total.size} 个 sample，所以这里只显示 ${shown.size} 个通道。`;
+      if(shown.size === 1) return `该 SN 当前数据只有 1 个 sample，所以只显示 1 个通道。`;
+      return '';
+    }
     function channelRowsForSn(sn, preferredIndex=null){
       const byId = new Map();
-      for(const r of displayedListRows().filter(x => x.sn === sn)){
+      for(const r of filteredRowsForSn(sn)){
         const sid = String(r.sample_id || '');
         if(!sid) continue;
         const old = byId.get(sid);
@@ -1581,7 +1639,16 @@ createApp({
       purgeChannelPlots();
       state.currentSn = sn; state.opMsg='';
       const _i = snList.value.indexOf(sn); if(_i>=0) state.navIdx=_i;   // 记住在筛选列表中的位置
-      state.channels = channelRowsForSn(sn, preferredIndex).map(makeChannel);
+      const rows = channelRowsForSn(sn, preferredIndex);
+      if(!rows.length){
+        state.channels = [];
+        state.opErr = true;
+        state.opMsg = makeChannelNote(sn, rows);
+        return;
+      }
+      state.opErr = false;
+      state.opMsg = makeChannelNote(sn, rows);
+      state.channels = rows.map(makeChannel);
       const preferred = sampleId || (state.channels.some(c=>c.sample_id===state.currentSampleId) ? state.currentSampleId : '');
       const fallback = state.channels.find(c=>c.row?.is_input) || state.channels[0];
       state.currentSampleId = preferred || (fallback ? String(fallback.sample_id || '') : '');
@@ -1648,22 +1715,32 @@ createApp({
       state.view = 'label';
       loadGroup(row.sn, row.sample_id, row.index);
     }
+    function firstDisplayedRowForSn(sn){
+      return filteredRowsForSn(sn)[0] || null;
+    }
     function prevGroup(){
       const list=snList.value, i=list.indexOf(state.currentSn);
       const target = (i>=0) ? i-1 : state.navIdx-1;     // 当前已掉出筛选列表→用记住的位置
-      if(target>=0 && target<list.length) loadGroup(list[target]);
+      if(target>=0 && target<list.length){
+        const row = firstDisplayedRowForSn(list[target]);
+        row ? loadGroup(row.sn, row.sample_id, row.index) : loadGroup(list[target]);
+      }
     }
     function nextGroup(){
       const list=snList.value, i=list.indexOf(state.currentSn);
       // 当前还在列表→下一个；当前已被筛掉→它原来的位置现在正是“下一个”
       const target = (i>=0) ? i+1 : state.navIdx;
-      if(target>=0 && target<list.length) loadGroup(list[target]);
+      if(target>=0 && target<list.length){
+        const row = firstDisplayedRowForSn(list[target]);
+        row ? loadGroup(row.sn, row.sample_id, row.index) : loadGroup(list[target]);
+      }
     }
     function goSnIndex(){
       const n = parseInt(state.gotoN, 10);
       if(!n || n<1 || n>snList.value.length){ state.opErr=true; state.opMsg=`请输入 1~${snList.value.length}`; return; }
       state.opErr=false; state.opMsg='';
-      loadGroup(snList.value[n-1]);
+      const row = firstDisplayedRowForSn(snList.value[n-1]);
+      row ? loadGroup(row.sn, row.sample_id, row.index) : loadGroup(snList.value[n-1]);
     }
 
     // 写操作后：刷新总览并把当前组的 row 引用更新（保留卡片不重渲染）
@@ -1747,6 +1824,10 @@ createApp({
         state.refStats.reference = [...state.filters.reference];
       }
     }
+    function toggleAllRefStats(e){
+      const items = (state.refStats.result && state.refStats.result.items) || [];
+      state.refStats.selected = e.target.checked ? items.map(r => r.reference) : [];
+    }
     async function runReferenceStats(){
       const references = state.refStats.reference.length ? state.refStats.reference : state.referenceOptions;
       if(!references.length){ state.refStats.error='请先选择 reference'; return; }
@@ -1759,6 +1840,8 @@ createApp({
         const d = await r.json();
         if(!r.ok){ state.refStats.error=d.detail||'统计失败'; return; }
         state.refStats.result = d;
+        const refs = new Set((d.items||[]).map(x => x.reference));
+        state.refStats.selected = state.refStats.selected.filter(x => refs.has(x));
       } catch(e) {
         state.refStats.error = String(e);
       } finally {
@@ -1807,7 +1890,7 @@ createApp({
       if (!cfg.is_mock && cfg.n_samples > 0) { await reload(); state.taskActive = true; state.view = 'list'; }
     });
     return { ...toRefs(state), pct, snPct, snList, snPos, pickerDirMode, currentTaskParams, svLabelCols, labelRowsView,
-             refStatsResultLabels, refStatsReasonLabels,
+             refStatsResultLabels, refStatsReasonLabels, allRefStatsChecked, refStatsMerged,
              applyFilters, reload, goto, cardIcon,
              prevGroup, nextGroup, goSnIndex, isAdvShown, toggleCard, applyCardParams, resetCardParams, acceptSuggestion,
              confirmLabel, deleteLabel, confirmSvLabel,
@@ -1816,7 +1899,7 @@ createApp({
              openTasks, loadLabelRows, setExportScope, exportNewTable, writeBackSV, pruneMissing, currentExportSampleId,
              openProto, loadProto, importProto, updateProto, allProtoChecked, toggleAllProto, protoRowsView,
              tryNativeDialog, doInit, saveLabel, markTypical, openList, switchLabelSrc,
-             openReferenceStats, runReferenceStats };
+             openReferenceStats, runReferenceStats, toggleAllRefStats };
   }
 }).directive('click-outside', _ClickOutside).mount('#app');
 </script>
