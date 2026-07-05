@@ -797,7 +797,7 @@ createApp({
     const state = reactive({
       view: 'init', allRows: [], lines: [],
       stats: { total: 0, labeled: 0, unlabeled: 0, typical: 0 },
-      isMock: false, taskActive: false, perf: '', labelSrc: 'db', fromSampleView: false, gotoN: 1, navIdx: 0,
+      isMock: false, taskActive: false, perf: '', labelSrc: 'db', fromSampleView: false, gotoN: 1, navIdx: 0, listViewVersion: 0,
       filters: { labelStatus:[], confirmed:'all', line:'all', reason:[], reference:[], changed:'all', typicalOnly:false, missingTdms:false },
       labelStatusOptions: [
         {key:'expert', name:'专家标注（确认标签、有效标签）'},
@@ -1183,7 +1183,18 @@ createApp({
       if (f.changed==='no' && r.changed) return false;
       return true;
     }
-    function applyFilters(){ if(gridApi){ gridApi.setGridOption('rowData', visibleRows()); setTimeout(renumberDisplayedRows, 0); } }
+    function markListViewChanged(){
+      renumberDisplayedRows();
+      state.listViewVersion++;
+    }
+    function applyFilters(){
+      if(gridApi){
+        gridApi.setGridOption('rowData', visibleRows());
+        setTimeout(markListViewChanged, 0);
+      } else {
+        state.listViewVersion++;
+      }
+    }
 
     // 来自 sample_view 面板的列（取当前 SN 各通道行的列并集，保持顺序）
     const svLabelCols = computed(() => {
@@ -1227,10 +1238,11 @@ createApp({
 
     // ---- SN 分组导航（逐条标注只走"列表总览筛选后"的 SN）----
     function displayedListRows(){
+      state.listViewVersion; // 让 Vue 在筛选/排序变化后重新计算 snList
       if(gridApi){
         const rows = [];
         gridApi.forEachNodeAfterFilterAndSort(node => { if(node.data) rows.push(node.data); });
-        if(rows.length) return rows;
+        return rows;
       }
       return state.listRows.filter(rowMatchesFilter);
     }
@@ -1610,20 +1622,25 @@ createApp({
       return new Set(rows.map(r => String(r.sample_id || '')).filter(Boolean));
     }
     function filteredRowsForSn(sn){
-      const shown = displayedListRows().filter(x => x.sn === sn);
-      return shown.length ? shown : state.listRows.filter(r => r.sn === sn && rowMatchesFilter(r));
+      return displayedListRows().filter(x => x.sn === sn);
+    }
+    function channelCandidateRowsForSn(sn){
+      const rows = state.listRows.filter(r => r.sn === sn);
+      const refs = new Set(filteredRowsForSn(sn).map(r => String(r.reference || '')));
+      const lines = new Set(filteredRowsForSn(sn).map(r => String(r.line || '')));
+      return rows.filter(r => (!refs.size || refs.has(String(r.reference || ''))) && (!lines.size || lines.has(String(r.line || ''))));
     }
     function makeChannelNote(sn, rows){
       const total = sampleIdSet(state.listRows.filter(r => r.sn === sn));
       const shown = sampleIdSet(rows);
       if(!shown.size) return `当前筛选下 SN ${sn} 没有可显示样本；可能被标签状态、confirmed、reference、reason 或列筛选排除了。`;
-      if(total.size > shown.size) return `当前筛选只显示 ${shown.size}/${total.size} 个 sample，所以这里只显示 ${shown.size} 个通道。`;
+      if(total.size > shown.size) return `当前 SN 命中筛选，已显示同一 line/reference 下 ${shown.size}/${total.size} 个 sample。`;
       if(shown.size === 1) return `该 SN 当前数据只有 1 个 sample，所以只显示 1 个通道。`;
       return '';
     }
     function channelRowsForSn(sn, preferredIndex=null){
       const byId = new Map();
-      for(const r of filteredRowsForSn(sn)){
+      for(const r of channelCandidateRowsForSn(sn)){
         const sid = String(r.sample_id || '');
         if(!sid) continue;
         const old = byId.get(sid);
@@ -1720,7 +1737,7 @@ createApp({
     }
     function prevGroup(){
       const list=snList.value, i=list.indexOf(state.currentSn);
-      const target = (i>=0) ? i-1 : state.navIdx-1;     // 当前已掉出筛选列表→用记住的位置
+      const target = (i>=0) ? i-1 : snPos.value-1;      // 当前已掉出筛选列表→只在筛选后序列内跳
       if(target>=0 && target<list.length){
         const row = firstDisplayedRowForSn(list[target]);
         row ? loadGroup(row.sn, row.sample_id, row.index) : loadGroup(list[target]);
@@ -1728,8 +1745,8 @@ createApp({
     }
     function nextGroup(){
       const list=snList.value, i=list.indexOf(state.currentSn);
-      // 当前还在列表→下一个；当前已被筛掉→它原来的位置现在正是“下一个”
-      const target = (i>=0) ? i+1 : state.navIdx;
+      // 当前还在列表→下一个；当前已被筛掉→从筛选后序列当前位置继续
+      const target = (i>=0) ? i+1 : snPos.value;
       if(target>=0 && target<list.length){
         const row = firstDisplayedRowForSn(list[target]);
         row ? loadGroup(row.sn, row.sample_id, row.index) : loadGroup(list[target]);
@@ -1803,8 +1820,8 @@ createApp({
           if(p.data.has_expert) return { background:'#dcfce7' };
           return null;
         },
-        onFilterChanged: renumberDisplayedRows,
-        onSortChanged: renumberDisplayedRows,
+        onFilterChanged: markListViewChanged,
+        onSortChanged: markListViewChanged,
         onRowDoubleClicked: e => goto(e.data),
       });
     }
