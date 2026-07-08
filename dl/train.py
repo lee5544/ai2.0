@@ -455,7 +455,7 @@ def build_train_config(config_path: str | Path, *, cli_arch: str | None = None) 
         schema=schema, output_file_prefix=output_file_prefix, batch_format=batch_format,
         dataset_files=dataset_files,
         epochs=epochs, batch_size=batch_size,
-        learning_rate=float(dl_train_cfg.get("learning_rate") or 1e-3),
+        learning_rate=float(dl_train_cfg.get("learning_rate") or 1e-2),
         weight_decay=float(dl_train_cfg.get("weight_decay") or 1e-4),
         num_workers=int(dl_train_cfg.get("num_workers", 0)),
         use_amp=bool(dl_train_cfg.get("use_amp", True)),
@@ -764,6 +764,40 @@ def fit_one_run(
     }
 
 
+def _save_curves(out_dir: Path, *, history_rows: List[Dict[str, Any]], class_name_by_id: Dict[int, str]) -> None:
+    """落盘训练曲线：history.csv + loss/acc/f1 三联图 + 逐类别 acc/recall 曲线。"""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    history_df = pd.DataFrame(history_rows)
+    history_df.to_csv(out_dir / "history.csv", index=False, encoding="utf-8-sig")
+    save_history_plot(history_df, out_dir / "training_curve.png")
+    _save_per_class_metric_plot(history_df=history_df, class_name_by_id=class_name_by_id, out_path=out_dir / "per_class_accuracy_curve.png", column_suffix="class_acc", ylabel="Accuracy")
+    _save_per_class_metric_plot(history_df=history_df, class_name_by_id=class_name_by_id, out_path=out_dir / "per_class_recall_curve.png", column_suffix="class_recall", ylabel="Recall")
+
+
+def _save_confusion_matrices(
+    out_dir: Path,
+    *,
+    model: nn.Module,
+    data: DataBundle,
+    criterion: nn.Module,
+    tc: TrainConfig,
+    train_eval: Dict[str, Any] | None = None,
+    test_eval: Dict[str, Any] | None = None,
+    tag: str = "",
+) -> None:
+    """画三张计数版混淆矩阵：train / test / (val + 采样剩余)。已算过的 eval 可传入复用。"""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    te = train_eval if train_eval is not None else evaluate(model, data.train_loader, criterion=criterion, device=tc.device, num_classes=data.num_classes, desc=f"{tag}train cm")
+    save_confusion_matrix_plot(te["confusion_matrix"], data.class_name_by_id, out_dir / "confusion_matrix_train.png", title="Confusion Matrix - Train")
+    tt = test_eval if test_eval is not None else evaluate(model, data.test_loader, criterion=criterion, device=tc.device, num_classes=data.num_classes, desc=f"{tag}test cm")
+    save_confusion_matrix_plot(tt["confusion_matrix"], data.class_name_by_id, out_dir / "confusion_matrix_test.png", title="Confusion Matrix - Test")
+    if data.eval_rest_loader is not None:
+        rest_eval = evaluate(model, data.eval_rest_loader, criterion=criterion, device=tc.device, num_classes=data.num_classes, desc=f"{tag}val+rest cm")
+        save_confusion_matrix_plot(rest_eval["confusion_matrix"], data.class_name_by_id, out_dir / "confusion_matrix_val_plus_rest.png", title="Confusion Matrix - Val+Rest")
+    else:
+        print("[WARN] val+采样剩余集为空，跳过该混淆矩阵。")
+
+
 # ===========================================================================
 # 顶层训练编排：多 seed -> 选最优 -> test 评估 -> 落盘
 # ===========================================================================
@@ -819,6 +853,15 @@ def run_training(tc: TrainConfig, split: DLSplit) -> Dict[str, Any]:
         result = {"seed": int(seed), "model": model, "model_arch": model_arch,
                   "resolved_model_config": resolved_model_config, **run}
         seed_overview_rows.append({"seed": int(seed), "best_epoch": int(result["best_epoch"]), "val_macro_f1": float(result["best_score"])})
+
+        # 每个 seed 各自落盘（多 seed 时）：曲线 + 逐类别 + 混淆矩阵，存到 seed_{seed}/ 子目录
+        if tc.seed_runs > 1:
+            seed_dir = tc.train_output_dir / f"seed_{seed}"
+            model.load_state_dict(run["best_state"]["model_state"])  # 载入该 seed 的最优权重
+            _save_curves(seed_dir, history_rows=run["history_rows"], class_name_by_id=data.class_name_by_id)
+            _save_confusion_matrices(seed_dir, model=model, data=data, criterion=criterion, tc=tc, tag=f"seed{seed} ")
+            print(f"[INFO] seed={seed} 结果已保存: {seed_dir} (best_epoch={result['best_epoch']}, val_macro_f1={result['best_score']:.4f})")
+
         if best_run is None or result["best_score"] > best_run["best_score"] + 1e-8:
             best_run = result
     assert best_run is not None
@@ -833,15 +876,9 @@ def run_training(tc: TrainConfig, split: DLSplit) -> Dict[str, Any]:
     val_eval = evaluate(model, data.val_loader, criterion=criterion, device=tc.device, num_classes=data.num_classes, desc="best valid eval")
     test_eval = evaluate(model, data.test_loader, criterion=criterion, device=tc.device, num_classes=data.num_classes, desc="best test eval")
 
-    # 三个集合的混淆矩阵（计数版）：train / test / (val + 采样剩余)
-    cm_dir = tc.train_output_dir
-    save_confusion_matrix_plot(train_eval["confusion_matrix"], data.class_name_by_id, cm_dir / "confusion_matrix_train.png", title="Confusion Matrix - Train")
-    save_confusion_matrix_plot(test_eval["confusion_matrix"], data.class_name_by_id, cm_dir / "confusion_matrix_test.png", title="Confusion Matrix - Test")
-    if data.eval_rest_loader is not None:
-        rest_eval = evaluate(model, data.eval_rest_loader, criterion=criterion, device=tc.device, num_classes=data.num_classes, desc="best val+rest eval")
-        save_confusion_matrix_plot(rest_eval["confusion_matrix"], data.class_name_by_id, cm_dir / "confusion_matrix_val_plus_rest.png", title="Confusion Matrix - Val+Rest")
-    else:
-        print("[WARN] val+采样剩余集为空，跳过该混淆矩阵。")
+    # 最优模型：三个集合的混淆矩阵（计数版），存训练输出根目录（复用已算的 train/test eval）
+    _save_confusion_matrices(tc.train_output_dir, model=model, data=data, criterion=criterion, tc=tc,
+                             train_eval=train_eval, test_eval=test_eval, tag="best ")
 
     _save_outputs(
         tc, split=split, model=model, history_rows=best_run["history_rows"],

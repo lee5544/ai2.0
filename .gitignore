@@ -37,6 +37,10 @@ quick_test/
 *.onnx
 *.ckpt
 
+# ---- 压缩包 / 大文件（避免误传超 100MB，触发 GitHub 拒绝）----
+*.zip
+forvia_label_v2/_data.zip
+
 # ---- 系统 ----
 .DS_Store
 Thumbs.db

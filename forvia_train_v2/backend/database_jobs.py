@@ -53,7 +53,7 @@ def _save_database(project: dict, result: dict) -> dict:
     return store.update_project(project["id"], payload) or project
 
 
-def _run(job_id: str, project: dict, payload: dict) -> None:
+def _run(job_id: str, project: dict | None, payload: dict) -> None:
     try:
         _set(job_id, status="running", progress=1, progress_detail="数据库任务已启动")
 
@@ -81,7 +81,7 @@ def _run(job_id: str, project: dict, payload: dict) -> None:
             **payload,
             progress=update_progress,
         )
-        updated = _save_database(project, result)
+        updated = _save_database(project, result) if project else None
         _set(
             job_id,
             status="succeeded",
@@ -127,6 +127,39 @@ def start(project: dict, payload: dict) -> dict[str, Any]:
     threading.Thread(
         target=_run,
         args=(job_id, copy.deepcopy(project), copy.deepcopy(payload)),
+        daemon=True,
+    ).start()
+    return get(job_id) or job
+
+
+def start_global(payload: dict) -> dict[str, Any]:
+    job_id = uuid.uuid4().hex[:12]
+    job = {
+        "id": job_id,
+        "project_id": "__global_database__",
+        "action": payload.get("action", ""),
+        "status": "queued",
+        "progress": 0,
+        "progress_detail": "等待执行",
+        "tdms_processed": 0,
+        "tdms_total": 0,
+        "tdms_remaining": 0,
+        "tdms_phase": "",
+        "error": "",
+        "result": None,
+        "project": None,
+    }
+    with _LOCK:
+        active = [
+            item for item in _JOBS.values()
+            if item["project_id"] == "__global_database__" and item["status"] in {"queued", "running"}
+        ]
+        if active:
+            raise RuntimeError("已有全局数据库操作正在执行")
+        _JOBS[job_id] = job
+    threading.Thread(
+        target=_run,
+        args=(job_id, None, copy.deepcopy(payload)),
         daemon=True,
     ).start()
     return get(job_id) or job

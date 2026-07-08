@@ -166,10 +166,8 @@ def _resolve_dl_cfg(cfg: Dict[str, Any]) -> Dict[str, Any]:
 def _resolve_results_root(cfg: Dict[str, Any]) -> Path:
     line_name = _to_text(cfg.get("line_name")) or "line"
     model_name = _to_text((cfg.get("model") or {}).get("model_name")) or "model"
-    dl_cfg = _resolve_dl_cfg(cfg)
-    model_type = _to_text(dl_cfg.get("model_type")) or "cnn"
     results_path = Path(str(cfg.get("results_path") or "./results")).expanduser()
-    return results_path / f"{line_name}_{model_name}_{model_type}"
+    return results_path / f"{line_name}_{model_name}"
 
 
 def _resolve_output_folder(cfg: Dict[str, Any], cli_output_folder: str | None) -> Path:
@@ -594,10 +592,10 @@ def pcen_transform(
         return np.maximum(np.nan_to_num(E, nan=0.0, posinf=0.0, neginf=0.0), 0.0)
 
     E = np.maximum(np.nan_to_num(E, nan=0.0, posinf=0.0, neginf=0.0), 0.0)
-    positive = E[E > 0.0]
-    if positive.size:
-        energy_ref = max(float(np.median(positive)), np.finfo(np.float64).tiny)
-        E = np.clip(E / energy_ref, 0.0, _PCEN_MAX_RELATIVE_ENERGY)
+    # positive = E[E > 0.0]
+    # if positive.size:
+    #     energy_ref = max(float(np.median(positive)), np.finfo(np.float64).tiny)
+    #     E = np.clip(E / energy_ref, 0.0, _PCEN_MAX_RELATIVE_ENERGY)
 
     s = float(np.clip(s, _PCEN_EPS, 1.0))
     alpha = float(np.clip(alpha, 0.0, 1.0))

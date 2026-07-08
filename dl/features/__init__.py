@@ -6,7 +6,7 @@ from functools import lru_cache
 from importlib import import_module
 from typing import Any, Callable
 
-DEFAULT_EXTRACTOR_NAME = "mel"
+DEFAULT_EXTRACTOR_NAME = "raw"
 _EXTRACTOR_MODULES: dict[str, tuple[str, str]] = {
     "mel": (".extract_mel", "run"),
     "pcen": (".extract_pcen", "run"),

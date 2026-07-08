@@ -85,7 +85,7 @@ _MODEL_REGISTRY: dict[str, ModelSpec] = {
         parameter_key="lgb_params",
         parameters=(
             {"key": "n_estimators",      "label": "最大树数量",             "type": "int",    "default": 400,  "min": 1},
-            {"key": "num_leaves",        "label": "叶子数",                 "type": "int",    "default": 63,   "min": 2},
+            {"key": "num_leaves",        "label": "叶子数",                 "type": "int",    "default": 20,   "min": 2},
             {"key": "max_depth",         "label": "树最大深度（-1不限）",   "type": "int",    "default": -1},
             {"key": "learning_rate",     "label": "学习率",                 "type": "float",  "default": 0.05, "min": 0.001},
             {"key": "min_child_samples", "label": "叶节点最小样本数",       "type": "int",    "default": 20,   "min": 1},
@@ -105,21 +105,6 @@ _MODEL_REGISTRY: dict[str, ModelSpec] = {
         class_name="RFModel",
         display_name="Random Forest",
         description="随机森林，训练稳定，参数较少。",
-        parameter_key="rf_params",
-        parameters=(
-            {"key": "n_estimators",      "label": "树数量",               "type": "int",   "default": 100, "min": 1},
-            {"key": "max_depth",         "label": "最大深度",             "type": "int",   "default": 8,   "min": 1},
-            {"key": "min_samples_split", "label": "节点最小切分样本",     "type": "int",   "default": 2,   "min": 2},
-            {"key": "min_samples_leaf",  "label": "叶节点最小样本",       "type": "int",   "default": 1,   "min": 1},
-            {"key": "max_features",      "label": "特征采样比例",         "type": "float", "default": 0.8, "min": 0.01, "max": 1},
-        ),
-    ),
-    "brf": ModelSpec(
-        model_type="brf",
-        module_name="ml.models.brf",
-        class_name="BRFModel",
-        display_name="Balanced RF",
-        description="平衡随机森林，适合类别不均衡数据。",
         parameter_key="rf_params",
         parameters=(
             {"key": "n_estimators",      "label": "树数量",               "type": "int",   "default": 100, "min": 1},

@@ -80,7 +80,7 @@ train:
         sample: -1
       - reason: 哒哒_咔咔
         sample: -1
-    - weight: 1
+    - weight: 2
       reasons:
       - reason: 震颤
         sample: -1
@@ -95,6 +95,6 @@ dl:
   model:
     arch: cnn1d
     conv_channels: [32, 64, 128]
-    kernel_size: 5
+    kernel_size: 3
     dropout: 0.2
-    hidden_dim: 128
+    hidden_dim: 64

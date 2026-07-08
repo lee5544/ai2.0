@@ -15,7 +15,7 @@ import yaml
 
 from data_manager.label_database import load_label_dataframe, resolve_database_path
 
-from dl.dataset.label_filter import filter_sample_view_dataframe, resolve_output_dir
+from dl.dataset.label_filter import LABEL_FILTER_STATUSES, filter_sample_view_dataframe, resolve_output_dir
 from dl.dataset.sample_filter import filter_samples
 
 # 所有特征类型（mel/pcen/raw）统一用固定前缀，训练侧据此读取，互不混淆
@@ -48,7 +48,7 @@ def generate(cfg: dict, output_folder: str | Path | None = None) -> Path:
     """生成 DL 训练 sample_view.csv（样本筛选 + 标签筛选）。"""
     candidate_path = filter_samples(cfg, output_folder)
     candidates = pd.read_csv(candidate_path, encoding="utf-8-sig")
-    labels = load_label_dataframe(_database_path(cfg))
+    labels = load_label_dataframe(_database_path(cfg), statuses=LABEL_FILTER_STATUSES)
     filtered, _stats = filter_sample_view_dataframe(candidates, labels, cfg)
     filtered.to_csv(candidate_path, index=False, encoding="utf-8-sig")
     print(f"[DL TRAINING DATA] {candidate_path} | candidates={len(candidates)} | kept={len(filtered)}")
@@ -74,6 +74,8 @@ def _parse_dataset_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--step", choices=["all", "sample-view", "extract"], default="all",
                         help="all=全流程（默认），sample-view=仅生成 sample_view，extract=仅提取特征")
     parser.add_argument("--output-folder", default=None, help="覆盖 DL 输出目录")
+    parser.add_argument("--feature-type", default=None,
+                        help="特征提取方法：mel/pcen/raw（默认读 cfg 的 dl.feature_type）")
     parser.add_argument("--num-workers", type=int, default=None, help="并行 worker 数")
     parser.add_argument("--batch-size", type=int, default=None, help="特征分片大小")
     args, unknown = parser.parse_known_args(argv)
@@ -90,12 +92,21 @@ def _run_sample_view(cfg: dict[str, Any], output_folder: Path) -> Path:
     return sv_path
 
 
-def _run_extract(config_path: Path, output_folder: Path, *, num_workers: int | None, batch_size: int | None) -> None:
-    from dl.features import run as ewf_run
-    print(f"\n{'='*60}\n[Step 2] 提取特征\n  输出目录: {output_folder}\n{'='*60}")
+def _run_extract(
+    config_path: Path,
+    output_folder: Path,
+    *,
+    num_workers: int | None,
+    batch_size: int | None,
+    feature_type: str | None = None,
+) -> None:
+    from dl.features import run as ewf_run, resolve_extractor_name
+    selected = feature_type or resolve_extractor_name(_read_yaml_cfg(config_path))
+    print(f"\n{'='*60}\n[Step 2] 提取特征（feature_type={selected}）\n  输出目录: {output_folder}\n{'='*60}")
     import argparse as _ap
     fake_args = _ap.Namespace(
         config=str(config_path),
+        feature_type=feature_type,  # 显式传入则覆盖 cfg 的 dl.feature_type
         output_feature_folder=str(output_folder),
         sample_view=[str(output_folder / "sample_view.csv")],
         num_workers=num_workers if num_workers is not None else max(1, min(8, (os.cpu_count() or 1))),
@@ -130,7 +141,8 @@ def main(argv: list[str] | None = None) -> None:
         sv_path = output_folder / "sample_view.csv"
         if not sv_path.exists():
             raise FileNotFoundError(f"sample_view.csv 不存在: {sv_path}")
-        _run_extract(config_path, output_folder, num_workers=args.num_workers, batch_size=args.batch_size)
+        _run_extract(config_path, output_folder, num_workers=args.num_workers, batch_size=args.batch_size,
+                     feature_type=args.feature_type)
 
     print(f"[INFO] 全部完成。输出目录: {output_folder}")
 

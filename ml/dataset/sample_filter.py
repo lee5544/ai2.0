@@ -63,6 +63,18 @@ def _key_items(raw: object, *, default_line: str) -> list[dict[str, str]]:
     return out
 
 
+def _manifest_file_exists(row: pd.Series, *, data_root: Path | None, tdms_root: Path | None) -> bool:
+    storage_root = str(row.get("tdms_storage_root") or "").strip()
+    relative_path = str(row.get("relative_path") or "").strip()
+    if not relative_path:
+        return False
+    if data_root is not None:
+        return (data_root / storage_root / relative_path).is_file()
+    if tdms_root is not None:
+        return (tdms_root / relative_path).is_file()
+    return True
+
+
 def filter_samples(cfg: dict, output_folder: str | Path | None = None) -> Path:
     """Select ML candidate samples from manifest and the sample registry."""
     database = cfg.get("database") if isinstance(cfg.get("database"), dict) else {}
@@ -77,7 +89,10 @@ def filter_samples(cfg: dict, output_folder: str | Path | None = None) -> Path:
             or ""
         )
     )
-    tdms_root = Path(str(database.get("tdms_root") or "")).expanduser()
+    tdms_root_raw = str(database.get("tdms_root") or "").strip()
+    tdms_root = Path(tdms_root_raw).expanduser() if tdms_root_raw else None
+    data_root_raw = str(cfg.get("data_root") or dataset.get("data_root") or "").strip()
+    data_root = Path(data_root_raw).expanduser() if data_root_raw else None
     manifest_path = Path(
         str(
             database.get("manifest_path")
@@ -125,9 +140,9 @@ def filter_samples(cfg: dict, output_folder: str | Path | None = None) -> Path:
             for raw in values:
                 p = Path(raw).expanduser()
                 try:
-                    out.append(
-                        p.resolve().relative_to(tdms_root.resolve()).as_posix().rstrip("/") + "/"
-                    )
+                    if tdms_root is None:
+                        raise ValueError("tdms_root is not configured")
+                    out.append(p.resolve().relative_to(tdms_root.resolve()).as_posix().rstrip("/") + "/")
                 except Exception:
                     out.append(str(raw).replace("\\", "/").strip("/") + "/")
             return out
@@ -157,17 +172,37 @@ def filter_samples(cfg: dict, output_folder: str | Path | None = None) -> Path:
                 key_mask &= manifest["line"].astype(str).eq(item_line)
             main_mask |= key_mask
         manifest = manifest[main_mask]
+        if data_root is not None or tdms_root is not None:
+            exists_mask = manifest.apply(
+                lambda row: _manifest_file_exists(row, data_root=data_root, tdms_root=tdms_root),
+                axis=1,
+            )
+            dropped_missing = int((~exists_mask).sum())
+            if dropped_missing:
+                print(f"[WARN] 丢弃 manifest 中已不存在的 TDMS 路径: {dropped_missing}")
+            manifest = manifest[exists_mask]
 
         manifest_cols = ["line", "sn", "reference", "time", "tdms_storage_root", "relative_path"]
         for col in manifest_cols:
             if col not in manifest.columns:
                 manifest[col] = ""
-        merged = samples.merge(manifest[manifest_cols].drop_duplicates(), on=["line", "sn"], how="inner")
+        manifest_value_cols = [col for col in manifest_cols if col not in {"line", "sn"}]
+        sample_base = samples.drop(columns=[col for col in manifest_value_cols if col in samples.columns])
+        merged = sample_base.merge(manifest[manifest_cols].drop_duplicates(), on=["line", "sn"], how="inner")
         merged.insert(0, "view_name", "train")
         for col in OUTPUT_COLUMNS:
             if col not in merged.columns:
                 merged[col] = ""
         merged = merged[OUTPUT_COLUMNS].drop_duplicates()
+        key_cols = ["line", "sn", "sample_id", "group_name", "channel_name", "tdms_storage_root", "relative_path"]
+        key_mask = pd.Series(True, index=merged.index)
+        for col in key_cols:
+            key_mask &= ~merged[col].isna()
+            key_mask &= ~merged[col].astype(str).str.strip().str.lower().isin({"", "nan", "none", "null"})
+        dropped = int((~key_mask).sum())
+        if dropped:
+            print(f"[WARN] 丢弃主键字段不完整的 sample_view 行: {dropped}")
+        merged = merged[key_mask].copy()
 
     merged = standardize_sample_view(merged)
     out = (

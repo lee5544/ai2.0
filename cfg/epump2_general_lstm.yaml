@@ -1,0 +1,136 @@
+# ============================================================
+# epump2 · general · LSTM 训练配置
+# 用法：
+#   Step 1+2  python dl/main_dataset.py --config cfg/epump2_general_lstm.yaml
+#   Step 3    python dl/main_train.py   --config cfg/epump2_general_lstm.yaml
+# 说明：LSTM 吃 mel 特征 [B, 13, 1024]，内部转成 [B, 1024, 13]（1024 步、每步 13 维）。
+#       raw（长序列 ~万级）对 LSTM 太长，故 feature_type=mel。
+# ============================================================
+
+line_name: epump2
+model:
+  model_name: general
+
+results_path: ./results/
+
+# ------------------------------------------------------------
+# 数据源（按你的实际路径改）
+# ------------------------------------------------------------
+database:
+  label_records_db_path: /Volumes/18555440521/fault/data_root/metadata/label_records.db
+  tdms_root:             /Volumes/18555440521/fault/data_root/factory_raw
+  manifest_path:         /Volumes/18555440521/fault/data_root/metadata/tdms_manifest.csv
+  configured: true
+  last_operation: existing
+data_root: /Volumes/18555440521/fault/data_root
+label_records_db_path: /Volumes/18555440521/fault/data_root/metadata/label_records.db
+
+data:
+  key_sns:
+    - path: /Volumes/18555440521/fault/data_root/factory_raw/prototype/epump2/
+      line: epump2
+    - path: /Volumes/18555440521/fault/data_root/factory_raw/prototype/epump3/
+      line: epump3
+    - path: /Volumes/18555440521/fault/data_root/factory_raw/prototype/etilt1/
+      line: etilt1
+    - path: /Volumes/18555440521/fault/data_root/factory_raw/prototype/epump4/
+      line: epump4
+  line:
+    - epump2
+
+dataset:
+  num_workers: 8
+  data_root:             /Volumes/18555440521/fault/data_root
+  label_records_db_path: /Volumes/18555440521/fault/data_root/metadata/label_records.db
+  manifest_path:         /Volumes/18555440521/fault/data_root/metadata/tdms_manifest.csv
+
+# ------------------------------------------------------------
+# 标签映射（build_label_runtime 读取；每个 group = 一个合并类别 mlabel）
+#   - reasons[].sample : 训练集每类目标数（-1=全取；训练阶段始终生效）
+#   - group.weight     : 类别损失权重（按 mlabel 对齐）
+# ------------------------------------------------------------
+train:
+  split_strategy: reference_in
+  label_mapping:
+    enable: true
+    auto_mlabel: true
+    groups:
+    - weight: 1
+      reasons:
+      - reason: 正常
+        sample: 2000
+      - reason: 干扰
+        sample: -1
+      - reason: 边界
+        sample: -1
+    - weight: 1
+      reasons:
+      - reason: 传感器错误
+        sample: -1
+    - weight: 1
+      reasons:
+      - reason: 秒表
+        sample: -1
+    - weight: 1
+      reasons:
+      - reason: 摩擦
+        sample: -1
+      - reason: 摩擦acc
+        sample: -1
+      - reason: 杂音
+        sample: -1
+      - reason: 咬齿
+        sample: -1
+      - reason: 哒哒_咔咔
+        sample: -1
+    - weight: 1
+      reasons:
+      - reason: 震颤
+        sample: -1
+      - reason: 马达
+        sample: -1
+
+  random_state: 42
+
+# ------------------------------------------------------------
+# DL 配置（LSTM + mel 特征）
+# 输出目录：results/epump2_general_lstm/
+# ------------------------------------------------------------
+dl:
+  feature_type: mel          # LSTM 吃 mel 序列（[13, 1024]）
+
+  extract:
+    sample: false            # 提取阶段全量；训练阶段仍按 reasons[].sample 精调
+    mel:
+      n_fft: 256
+      hop_length: 128
+      n_mels: 13
+      max_frames: 1024       # 序列长度 = 时间步数
+      fmin: 0
+      fmax: null
+
+  model:
+    arch: lstm
+    lstm_hidden_size: 128    # LSTM 隐藏维
+    lstm_layers: 2           # 层数（>1 层间才生效 dropout）
+    lstm_bidirectional: true # 双向
+    hidden_dim: 128          # 分类头隐层
+    dropout: 0.3
+
+  train:
+    epochs: 100
+    batch_size: 64
+    learning_rate: 0.001
+    weight_decay: 0.0001
+    num_workers: 4
+    use_amp: true
+    seed_runs: 1
+    length_percentile: 0.95  # mel 本就定长 → 此处实际 no-op
+    scheduler: cosine        # none | cosine | step | plateau
+    early_stopping:
+      enable: true
+      patience: 15
+    loss:
+      type: ce               # ce | focal（类别不均衡可换 focal）
+      label_smoothing: 0.05
+      focal_gamma: 2.0

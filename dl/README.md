@@ -48,10 +48,10 @@ dataset.build ──▶ dataset.sample_filter ──▶ dataset.label_filter
    - ≥2 个员工标签且一致 → 取最新
    - ≥2 个不一致 / 单个 / 无 → 不产生 y（丢弃）
    - 再按 `train.label_mapping` 的每类目标数对 sample_view 下采样
-3. 输出标准列 `sample_view.csv` 到 `results/{line}_{model}_{model_type}/dl_dataset_csv/`。
+3. 输出标准列 `sample_view.csv` 到 `results/{line}_{model}/dl_dataset_csv/`。
 
 **Step 2 提取特征**（`build._run_extract` → `features.run`）
-- 读 sample_view.csv 里每个样本对应的 tdms 信号，调 `features/extract_mel.py`：
+- 读 sample_view.csv 里每个样本对应的 tdms 信号，按 `dl.feature_type` 调对应提取器：
   STFT 分帧（n_fft=256, hop=128）→ mel 滤波（n_mels=13）→ log → **固定到 max_frames=1024**
   （不足补零、超出截断）。
 - 每个样本得到固定 `[13, 1024]` 的 log-mel，连同 y 一起存为 `dl_mel_spec_batch_*.pkl`。

@@ -24,7 +24,7 @@ import pandas as pd
 
 from data_manager.tdms_read import read_tdms
 
-from .preprocess import DEFAULT_DOWNSAMPLE_STEP, downsample, standardize, trim_edges
+from .preprocess import standardize, trim_edges
 from .extract_mel import (
     COMPACT_FEATURE_COLUMN,
     DEFAULT_CONFIG_PATH,
@@ -50,6 +50,7 @@ from .extract_mel import (
 
 DEFAULT_OUTPUT_FILE_PREFIX = "dl_raw"
 DEFAULT_OUTPUT_FORMAT = "pickle"  # raw 不定长，仅支持 pickle
+DEFAULT_DOWNSAMPLE_STEP = 5  # raw 降采样：每隔 5 个点取一个（20kHz -> 4kHz）；仅本文件下采样
 
 
 def extract_raw_features(signal: np.ndarray) -> Tuple[np.ndarray, Dict[str, int]]:
@@ -60,7 +61,8 @@ def extract_raw_features(signal: np.ndarray) -> Tuple[np.ndarray, Dict[str, int]
     sig = np.asarray(signal, dtype=np.float32).reshape(-1)
     if sig.size == 0:
         raise ValueError("空信号，无法提取 raw 特征")
-    sig = downsample(sig, DEFAULT_DOWNSAMPLE_STEP)  # 抽取降采样，缩短序列
+    if DEFAULT_DOWNSAMPLE_STEP > 1:
+        sig = sig[::DEFAULT_DOWNSAMPLE_STEP]  # 抽取降采样：每隔 step 取一个，缩短序列
     sig = standardize(sig)
     feature = sig.reshape(1, -1).astype(np.float32, copy=False)
     return feature, {"length": int(sig.size)}

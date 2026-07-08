@@ -8,13 +8,13 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from data_manager.label_database import load_label_rows
+from data_manager.label_database import load_label_dataframe
 from data_manager.metadata_stats import _build_line_sn_to_reference_map
 from ml.dataset.label_filter import (
-    _has_effective_label_fields,
+    LABEL_FILTER_STATUSES,
+    _build_label_row_maps,
     _pick_training_label,
 )
-from data_manager.label_internal_registry import normalize_label_source_category
 from data_manager.line_rules import LINE_RULES
 
 from ml.train import (
@@ -40,6 +40,7 @@ DEFAULT_GROUPS = [
     ["其它"],
 ]
 _DISTRIBUTION_CACHE: dict[tuple[str, float, str, float], dict] = {}
+LINE_DISPLAY_ORDER = ("epump2", "epump3", "epump4", "etilt1", "etilt2")
 
 
 def load_yaml(path: Path) -> dict:
@@ -110,33 +111,47 @@ def database_catalog(db_path_text: str, *, include_labels: bool = True) -> dict:
 
 
 def _filtered_training_label_rows(db_path: Path) -> list[dict]:
-    grouped: dict[tuple[str, str, str], list[dict]] = {}
-    for idx, raw in enumerate(load_label_rows(db_path, statuses=("confirmed",))):
-        row = dict(raw)
-        line = str(row.get("line") or "").strip()
-        sn = str(row.get("sn") or "").strip()
-        sample_id = str(row.get("sample_id") or "").strip()
-        if not line or not sn or not sample_id or not _has_effective_label_fields(row):
-            continue
-        row["_row_index"] = idx
-        row["_source_category"] = normalize_label_source_category(row.get("source"))
-        row["_timestamp_dt"] = None
-        row["_label_signature"] = tuple(
-            str(row.get(key) or "").strip()
-            for key in ("result_key", "result_id", "result_name", "reason_key", "reason_id", "reason_name")
-        )
-        grouped.setdefault((line, sn, sample_id), []).append(row)
+    label_df = load_label_dataframe(db_path, statuses=LABEL_FILTER_STATUSES)
+    if label_df.empty:
+        return []
+    grouped, fallback_grouped = _build_label_row_maps(label_df)
+    if fallback_grouped:
+        grouped = {
+            **grouped,
+            **{("", sn, sample_id): rows for (sn, sample_id), rows in fallback_grouped.items()},
+        }
     out: list[dict] = []
     for (line, sn, sample_id), events in grouped.items():
         label, decision = _pick_training_label(events)
         if not label:
             continue
-        out.append({"line": line, "sn": sn, "sample_id": sample_id, "decision": decision, **label})
+        event0 = events[0] if events else {}
+        out.append(
+            {
+                "line": line or str(event0.get("line") or "").strip(),
+                "sn": sn,
+                "sample_id": sample_id,
+                "decision": decision,
+                **label,
+            }
+        )
     return out
 
 
 def _count_rows(counter: Counter, key_name: str = "label") -> list[dict]:
     return [{key_name: str(name), "count": int(count)} for name, count in counter.most_common()]
+
+
+def _label_distribution_text(rows: list[dict]) -> str:
+    return "，".join(f"{item['label']}:{int(item['count'])}" for item in rows)
+
+
+def _line_display_sort_key(line_name: object) -> tuple[int, str]:
+    line = str(line_name or "").strip()
+    try:
+        return (LINE_DISPLAY_ORDER.index(line), line)
+    except ValueError:
+        return (len(LINE_DISPLAY_ORDER), line)
 
 
 def _load_model_reference_map(path: Path) -> dict[tuple[str, str], dict[str, str]]:
@@ -165,6 +180,13 @@ def _load_model_reference_map(path: Path) -> dict[tuple[str, str], dict[str, str
         return {}
 
 
+def _model_xlsx_path_from_manifest(manifest_path: Path) -> Path:
+    candidate = manifest_path.parent / "型号数据.xlsx"
+    if not candidate.is_file() and manifest_path.parent.name == "metadata":
+        candidate = manifest_path.parent.parent / "型号数据.xlsx"
+    return candidate
+
+
 def database_distribution(db_path_text: str, manifest_path_text: str) -> dict:
     db_path = Path(str(db_path_text or "")).expanduser()
     manifest_path = Path(str(manifest_path_text or "")).expanduser()
@@ -183,50 +205,61 @@ def database_distribution(db_path_text: str, manifest_path_text: str) -> dict:
         manifest_rows = list(csv.DictReader(f))
     labels = _filtered_training_label_rows(db_path)
     reference_by_sample, _ = _build_line_sn_to_reference_map(manifest_rows)
-    model_map = _load_model_reference_map(manifest_path.parent / "型号数据.xlsx")
+    model_map = _load_model_reference_map(_model_xlsx_path_from_manifest(manifest_path))
     line_map: dict[str, dict] = {}
     for row in manifest_rows:
         line = str(row.get("line") or "").strip()
         reference = str(row.get("reference") or "").strip() or "<EMPTY_reference>"
-        entry = line_map.setdefault(line, {"line": line, "tdms_count": 0, "label_count": 0, "_labels": Counter(), "_refs": {}})
+        entry = line_map.setdefault(line, {"line": line, "tdms_count": 0, "label_count": 0, "_labels": Counter(), "_labeled_sns": set(), "_refs": {}})
         entry["tdms_count"] += 1
-        ref = entry["_refs"].setdefault(reference, {"reference": reference, "tdms_count": 0, "label_count": 0, "_labels": Counter()})
+        ref = entry["_refs"].setdefault(reference, {"reference": reference, "tdms_count": 0, "label_count": 0, "_labels": Counter(), "_labeled_sns": set()})
         ref["tdms_count"] += 1
     for row in labels:
         line = str(row.get("line") or "").strip()
-        reference = reference_by_sample.get((line, str(row.get("sn") or "").strip()), "<UNKNOWN_reference>")
+        sn = str(row.get("sn") or "").strip()
+        reference = reference_by_sample.get((line, sn), "<UNKNOWN_reference>")
         reason = str(row.get("reason_name") or row.get("reason_key") or row.get("result_name") or row.get("result_key") or "未标").strip()
-        entry = line_map.setdefault(line, {"line": line, "tdms_count": 0, "label_count": 0, "_labels": Counter(), "_refs": {}})
+        entry = line_map.setdefault(line, {"line": line, "tdms_count": 0, "label_count": 0, "_labels": Counter(), "_labeled_sns": set(), "_refs": {}})
         entry["label_count"] += 1
         entry["_labels"][reason] += 1
-        ref = entry["_refs"].setdefault(reference, {"reference": reference, "tdms_count": 0, "label_count": 0, "_labels": Counter()})
+        if sn:
+            entry["_labeled_sns"].add(sn)
+        ref = entry["_refs"].setdefault(reference, {"reference": reference, "tdms_count": 0, "label_count": 0, "_labels": Counter(), "_labeled_sns": set()})
         ref["label_count"] += 1
         ref["_labels"][reason] += 1
+        if sn:
+            ref["_labeled_sns"].add(sn)
     line_rows = list(line_map.values())
     for line_row in line_rows:
+        line_row["labeled_tdms_count"] = len(line_row.pop("_labeled_sns"))
         line_row["labels"] = _count_rows(line_row.pop("_labels"))
+        line_row["label_distribution_text"] = _label_distribution_text(line_row["labels"])
         references = []
         model_groups: dict[str, dict] = {}
         for ref in line_row.pop("_refs").values():
+            ref["labeled_tdms_count"] = len(ref.pop("_labeled_sns"))
             ref["labels"] = _count_rows(ref.pop("_labels"))
+            ref["label_distribution_text"] = _label_distribution_text(ref["labels"])
             references.append(ref)
             mapping = model_map.get((line_row["line"], ref["reference"]), {})
             model_name = mapping.get("model_name") or "未配置模型"
             model = model_groups.setdefault(
                 model_name,
-                {"model_name": model_name, "strategy": mapping.get("strategy") or "", "tdms_count": 0, "label_count": 0, "_labels": Counter(), "references": []},
+                {"model_name": model_name, "strategy": mapping.get("strategy") or "", "tdms_count": 0, "label_count": 0, "labeled_tdms_count": 0, "_labels": Counter(), "references": []},
             )
             model["tdms_count"] += ref["tdms_count"]
             model["label_count"] += ref["label_count"]
+            model["labeled_tdms_count"] += ref["labeled_tdms_count"]
             model["_labels"].update({item["label"]: item["count"] for item in ref["labels"]})
             model["references"].append(copy.deepcopy(ref))
         line_row["references"] = sorted(references, key=lambda x: (-int(x["tdms_count"]), x["reference"]))
         line_row["reference_count"] = len(line_row["references"])
         for model in model_groups.values():
             model["labels"] = _count_rows(model.pop("_labels"))
+            model["label_distribution_text"] = _label_distribution_text(model["labels"])
             model["references"].sort(key=lambda x: (-int(x["tdms_count"]), x["reference"]))
         line_row["models"] = sorted(model_groups.values(), key=lambda x: (-int(x["tdms_count"]), x["model_name"]))
-    line_rows.sort(key=lambda x: (-int(x.get("tdms_count") or 0), str(x.get("line") or "")))
+    line_rows.sort(key=lambda x: _line_display_sort_key(x.get("line")))
     total_labels = Counter()
     for line_row in line_rows:
         total_labels.update({item["label"]: item["count"] for item in line_row["labels"]})
@@ -234,10 +267,19 @@ def database_distribution(db_path_text: str, manifest_path_text: str) -> dict:
         "line_count": len(line_rows),
         "tdms_count": sum(int(row["tdms_count"]) for row in line_rows),
         "reference_count": sum(int(row["reference_count"]) for row in line_rows),
+        "labeled_tdms_count": sum(int(row["labeled_tdms_count"]) for row in line_rows),
         "label_count": sum(int(row["label_count"]) for row in line_rows),
         "labels": _count_rows(total_labels),
     }
-    result = {"line_rows": line_rows, "total": total, "filter_rule": "独立 sample；expert 最新优先；operator 至少两条且完全一致；重复事件不重复计算"}
+    total["label_distribution_text"] = _label_distribution_text(total["labels"])
+    result = {
+        "line_rows": line_rows,
+        "total": total,
+        "filter_rule": (
+            "共用 ml/dataset/label_filter.py：expert 取最新；无 expert 时 operator 至少 2 条且标签完全一致才产生训练 y；"
+            "operator 单标、operator 冲突、无人工标注不计入终标分布"
+        ),
+    }
     _DISTRIBUTION_CACHE.clear()
     _DISTRIBUTION_CACHE[key] = result
     return copy.deepcopy(result)
@@ -274,7 +316,7 @@ def xlsx_model_overview(config: dict) -> dict:
         str(manifest_path),
     )
     return {
-        "xlsx_path": str(manifest_path.parent / "型号数据.xlsx"),
+        "xlsx_path": str(_model_xlsx_path_from_manifest(manifest_path)),
         "line_rows": [
             {
                 "line": row.get("line", ""),
@@ -483,7 +525,7 @@ def normalize_project_payload(data: dict) -> dict:
     train.setdefault("seed_runs", 10)
     config.setdefault("results_path", "./results/")
     normalize_database_input(config)
-    name = str(data.get("name") or "").strip() or f"{line_name}_{model_name}"
+    name = f"{line_name}_{model_name}"
     return {
         "name": name,
         "line_name": line_name,

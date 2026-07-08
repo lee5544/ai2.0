@@ -1049,7 +1049,9 @@ class RFModel(BaseModel):
             self._write_predict_config(self.results_path, seed=best_seed)
             self._export_best_seed_png_results(best_run_dir=best_run_dir, best_seed=best_seed)
             launcher = export_runtime_bundle(
-                self.results_path,
+                Path(self.results_path).parent,
+                self.model_id,
+                source_model_dir=self.results_path,
                 feature_version=self.feature_version,
             )
             if same_model_file:

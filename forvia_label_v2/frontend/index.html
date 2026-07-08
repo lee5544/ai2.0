@@ -4,11 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Forvia 标注 v2</title>
-  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.2/dist/ag-grid-community.min.js"></script>
-  <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.2/styles/ag-grid.css" />
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community@31.3.2/styles/ag-theme-quartz.css" />
+  <!-- 依赖库本地打包（离线/无 CDN 环境也能渲染，不再依赖外网）-->
+  <script src="/static/lib/vue.global.prod.js"></script>
+  <script src="/static/lib/ag-grid-community.min.js"></script>
+  <script src="/static/lib/plotly.min.js"></script>
+  <link rel="stylesheet" href="/static/lib/ag-grid.css" />
+  <link rel="stylesheet" href="/static/lib/ag-theme-quartz.css" />
   <style>
     :root { --bd:#e3e6ea; --fg:#1f2329; --mut:#6b7280; --acc:#2563eb; }
     * { box-sizing: border-box; }
@@ -503,6 +504,13 @@
               <div v-if="!referenceOptions.length" class="ms-empty">无 reference</div>
             </div>
           </div>
+          <label class="ms-label">RESULT/REASON 口径</label>
+          <div style="display:inline-flex;border:1px solid var(--bd);border-radius:7px;overflow:hidden">
+            <button class="btn" :class="{primary: refStats.basis==='valid'}" style="border:0;border-radius:0"
+                    @click="refStats.basis='valid'">有效标签</button>
+            <button class="btn" :class="{primary: refStats.basis==='confirmed'}" style="border:0;border-radius:0;border-left:1px solid var(--bd)"
+                    @click="refStats.basis='confirmed'">确认标签</button>
+          </div>
           <button class="btn primary" @click="runReferenceStats" :disabled="refStats.loading">
             {{ refStats.loading ? '统计中…' : '统计' }}
           </button>
@@ -518,6 +526,7 @@
             <span>已标注 sample: <b>{{ refStats.result.labeled_sample_count }}</b>/<b>{{ refStats.result.sample_count }}</b></span>
             <span>confirmed: <b>{{ refStats.result.confirmed_count }}</b></span>
             <span>专家/一致: <b>{{ refStats.result.valid_label_count }}</b></span>
+            <span>分布口径: <b>{{ refStats.result.basis==='confirmed' ? '确认标签' : '有效标签' }}</b></span>
           </div>
           <div class="stat-scroll">
             <table class="stat-table">
@@ -823,7 +832,7 @@ createApp({
       insertable: [],
       taskTypes: [], taskForm: { task_id:'', scope:'all', params:{} }, runs: [], runMsg:'', runErr:false,
       labelRows: [], labelCols: [], labelRowCap: 500, exportScope: 'changed',
-      refStats: { open:false, labelStatus:[], reference:[], selected:[], loading:false, error:'', result:null },
+      refStats: { open:false, labelStatus:[], reference:[], selected:[], loading:false, error:'', result:null, basis:'valid' },
       opMsg:'', opErr:false,
     });
     let gridApi = null;
@@ -1852,7 +1861,7 @@ createApp({
       try {
         const r = await fetch('/api/reference_label_stats', {
           method:'POST', headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({source:'all', references, label_statuses:state.refStats.labelStatus})
+          body:JSON.stringify({source:'all', references, label_statuses:state.refStats.labelStatus, basis:state.refStats.basis})
         });
         const d = await r.json();
         if(!r.ok){ state.refStats.error=d.detail||'统计失败'; return; }

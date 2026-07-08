@@ -8,9 +8,15 @@ from pathlib import Path
 from typing import Any, Callable
 
 from data_manager.label_database import LabelDatabase, resolve_database_path
-from data_manager.label_csv_import import import_label_csvs
+from data_manager.label_internal_registry import import_label_csvs
+from data_manager.label_forvia_to_internal import convert_forvia_csvs_to_internal
 from data_manager.sample_generate import rebuild_metadata
-from data_manager.tdms_read import iter_tdms_files
+from data_manager.tdms_read import (
+    compressed_tdms_path,
+    compress_tdms_file,
+    is_uncompressed_tdms_path,
+    iter_tdms_files,
+)
 
 
 FILE_MODES = {"manual", "copy", "move"}
@@ -79,7 +85,12 @@ def _transfer_tdms_files(
         raise ValueError(f"输入文件夹中没有 .tdms 或 .tdms.zst: {source_folder}")
     target_base = target_root / line if line else target_root
     transfers = [
-        (source, target_base / source.relative_to(source_folder))
+        (
+            source,
+            compressed_tdms_path(target_base / source.relative_to(source_folder))
+            if is_uncompressed_tdms_path(source)
+            else target_base / source.relative_to(source_folder),
+        )
         for source in files
     ]
     conflicts = [target for _, target in transfers if target.exists()]
@@ -88,7 +99,9 @@ def _transfer_tdms_files(
     total = len(transfers)
     for index, (source, target) in enumerate(transfers, start=1):
         target.parent.mkdir(parents=True, exist_ok=True)
-        if file_mode == "copy":
+        if is_uncompressed_tdms_path(source):
+            compress_tdms_file(source, target_path=target, remove_source=file_mode == "move")
+        elif file_mode == "copy":
             shutil.copy2(source, target)
         else:
             shutil.move(str(source), str(target))
@@ -101,6 +114,43 @@ def _transfer_tdms_files(
             phase="transfer",
         )
     return len(transfers)
+
+
+def _compress_uncompressed_tdms_files(
+    scan_root: Path,
+    *,
+    line: str = "",
+    progress: ProgressCallback | None = None,
+) -> int:
+    """Compress existing .tdms files under the registered TDMS root in place."""
+    root = scan_root / line if line and (scan_root / line).is_dir() else scan_root
+    files = [
+        path
+        for path in sorted(iter_tdms_files(root))
+        if is_uncompressed_tdms_path(path)
+    ]
+    total = len(files)
+    if not total:
+        _progress(progress, 42, "未发现需要压缩的 .tdms 文件", phase="compress")
+        return 0
+
+    for index, source in enumerate(files, start=1):
+        target = compressed_tdms_path(source)
+        compress_tdms_file(
+            source,
+            target_path=target,
+            overwrite=True,
+            remove_source=True,
+        )
+        _progress(
+            progress,
+            8 + index / max(1, total) * 30,
+            f"正在压缩 TDMS：已处理 {index} / {total}",
+            processed=index,
+            total=total,
+            phase="compress",
+        )
+    return total
 
 
 def _rebuild_database_metadata(
@@ -151,6 +201,8 @@ def _copy_label_database(source: Path, target: Path) -> None:
 def execute_database_action(
     action: str,
     *,
+    update_kind: str = "",
+    label_source_type: str = "none",
     source_folder: str = "",
     label_csvs: list[str] | None = None,
     source_label_db: str = "",
@@ -165,6 +217,7 @@ def execute_database_action(
 ) -> dict[str, Any]:
     """Create, append, or refresh a sample database and TDMS manifest."""
     action = str(action or "").strip().lower()
+    label_source_type = str(label_source_type or "none").strip().lower()
     file_mode = str(file_mode or "").strip().lower()
     line = str(line or "").strip()
     storage_root = str(storage_root or "factory_raw").strip().strip("/")
@@ -248,6 +301,21 @@ def execute_database_action(
     _progress(progress, 38, "正在扫描 TDMS 文件")
     if not list(iter_tdms_files(scan_root)):
         raise ValueError(f"TDMS 根目录中没有 .tdms 或 .tdms.zst: {scan_root}")
+    compressed_existing = 0
+    if action == "refresh":
+        compressed_existing = _compress_uncompressed_tdms_files(
+            scan_root,
+            line=line,
+            progress=progress,
+        )
+        _progress(
+            progress,
+            42,
+            f"TDMS 压缩完成：新增 .tdms.zst {compressed_existing} 个",
+            processed=compressed_existing,
+            total=compressed_existing,
+            phase="compress",
+        )
     _progress(
         progress,
         45,
@@ -272,6 +340,7 @@ def execute_database_action(
         "action": action,
         "file_mode": file_mode,
         "transferred_files": transferred,
+        "compressed_files": compressed_existing,
         "data_root": str(data_root),
         "tdms_root": str(scan_root),
         "label_records_db_path": str(db_path),
@@ -285,12 +354,25 @@ def execute_database_action(
         "registered_sample_ids": registered_sample_ids,
         "errors": list(summary.get("errors") or []),
     }
+    if csv_paths and label_source_type not in {"internal", "forvia"}:
+        raise ValueError("标签 CSV 只支持来源类型 internal 或 forvia")
     if csv_paths:
         _progress(progress, 88, f"正在导入标签 CSV（0 / {len(csv_paths)}）")
         required_csvs = [_require_file(path, "标签 CSV") for path in csv_paths]
+        conversion_report = None
+        import_csvs = required_csvs
+        if label_source_type == "forvia":
+            _progress(progress, 86, "正在转换 Forvia 表为内部标签表", phase="labels")
+            conversion_report = convert_forvia_csvs_to_internal(
+                required_csvs,
+                db_path.parent / "internal_label_imports",
+                label_records_db=db_path,
+                line=line,
+            )
+            import_csvs = [Path(path) for path in conversion_report["output_csvs"]]
         result["labels"] = import_label_csvs(
             db_path,
-            required_csvs,
+            import_csvs,
             line=line,
             progress=lambda index, total, path: _progress(
                 progress,
@@ -299,5 +381,7 @@ def execute_database_action(
                 phase="labels",
             ),
         )
+        if conversion_report is not None:
+            result["labels"]["forvia_conversion"] = conversion_report
     _progress(progress, 100, "数据库操作完成")
     return result

@@ -2,7 +2,6 @@
 
 __all__ = [
     "BaseModel",
-    "BRFModel",
     "LGBModel",
     "ModelInterface",
     "RFModel",
@@ -13,7 +12,6 @@ __all__ = [
 def __getattr__(name: str):
     modules = {
         "BaseModel": (".base", "BaseModel"),
-        "BRFModel": (".brf", "BRFModel"),
         "LGBModel": (".lgb", "LGBModel"),
         "ModelInterface": (".base", "ModelInterface"),
         "RFModel": (".rf", "RFModel"),

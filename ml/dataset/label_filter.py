@@ -87,6 +87,7 @@ STANDARD_SAMPLE_VIEW_COLUMNS = [
 
 REQUIRED_SAMPLE_VIEW_COLUMNS = ("line", "sn", "sample_id")
 MIN_CONSISTENT_EMPLOYEE_LABELS = 2
+LABEL_FILTER_STATUSES = ("confirmed", "unconfirmed")
 
 
 def standardize_sample_view(df: pd.DataFrame) -> pd.DataFrame:
@@ -582,7 +583,7 @@ def main() -> None:
     if not sample_view_path.exists() or not sample_view_path.is_file():
         raise FileNotFoundError(f"sample_view.csv 不存在: {sample_view_path}")
     sample_df = pd.read_csv(sample_view_path, encoding="utf-8-sig")
-    label_df = load_label_dataframe(label_records_db_path)
+    label_df = load_label_dataframe(label_records_db_path, statuses=LABEL_FILTER_STATUSES)
     key_sns_paths = _key_sns_paths_from_cfg(cfg)
     key_sns_folder_paths = [path for path in key_sns_paths if Path(path).expanduser().suffix.lower() != ".csv"]
     key_sns_csv_paths = [path for path in key_sns_paths if Path(path).expanduser().suffix.lower() == ".csv"]

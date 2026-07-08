@@ -1,0 +1,100 @@
+line_name: epump4
+model:
+  model_name: general
+results_path: ./results/
+database:
+  label_records_db_path: /Volumes/18555440521/fault/data_root/metadata/label_records.db
+  tdms_root: /Volumes/18555440521/fault/data_root/factory_raw
+  manifest_path: /Volumes/18555440521/fault/data_root/metadata/tdms_manifest.csv
+  configured: false
+  last_operation: ''
+data_root: /Volumes/18555440521/fault/data_root
+label_records_db_path: /Volumes/18555440521/fault/data_root/metadata/label_records.db
+data:
+  line:
+  - epump4
+  folders: []
+  reference: []
+  key_sns: []
+dataset:
+  batch_size: 2000
+  num_workers: 8
+  data_root: /Volumes/18555440521/fault/data_root
+  label_records_db_path: /Volumes/18555440521/fault/data_root/metadata/label_records.db
+  manifest_path: /Volumes/18555440521/fault/data_root/metadata/tdms_manifest.csv
+train:
+  model_type: xgb
+  train_mode: normal
+  split_strategy: reference_in
+  seed_runs: 10
+  label_mapping:
+    enable: true
+    auto_mlabel: true
+    extract_all_features: false
+    groups:
+    - weight: 1.0
+      reasons:
+      - reason: 干扰
+        sample: -1
+    - weight: 1.0
+      reasons:
+      - reason: 正常
+        sample: -1
+    - weight: 1.0
+      reasons:
+      - reason: 边界
+        sample: -1
+    - weight: 1.0
+      reasons:
+      - reason: 传感器错误
+        sample: -1
+    - weight: 1.0
+      reasons:
+      - reason: 秒表
+        sample: -1
+    - weight: 1.0
+      reasons:
+      - reason: 摩擦
+        sample: -1
+    - weight: 1.0
+      reasons:
+      - reason: 摩擦acc
+        sample: -1
+    - weight: 1.0
+      reasons:
+      - reason: 杂音
+        sample: -1
+    - weight: 1.0
+      reasons:
+      - reason: 咬齿
+        sample: -1
+    - weight: 1.0
+      reasons:
+      - reason: 震颤
+        sample: -1
+    - weight: 1.0
+      reasons:
+      - reason: 马达
+        sample: -1
+    - weight: 1.0
+      reasons:
+      - reason: 哒哒_咔咔
+        sample: -1
+    - weight: 1.0
+      reasons:
+      - reason: 其它
+        sample: -1
+  class_weights:
+    干扰: 1.0
+    正常: 1.0
+    边界: 1.0
+    传感器错误: 1.0
+    秒表: 1.0
+    摩擦: 1.0
+    摩擦acc: 1.0
+    杂音: 1.0
+    咬齿: 1.0
+    震颤: 1.0
+    马达: 1.0
+    哒哒_咔咔: 1.0
+    其它: 1.0

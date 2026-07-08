@@ -1,0 +1,97 @@
+# ============================================================
+# Baseline E1 · raw z-score + CNN1D（时域 baseline）
+#   python dl/main_dataset.py --config cfg/exp_e1_raw_cnn1d.yaml
+#   python dl/main_train.py   --config cfg/exp_e1_raw_cnn1d.yaml
+# 输出：results/epump2_exp_e1_raw_cnn1d/
+# ============================================================
+
+line_name: epump2
+model:
+  model_name: exp_e1_raw_cnn1d
+
+results_path: ./results/
+
+database:
+  label_records_db_path: /Volumes/18555440521/fault/data_root/metadata/label_records.db
+  tdms_root:             /Volumes/18555440521/fault/data_root/factory_raw
+  manifest_path:         /Volumes/18555440521/fault/data_root/metadata/tdms_manifest.csv
+  configured: true
+  last_operation: existing
+data_root: /Volumes/18555440521/fault/data_root
+label_records_db_path: /Volumes/18555440521/fault/data_root/metadata/label_records.db
+
+data:
+  line:
+    - epump2
+  key_sns:
+    - path: /Volumes/18555440521/fault/data_root/factory_raw/epump2/prototype/
+      line: epump2
+    - path: /Volumes/18555440521/fault/data_root/factory_raw/epump3/prototype/
+      line: epump3
+    - path: /Volumes/18555440521/fault/data_root/factory_raw/epump4/prototype/
+      line: epump4
+    - path: /Volumes/18555440521/fault/data_root/factory_raw/etilt1/prototype/
+      line: etilt1
+
+dataset:
+  num_workers: 8
+  data_root:             /Volumes/18555440521/fault/data_root
+  label_records_db_path: /Volumes/18555440521/fault/data_root/metadata/label_records.db
+  manifest_path:         /Volumes/18555440521/fault/data_root/metadata/tdms_manifest.csv
+
+train:
+  split_strategy: reference_in
+  random_state: 42
+  label_mapping:
+    enable: true
+    auto_mlabel: true
+    groups:
+    - weight: 1
+      reasons:
+      - {reason: 正常, sample: 2000}
+      - {reason: 干扰, sample: -1}
+      - {reason: 边界, sample: -1}
+    - weight: 1
+      reasons:
+      - {reason: 传感器错误, sample: -1}
+    - weight: 1
+      reasons:
+      - {reason: 秒表, sample: -1}
+    - weight: 1
+      reasons:
+      - {reason: 摩擦, sample: -1}
+      - {reason: 摩擦acc, sample: -1}
+      - {reason: 杂音, sample: -1}
+      - {reason: 咬齿, sample: -1}
+      - {reason: 哒哒_咔咔, sample: -1}
+    - weight: 1
+      reasons:
+      - {reason: 震颤, sample: -1}
+      - {reason: 马达, sample: -1}
+
+dl:
+  feature_type: raw          # raw z-score（trim 头尾8000 + 降采样 + z-score）
+  extract:
+    sample: false
+  model:
+    arch: cnn1d              # raw [1, ~16800] → CNN1D(in_channels=1)
+    conv_channels: [32, 64, 128, 256]
+    kernel_size: 7
+    dropout: 0.2
+    hidden_dim: 256
+  train:                     # 统一训练配置
+    epochs: 500
+    batch_size: 16
+    learning_rate: 0.001
+    weight_decay: 0.0001
+    num_workers: 4
+    use_amp: true
+    seed_runs: 1
+    length_percentile: 0.95
+    scheduler: cosine
+    early_stopping:
+      enable: true
+      patience: 10
+    loss:
+      type: ce
+      label_smoothing: 0.05

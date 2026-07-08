@@ -610,8 +610,12 @@ class LabelSession:
         return 10**9, str(name)
 
     def reference_label_stats(self, references: list[str], source: str = "all",
-                              label_statuses: list[str] | None = None) -> dict:
-        """按输入 reference 顺序统计标签覆盖与有效训练标签分布。"""
+                              label_statuses: list[str] | None = None,
+                              basis: str = "valid") -> dict:
+        """按输入 reference 顺序统计标签覆盖与 RESULT/REASON 分布。
+        basis='valid'：只统计有效训练标签（专家/员工一致，每样本最新）；
+        basis='confirmed'：统计所有已确认标签（每样本最新一条，不限来源一致性）。"""
+        basis = "confirmed" if str(basis) == "confirmed" else "valid"
         events = self.label_table.events_normalized()
         label_status_map = self._label_status_map_from_events(events)
         status_set = {str(x or "").strip() for x in (label_statuses or []) if str(x or "").strip()}
@@ -681,20 +685,26 @@ class LabelSession:
             ref = sample_ref.get(sid)
             if ref not in items or not sid_in_status(sid):
                 continue
-            status = label_status_map.get(sid, {"key": "unlabeled"})["key"]
-            if status not in valid_statuses:
-                continue
-            if status == "expert":
-                candidates = [e for e in evs if self._source_category(e.get("source")) == "expert"]
-            else:
-                candidates = [e for e in evs if self._source_category(e.get("source")) == "operator"]
-            if not candidates:
-                continue
-            event = sorted(candidates, key=lambda e: str(e.get("timestamp", "") or ""))[-1]
             item = items[ref]
-            item["_valid_samples"].add(sid)
-            self._count_label(item["_result_counts"], event.get("result_name") or event.get("result_key"))
-            self._count_label(item["_reason_counts"], event.get("reason_name") or event.get("reason_key"))
+            # 有效标签（专家/员工一致，每样本最新）——用于 valid_label_count，以及 basis=valid 的分布
+            status = label_status_map.get(sid, {"key": "unlabeled"})["key"]
+            valid_event = None
+            if status in valid_statuses:
+                cat = "expert" if status == "expert" else "operator"
+                cands = [e for e in evs if self._source_category(e.get("source")) == cat]
+                if cands:
+                    valid_event = sorted(cands, key=lambda e: str(e.get("timestamp", "") or ""))[-1]
+                    item["_valid_samples"].add(sid)
+            # 确认标签（expert 来源，每样本最新一条）——用于 basis=confirmed 的分布，
+            # 与上方 confirmed_count 口径一致（两者独立于“有效标签”）。
+            conf_event = None
+            expert_cands = [e for e in evs if self._source_category(e.get("source")) == "expert"]
+            if expert_cands:
+                conf_event = sorted(expert_cands, key=lambda e: str(e.get("timestamp", "") or ""))[-1]
+            event = conf_event if basis == "confirmed" else valid_event
+            if event is not None:
+                self._count_label(item["_result_counts"], event.get("result_name") or event.get("result_key"))
+                self._count_label(item["_reason_counts"], event.get("reason_name") or event.get("reason_key"))
 
         out = []
         total_result_counts: dict[str, int] = {}
@@ -718,6 +728,7 @@ class LabelSession:
 
         return {
             "source": source or "all",
+            "basis": basis,
             "label_statuses": sorted(status_set),
             "result_labels": sorted(total_result_counts, key=lambda k: self._label_order(k, "result")),
             "reason_labels": sorted(total_reason_counts, key=lambda k: self._label_order(k, "reason")),

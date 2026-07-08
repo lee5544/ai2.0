@@ -12,7 +12,7 @@ from pathlib import Path
 from threading import Lock
 from typing import Any, Dict, Iterable, List, Tuple
 
-
+import librosa
 import numpy as np
 import pandas as pd
 from data_manager.label_database import load_label_dataframe, load_sample_dataframe
@@ -161,10 +161,8 @@ def _resolve_dl_cfg(cfg: Dict[str, Any]) -> Dict[str, Any]:
 def _resolve_results_root(cfg: Dict[str, Any]) -> Path:
     line_name = _to_text(cfg.get("line_name")) or "line"
     model_name = _to_text((cfg.get("model") or {}).get("model_name")) or "model"
-    dl_cfg = _resolve_dl_cfg(cfg)
-    model_type = _to_text(dl_cfg.get("model_type")) or "cnn"
     results_path = Path(str(cfg.get("results_path") or "./results")).expanduser()
-    return results_path / f"{line_name}_{model_name}_{model_type}"
+    return results_path / f"{line_name}_{model_name}"
 
 
 def _resolve_output_folder(cfg: Dict[str, Any], cli_output_folder: str | None) -> Path:
@@ -282,7 +280,7 @@ def _resolve_mel_params(
     mel_cfg = dl_cfg.get("mel") if isinstance(dl_cfg.get("mel"), dict) else {}
     n_fft = int(cli_n_fft or mel_cfg.get("n_fft") or 256)
     hop_length = int(cli_hop_length or mel_cfg.get("hop_length") or max(1, n_fft // 2))
-    n_mels = int(cli_n_mels or mel_cfg.get("n_mels") or 13)
+    n_mels = int(cli_n_mels or mel_cfg.get("n_mels") or 39)
     max_frames = int(cli_max_frames or mel_cfg.get("max_frames") or 1024)
     fmin = float(cli_fmin if cli_fmin is not None else mel_cfg.get("fmin") or 0.0)
     fmax_raw = cli_fmax if cli_fmax is not None else mel_cfg.get("fmax")
@@ -483,86 +481,12 @@ def _pick_signal_by_sample(
     raise KeyError(f"无法根据 sample_id/group_name 映射信号: sample_id={sample_id}, group_name={sample_group_name}")
 
 
-def _hz_to_mel(hz: np.ndarray) -> np.ndarray:
-    return 2595.0 * np.log10(1.0 + (hz / 700.0))
-
-
-def _mel_to_hz(mel: np.ndarray) -> np.ndarray:
-    return 700.0 * (10.0 ** (mel / 2595.0) - 1.0)
-
-
-def _cacheable_fmax(value: float | None) -> float:
-    return -1.0 if value is None else float(value)
-
-
-@lru_cache(maxsize=64)
-def _cached_hann_window(n_fft: int) -> np.ndarray:
-    return np.hanning(int(n_fft)).astype(np.float32)
-
-
 @lru_cache(maxsize=64)
 def _cached_feature_keys(n_mels: int, max_frames: int) -> tuple[str, ...]:
     return tuple(
         f"feat__mel_{mel_idx:03d}__{frame_idx:04d}"
         for mel_idx in range(int(n_mels))
         for frame_idx in range(int(max_frames))
-    )
-
-
-def _build_mel_filterbank(
-    *,
-    sampling_rate: int,
-    n_fft: int,
-    n_mels: int,
-    fmin: float,
-    fmax: float | None,
-) -> np.ndarray:
-    sr = float(sampling_rate)
-    max_freq = sr / 2.0
-    high_freq = max_freq if fmax is None else min(float(fmax), max_freq)
-    if high_freq <= float(fmin):
-        high_freq = max_freq
-
-    mel_edges = np.linspace(_hz_to_mel(np.array([float(fmin)]))[0], _hz_to_mel(np.array([high_freq]))[0], int(n_mels) + 2)
-    hz_edges = _mel_to_hz(mel_edges)
-    fft_freqs = np.linspace(0.0, max_freq, int(n_fft // 2) + 1)
-    filters = np.zeros((int(n_mels), fft_freqs.shape[0]), dtype=np.float32)
-
-    for mel_idx in range(int(n_mels)):
-        left = float(hz_edges[mel_idx])
-        center = float(hz_edges[mel_idx + 1])
-        right = float(hz_edges[mel_idx + 2])
-        if center <= left:
-            center = left + 1e-6
-        if right <= center:
-            right = center + 1e-6
-
-        left_mask = (fft_freqs >= left) & (fft_freqs <= center)
-        right_mask = (fft_freqs >= center) & (fft_freqs <= right)
-        filters[mel_idx, left_mask] = (fft_freqs[left_mask] - left) / (center - left)
-        filters[mel_idx, right_mask] = (right - fft_freqs[right_mask]) / (right - center)
-
-    norm = filters.sum(axis=1, keepdims=True)
-    norm[norm <= 0] = 1.0
-    filters /= norm
-    return filters
-
-
-@lru_cache(maxsize=64)
-def _cached_mel_filterbank(
-    sampling_rate: int,
-    n_fft: int,
-    n_mels: int,
-    fmin: float,
-    fmax_cache_value: float,
-) -> np.ndarray:
-    fmax = None if float(fmax_cache_value) < 0 else float(fmax_cache_value)
-    return _build_mel_filterbank(
-        sampling_rate=int(sampling_rate),
-        n_fft=int(n_fft),
-        n_mels=int(n_mels),
-        fmin=float(fmin),
-        fmax=fmax,
     )
 
 
@@ -576,42 +500,70 @@ def extract_mel_spectrogram_features(
     max_frames: int,
     fmin: float,
     fmax: float | None,
-) -> tuple[Dict[str, float], Dict[str, int]]:
+) -> tuple[np.ndarray, Dict[str, int]]:
     data = np.asarray(signal, dtype=np.float32).reshape(-1)
     if data.size == 0:
         raise ValueError("空信号，无法提取 mel 频谱特征")
 
-    if data.size < int(n_fft):
-        data = np.pad(data, (0, int(n_fft) - int(data.size)), mode="constant")
+    n_fft = int(n_fft)
+    hop_length = int(hop_length)
+    n_mels = int(n_mels)
+    max_frames = int(max_frames)
+    sampling_rate = int(sampling_rate)
+    if n_fft <= 0:
+        raise ValueError(f"n_fft 必须 > 0，当前: {n_fft}")
+    if hop_length <= 0:
+        raise ValueError(f"hop_length 必须 > 0，当前: {hop_length}")
+    if n_mels <= 0:
+        raise ValueError(f"n_mels 必须 > 0，当前: {n_mels}")
+    if max_frames <= 0:
+        raise ValueError(f"max_frames 必须 > 0，当前: {max_frames}")
+    if sampling_rate <= 0:
+        raise ValueError(f"sampling_rate 必须 > 0，当前: {sampling_rate}")
 
-    last_start = max(0, int(data.size) - int(n_fft))
-    starts = list(range(0, last_start + 1, int(hop_length)))
-    if not starts:
-        starts = [0]
-    elif starts[-1] != last_start:
-        starts.append(last_start)
-    actual_frame_count = min(len(starts), int(max_frames))
-    starts = np.asarray(starts[: int(max_frames)], dtype=np.int64)
+    if data.size < n_fft:
+        data = np.pad(data, (0, n_fft - int(data.size)), mode="constant")
 
-    window = _cached_hann_window(int(n_fft))
-    # 固定输出到 max_frames；当实际帧数不足时，后续时间步保持 0，实现补零。
-    stft_power = np.zeros((int(n_fft // 2) + 1, int(max_frames)), dtype=np.float32)
-    if actual_frame_count > 0:
-        frames_view = np.lib.stride_tricks.sliding_window_view(data, int(n_fft))
-        frames = frames_view[starts]
-        spectra = np.fft.rfft(frames * window[None, :], n=int(n_fft), axis=1)
-        power = (np.abs(spectra) ** 2) / float(max(int(n_fft), 1))
-        stft_power[:, :actual_frame_count] = power.T.astype(np.float32, copy=False)
+    max_freq = sampling_rate / 2.0
+    effective_fmax = max_freq if fmax is None else min(float(fmax), max_freq)
+    if effective_fmax <= float(fmin):
+        effective_fmax = max_freq
 
-    mel_filters = _cached_mel_filterbank(
-        int(sampling_rate),
-        int(n_fft),
-        int(n_mels),
-        float(fmin),
-        _cacheable_fmax(fmax),
+    mel_raw = librosa.feature.melspectrogram(
+        y=data,
+        sr=sampling_rate,
+        n_fft=n_fft,
+        hop_length=hop_length,
+        n_mels=n_mels,
+        fmin=float(fmin),
+        fmax=float(effective_fmax),
+        power=2.0,
+        center=False,
+        window="hann",
+        htk=True,
+        norm=1,
+        dtype=np.float32,
     )
-    mel_spec = np.matmul(mel_filters, stft_power)
+    actual_frame_count = min(int(mel_raw.shape[1]), max_frames)
+
+    # 固定输出到 max_frames；当实际帧数不足时，后续时间步保持 0，实现补零。
+    mel_spec = np.zeros((n_mels, max_frames), dtype=np.float32)
+    if actual_frame_count > 0:
+        mel_spec[:, :actual_frame_count] = mel_raw[:, :actual_frame_count].astype(
+            np.float32,
+            copy=False,
+        )
     mel_spec = np.log10(np.maximum(mel_spec, 1e-8)).astype(np.float32, copy=False)
+
+    # # 对每个 mel bin 单独做标准化。
+    # # mel_spec shape: [n_mels, max_frames]
+    # # 每一行对应一个 mel bin，在时间帧维度上计算 mean/std。
+    # eps = 1e-8
+    # mel_mean = mel_spec.mean(axis=1, keepdims=True)
+    # mel_std = mel_spec.std(axis=1, keepdims=True)
+    # # 避免某些 bin 全为常数时除以 0。
+    # mel_std = np.maximum(mel_std, eps)
+    # mel_spec = ((mel_spec - mel_mean) / mel_std).astype(np.float32, copy=False)
 
     meta = {
         "frame_count": int(actual_frame_count),
@@ -820,6 +772,7 @@ def _write_feature_schema(
     channel_names = [f"mel_{idx:03d}" for idx in range(int(n_mels))]
     schema = {
         "feature_version": "log_mel_spectrogram_v1",
+        "feature_backend": "librosa",
         "output_file_prefix": output_file_prefix,
         "output_format": _normalize_output_format(output_format),
         "compact_feature_column": COMPACT_FEATURE_COLUMN,
@@ -835,6 +788,14 @@ def _write_feature_schema(
         "max_frames": int(max_frames),
         "fmin": float(fmin),
         "fmax": None if fmax is None else float(fmax),
+        "librosa_melspectrogram": {
+            "power": 2.0,
+            "center": False,
+            "window": "hann",
+            "htk": True,
+            "norm": 1,
+            "dtype": "float32",
+        },
     }
     with (output_folder / SCHEMA_FILENAME).open("w", encoding="utf-8") as f:
         json.dump(schema, f, ensure_ascii=False, indent=2)

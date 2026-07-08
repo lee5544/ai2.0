@@ -398,6 +398,7 @@ class ReferenceLabelStatsReq(BaseModel):
     source: str = "all"
     references: list[str] = []
     label_statuses: list[str] = []
+    basis: str = "valid"          # valid=有效标签(专家/一致) ; confirmed=所有确认标签
 
 
 @app.post("/api/reference_label_stats")
@@ -405,7 +406,8 @@ def api_reference_label_stats(req: ReferenceLabelStatsReq):
     if not req.references:
         raise HTTPException(status_code=400, detail="请先选择 reference")
     return get_session().reference_label_stats(req.references, source=req.source,
-                                               label_statuses=req.label_statuses)
+                                               label_statuses=req.label_statuses,
+                                               basis=req.basis)
 
 
 # note 里需要清掉的"导入残留字段"键（result=... 及其映射等）

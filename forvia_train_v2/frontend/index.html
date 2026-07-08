@@ -14,6 +14,7 @@
     nav { display:flex; flex-direction:column; gap:10px; flex:1; }
     .nav-main { display:flex; align-items:center; gap:14px; min-height:52px; }
     .tab { padding:8px 13px; border-radius:8px; font-size:13px; cursor:pointer; color:var(--mut); }
+    .main-tabs { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
     .project-tab { display:flex; align-items:center; justify-content:center; min-width:320px; min-height:68px; padding:16px 32px; border:2px solid #8bb9f7; border-radius:14px; background:#f3f8ff; color:var(--acc); box-shadow:0 5px 16px rgba(23,105,224,.16); font-size:21px; font-weight:800; text-align:center; }
     .project-tab:hover { background:#e7f1ff; border-color:var(--acc); transform:translateY(-1px); box-shadow:0 8px 20px rgba(23,105,224,.22); }
     .project-tab.active { background:var(--acc); border-color:var(--acc); color:#fff; box-shadow:0 8px 22px rgba(23,105,224,.3); }
@@ -178,6 +179,35 @@
     .project-info-form { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
     .project-info-form .wide { grid-column:1/-1; }
     .project-info-form input[readonly] { background:#f3f6fa; color:var(--mut); }
+    .label-rule-grid { display:grid; grid-template-columns:1fr; gap:14px; }
+    .label-rule-table input,.label-rule-table select,.label-rule-table textarea { width:100%; }
+    .label-rule-table textarea { min-height:62px; resize:vertical; }
+    .label-rule-key { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; color:var(--mut); }
+    .sub-tabs { display:flex; gap:8px; flex-wrap:wrap; margin:10px 0 16px; }
+    .sub-tab { border:1px solid var(--bd); background:#fff; color:var(--mut); padding:9px 14px; border-radius:8px; font-size:13px; cursor:pointer; }
+    .sub-tab.active { border-color:var(--acc); color:var(--acc); background:#eef5ff; font-weight:800; }
+    .operation-choice-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+    .operation-choice { display:flex; align-items:flex-start; gap:12px; text-align:left; min-height:116px; border:1px solid #b9c9dc; background:linear-gradient(180deg,#fff,#f6f9fd); border-radius:8px; padding:18px; cursor:pointer; }
+    .operation-choice.active { border-color:var(--acc); box-shadow:0 8px 22px rgba(23,105,224,.14); background:#f2f7ff; }
+    .operation-choice b { display:block; font-size:18px; margin-bottom:6px; color:var(--txt); }
+    .operation-index { display:inline-flex; width:30px; height:30px; border-radius:50%; align-items:center; justify-content:center; background:#e8eef6; color:var(--acc); font-weight:900; flex:0 0 auto; }
+    .flow-card { border:1px solid var(--bd); border-radius:8px; background:#fff; padding:16px; margin-top:12px; }
+    .flow-card h3 { margin:0 0 12px; display:flex; align-items:center; gap:8px; }
+    .flow-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+    .flow-grid .wide { grid-column:1/-1; }
+    .status-strip { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:8px; margin:12px 0; }
+    .status-pill { border:1px solid var(--bd); background:#fff; border-radius:8px; padding:10px; min-height:58px; }
+    .status-pill b { display:block; font-size:13px; margin-top:4px; }
+    .status-pill.ok { border-color:#79b98a; background:#f1fbf4; }
+    .status-pill.warn { border-color:#e2b765; background:#fff8e8; }
+    .precheck-panel { border:1px solid #c8d4e2; background:#f8fbff; border-radius:8px; padding:14px; margin-top:12px; }
+    .precheck-metrics { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin:10px 0; }
+    .precheck-metric { border:1px solid var(--bd); background:#fff; border-radius:8px; padding:10px; }
+    .precheck-metric span { display:block; color:var(--mut); font-size:12px; }
+    .precheck-metric b { font-size:20px; }
+    .stage-steps { display:grid; grid-template-columns:repeat(7,minmax(80px,1fr)); gap:8px; margin-top:12px; }
+    .stage-step { border:1px solid var(--bd); border-radius:8px; background:#fff; padding:9px; text-align:center; color:var(--mut); font-size:12px; }
+    .stage-step.active { border-color:var(--acc); color:var(--acc); background:#eef5ff; font-weight:800; }
     .prominent-actions { gap:22px; }
     .prominent-actions .action-step { min-height:108px; padding:20px 42px 20px 24px; border:2px solid #75aaf0; background:linear-gradient(135deg,#1769e0,#0f5fcf); color:#fff; border-radius:13px 0 0 13px; box-shadow:0 9px 22px rgba(23,105,224,.22); }
     .prominent-actions .action-step:nth-child(2) { border-color:#42a568; background:linear-gradient(135deg,#16803c,#116c32); box-shadow:0 9px 22px rgba(22,128,60,.2); }
@@ -228,7 +258,7 @@
     @media(max-width:850px) {
       nav { overflow:auto; } .current { display:none; } main { padding:12px; }
       .workflow-step { min-width:170px; }
-      .grid,.grid3,.metrics,.split,.image-grid,.featured-chart-grid,.chart-card-grid,.model-cards,.table-grid,.reference-grid,.group-grid,.folder-card-grid,.candidate-grid,.project-database-info,.project-info-form { grid-template-columns:1fr; }
+      .grid,.grid3,.metrics,.split,.image-grid,.featured-chart-grid,.chart-card-grid,.model-cards,.table-grid,.reference-grid,.group-grid,.folder-card-grid,.candidate-grid,.project-database-info,.project-info-form,.operation-choice-grid,.flow-grid,.status-strip,.precheck-metrics,.stage-steps { grid-template-columns:1fr; }
       .key-add-row { grid-template-columns:1fr; }
       .reason-row { grid-template-columns:1fr; }
     }
@@ -240,7 +270,10 @@
     <nav>
       <div class="nav-main">
         <h1>Forvia Train v2</h1>
-        <div class="tab project-tab" :class="{active:view==='projects'}" @click="openTab('projects')">项目列表（模型名称）</div>
+        <div class="main-tabs">
+          <button class="tab" :class="{active:view==='database'}" @click="openTab('database')">配置数据库</button>
+          <button class="tab" :class="{active:view==='projects'}" @click="openTab('projects')">项目列表（模型名称）</button>
+        </div>
         <div class="current">{{ current ? current.name : '未选择模型项目' }}</div>
       </div>
       <div v-if="current" class="workflow">
@@ -272,11 +305,11 @@
           <tbody>
             <template v-for="p in projects" :key="p.id">
               <tr class="clickable" @dblclick="selectProject(p)">
-                <td><b>{{p.name}}</b><div class="hint">{{projectModelId(p)}}</div><div class="hint">{{p.config_path}}</div></td>
+                <td><b>{{projectModelId(p)}}</b><div class="hint">{{p.config_path}}</div></td>
                 <td>{{p.line_name}}</td><td>{{p.model_type}}</td>
                 <td><span v-if="p.latest_run_status" class="tag" :class="p.latest_run_status">{{p.latest_run_kind}} · {{p.latest_run_status}}</span><span v-else>—</span></td>
                 <td>{{p.updated_at}}</td>
-                <td><button class="primary" @click="selectProject(p)">打开</button> <button @click="toggleProjectDetails(p)">{{projectDetails[p.id]?.open?'收起详情':'详情/配置'}}</button> <button @click="renameProject(p)">重命名</button> <button @click="duplicateProject(p)">复制</button> <button class="danger" @click="removeProject(p)">删除</button></td>
+                <td><button class="primary" @click="selectProject(p)">打开</button> <button @click="toggleProjectDetails(p)">{{projectDetails[p.id]?.open?'收起详情':'详情/配置'}}</button> <button @click="duplicateProject(p)">复制</button> <button class="danger" @click="removeProject(p)">删除</button></td>
               </tr>
               <tr v-if="projectDetails[p.id]?.open" class="project-detail-row">
                 <td colspan="6">
@@ -290,7 +323,6 @@
                     <div v-if="projectDetails[p.id].loading" class="hint">正在加载详情...</div>
                     <template v-else>
                       <div class="project-detail-meta">
-                        <div><b>项目显示名称</b>{{projectDetails[p.id].form?.name || projectDetails[p.id].project?.name || p.name}}</div>
                         <div><b>产线 line_name</b>{{projectDetails[p.id].form?.line_name || projectDetails[p.id].project?.line_name || p.line_name}}</div>
                         <div><b>模型名称 model_name</b>{{projectDetails[p.id].form?.model_name || projectDetails[p.id].project?.model_name || p.model_name}}</div>
                         <div><b>模型类型 model_type</b>{{projectDetails[p.id].form?.model_type || projectDetails[p.id].project?.model_type || p.model_type}}</div>
@@ -300,8 +332,6 @@
                       <div class="project-config-form" v-if="projectDetails[p.id].form">
                         <h4>可编辑项目参数</h4>
                         <div class="project-param-grid">
-                          <label>项目显示名称<input v-model="projectDetails[p.id].form.name"></label>
-                          <label>配置路径 config_path<input v-model="projectDetails[p.id].form.config_path" placeholder="cfg/xxx.yaml 的完整路径；改名后台会迁移文件"></label>
                           <label>产线 line_name<input v-model="projectDetails[p.id].form.line_name"></label>
                           <label>模型名称 model_name<input v-model="projectDetails[p.id].form.model_name"></label>
                           <label>模型类型 model_type<select v-model="projectDetails[p.id].form.model_type"><option v-for="x in options.model_types" :value="x">{{x}}</option></select></label>
@@ -320,7 +350,7 @@
                           <label>数据文件夹 folders<textarea v-model="projectDetails[p.id].form.data_folders" placeholder="每行一个文件夹"></textarea></label>
                           <label>参考 reference<textarea v-model="projectDetails[p.id].form.data_references" placeholder="每行一个 reference"></textarea></label>
                           <label>关键样本 key_sns<textarea v-model="projectDetails[p.id].form.key_sns" placeholder="每行一个路径"></textarea></label>
-                          <label>增强方法 methods<textarea v-model="projectDetails[p.id].form.augmentation_methods" placeholder="每行一个方法，例如 white_noise"></textarea></label>
+                          <label>增强方法 methods<textarea v-model="projectDetails[p.id].form.augmentation_methods" placeholder="每行一个方法，例如 add_noise"></textarea></label>
                           <label>增强 count<input type="number" v-model.number="projectDetails[p.id].form.augmentation_count"></label>
                         </div>
                         <h4>模型参数</h4>
@@ -345,56 +375,98 @@
     </section>
 
     <!-- 配置数据库 -->
-    <section v-show="view==='data'">
-      <div class="page-title"><h2>配置数据库</h2><div class="actions"><button @click="loadLineOverview">刷新数据情况</button><button @click="loadModelOverview">刷新 XLSX 模型分布</button></div></div>
-      <template v-if="requireCurrent">
-        <div class="card">
-          <div class="page-title"><h3>项目与数据库信息</h3><button class="primary" @click="saveProjectInfo">保存项目信息</button></div>
-          <div class="project-info-form">
-            <label>项目名称<input v-model.trim="projectInfoForm.name"></label>
-            <label>模型识别码<input :value="editableModelId" readonly><span class="hint">由产线和模型名称生成，不包含 xgb、rf 等算法名称</span></label>
-            <label>产线 line<input v-model.trim="projectInfoForm.line_name" list="project-line-options"><datalist id="project-line-options"><option v-for="line in availableLines" :value="line"></option></datalist></label>
-            <label>模型名称<input v-model.trim="projectInfoForm.model_name"></label>
-            <label>模型类型<select v-model="projectInfoForm.model_type"><option v-for="type in options.model_types" :value="type">{{modelTitle(type)}}</option></select></label>
-            <label>数据库名称<input :value="pathBasename(dataForm.label_records_db_path)||'未配置'" readonly></label>
-          </div>
+    <section v-show="view==='database'">
+      <div class="page-title"><h2>配置数据库</h2><div class="actions" v-if="databaseUi.tab==='operation'&&databaseTool.action"><button @click="resetDatabaseAction">返回选择</button></div></div>
+      <div class="sub-tabs">
+        <button class="sub-tab" :class="{active:databaseUi.tab==='operation'}" @click="databaseUi.tab='operation'">数据库操作</button>
+        <button class="sub-tab" :class="{active:databaseUi.tab==='labels'}" @click="databaseUi.tab='labels';loadLabelRules()">配置标签</button>
+        <button class="sub-tab" :class="{active:databaseUi.tab==='distribution'}" @click="databaseUi.tab='distribution'">数据标签分布</button>
+      </div>
+      <div v-if="databaseUi.tab==='operation'&&!databaseTool.action" class="card">
+        <div class="operation-choice-grid">
+          <button v-for="x in databaseActionChoices" class="operation-choice" @click="chooseDatabaseAction(x.id)">
+            <span class="operation-index">{{x.no}}</span><span><b>{{x.name}}</b><span>{{x.desc}}</span></span>
+          </button>
         </div>
-        <div class="card">
+      </div>
+      <div v-if="databaseUi.tab==='operation'&&databaseTool.action" class="card">
+        <h3>数据库根目录</h3>
+        <label>data_root
+          <span class="input-row"><input v-model.trim="globalDatabase.data_root" @input="deriveGlobalDatabasePaths"><button @click="openBrowser('globalDatabase.data_root','dir')">选择</button></span>
+          <span class="hint">例如 /Volumes/18555440521/fault/data_root；系统会自动使用 metadata/label_records.db、metadata/tdms_manifest.csv 和 factory_raw。</span>
+        </label>
+        <div class="project-database-info" style="margin-top:12px">
+          <div class="info-tile"><span>label_records.db</span><b>{{globalDatabase.label_records_db_path}}</b></div>
+          <div class="info-tile"><span>tdms_manifest.csv</span><b>{{globalDatabase.manifest_path}}</b></div>
+          <div class="info-tile"><span>TDMS 根目录</span><b>{{globalDatabase.tdms_root}}</b></div>
+        </div>
+      </div>
+        <div v-if="databaseUi.tab==='operation'&&databaseTool.action" class="card">
           <h3>数据库操作</h3>
-          <div class="database-operation-list">
-            <button v-for="x in [{no:1,id:'create',name:'新建数据库',desc:'从 TDMS 和已有 DB / 多个标签 CSV 生成数据库'},{no:3,id:'append',name:'追加已有数据库',desc:'向当前数据库追加 TDMS 和多个标签 CSV'},{no:4,id:'refresh',name:'更新已有数据库',desc:'按 line 更新注册；不选 line 时更新全部'}]" class="database-operation-button" :class="{active:databaseTool.action===x.id}" :disabled="databaseTool.running" @click="databaseTool.action=x.id">
-              <span>{{x.no}}.</span><b>{{x.name}} <span v-if="databaseTool.last_operation===x.id" class="tag succeeded">上次选择的操作</span></b><span>{{x.desc}}</span>
-            </button>
-          </div>
           <div style="margin-top:14px">
-            <div class="grid">
-              <label v-if="databaseTool.action!=='refresh'">包含 TDMS / TDMS.ZST 的输入文件夹<span class="input-row"><input v-model="databaseTool.source_folder"><button @click="openBrowser('databaseTool.source_folder','dir')">选择</button></span><span v-if="databaseTool.action==='append'" class="hint">只追加 CSV 时可以留空。</span></label>
-              <label v-if="databaseTool.action==='create'">已有 label_records.db（可选）<span class="input-row"><input v-model="databaseTool.source_label_db"><button @click="openBrowser('databaseTool.source_label_db','file')">选择</button></span><span class="hint">选择后以该 DB 为标签来源，再同步所选 TDMS 样本。</span></label>
-              <label v-if="databaseTool.action==='create'">输出 data_root<span class="input-row"><input v-model="databaseTool.output_data_root" placeholder="复制/移动模式必须填写"><button @click="openBrowser('databaseTool.output_data_root','dir')">选择</button></span></label>
-              <label v-if="databaseTool.action==='create'">TDMS 存储目录名<input v-model="databaseTool.storage_root" placeholder="factory_raw"></label>
-              <label v-if="databaseTool.action!=='create'">当前 label_records.db<div class="path-display">{{dataForm.label_records_db_path||'未配置'}}</div></label>
-              <label v-if="databaseTool.action!=='create'">当前 TDMS 根目录<div class="path-display">{{dataForm.tdms_root||'未配置'}}</div></label>
-              <label>产线 line（可选）
-                <select v-model="databaseTool.line"><option value="">自动推断 / 全部产线</option><option v-for="line in options.line_options" :value="line">{{line}}</option></select>
-                <span v-if="databaseTool.action==='refresh'" class="hint">选择 line 只更新该产线；不选择则更新根目录下所有产线。</span>
-              </label>
-              <label v-if="databaseTool.action!=='refresh'">文件处理方式
-                <select v-model="databaseTool.file_mode"><option value="manual">已手动复制，不移动文件</option><option value="copy">复制到 TDMS 根目录</option><option value="move">移动到 TDMS 根目录</option></select>
-              </label>
-              <label>并行解析线程<input type="number" min="0" v-model.number="databaseTool.workers"><span class="hint">0 表示自动</span></label>
+            <div v-if="databaseTool.action==='update'" class="operation-choice-grid" style="margin-bottom:12px">
+              <button class="operation-choice" :class="{active:databaseTool.update_kind==='repair'}" @click="databaseTool.update_kind='repair';databaseTool.file_mode='manual'">
+                <span class="operation-index">A</span><span><b>修复数据库路径</b><span>文件移动后重新扫描 factory_raw，更新 manifest / samples。</span></span>
+              </button>
+              <button class="operation-choice" :class="{active:databaseTool.update_kind==='append'}" @click="databaseTool.update_kind='append'">
+                <span class="operation-index">B</span><span><b>追加 TDMS / 标签</b><span>追加新增文件夹和标签；样本记录覆盖，label events 保留多条。</span></span>
+              </button>
             </div>
-            <div v-if="databaseTool.action!=='refresh'" class="step-subsection" style="margin-top:12px">
-              <h4>标签 CSV（可选，支持多个）</h4>
-              <div class="input-row"><input v-model="databaseTool.label_csv_draft" placeholder="sample_view 或宽表 CSV"><button @click="openBrowser('databaseTool.label_csv_draft','file')">选择</button><button class="primary" @click="addDatabaseCsv">＋ 添加</button></div>
-              <div class="key-data-list" style="margin-top:8px;max-height:180px">
-                <div v-for="(path,index) in databaseTool.label_csvs" class="key-data-row" style="grid-template-columns:minmax(0,1fr) auto"><span class="key-data-path">{{path}}</span><button class="danger" @click="removeDatabaseCsv(index)">删除</button></div>
-                <p v-if="!databaseTool.label_csvs.length" class="hint" style="padding:10px">未添加 CSV；系统仍会根据 TDMS 创建无标签数据库。</p>
+            <div class="step-subsection">
+              <h4>数据来源</h4>
+              <div class="grid">
+                <label v-if="databaseTool.action==='create'||databaseTool.update_kind==='append'">输入包含 TDMS / TDMS.ZST 的源数据文件夹<span class="input-row"><input v-model="databaseTool.source_folder"><button @click="openBrowser('databaseTool.source_folder','dir')">选择</button><button @click="precheckDatabase">扫描</button></span><span v-if="databaseTool.update_kind==='append'" class="hint">只追加标签时可以留空。</span></label>
+                <label v-if="databaseTool.action==='update'&&databaseTool.update_kind==='repair'">当前 label_records.db<div class="path-display">{{globalDatabase.label_records_db_path||'未配置'}}</div></label>
+                <label v-if="databaseTool.action==='update'&&databaseTool.update_kind==='repair'">当前 TDMS 根目录<div class="path-display">{{globalDatabase.tdms_root||'未配置'}}</div></label>
+                <label>产线 line（可选）
+                  <select v-model="databaseTool.line"><option value="">自动推断 / 全部产线</option><option v-for="line in options.line_options" :value="line">{{line}}</option></select>
+                  <span v-if="databaseTool.action==='refresh'" class="hint">选择 line 只更新该产线；不选择则更新全部产线。</span>
+                </label>
+                <label v-if="databaseTool.action==='create'||databaseTool.update_kind==='append'">文件处理方式
+                  <select v-model="databaseTool.file_mode"><option value="manual">已在数据库目录内</option><option value="copy">复制到数据库目录</option><option value="move">移动到数据库目录</option></select>
+                </label>
+                <label>并行解析线程<input type="number" min="0" v-model.number="databaseTool.workers"><span class="hint">0 表示自动</span></label>
               </div>
-              <p class="hint">CSV 自动识别 sample_view 行格式或 Forvia 多标注者宽表，并依次转换写入 label_records.db。</p>
             </div>
-            <p v-if="databaseTool.file_mode==='manual'&&databaseTool.action!=='refresh'" class="hint">手动模式不会处理文件。新建时输入文件夹本身作为 TDMS 根目录；追加时输入文件夹必须已经位于当前 TDMS 根目录中。</p>
-            <p v-if="databaseTool.action==='refresh'" class="notice">将扫描当前 TDMS 根目录 <b>{{dataForm.tdms_root}}</b>，{{databaseTool.line?`只更新 ${databaseTool.line} 产线`:'更新全部产线'}}的 TDMS 路径和 sample_id。已有标签按 line / sn / sample_id 保留。</p>
-            <button class="primary" :disabled="databaseTool.running" @click="runDatabaseAction">{{databaseTool.running?'处理中…':databaseTool.action==='create'?'生成数据库':databaseTool.action==='append'?'追加已有数据库':'更新已有数据库'}}</button>
+            <div v-if="databaseTool.action==='create'||databaseTool.update_kind==='append'" class="step-subsection" style="margin-top:12px">
+              <h4>标签来源</h4>
+              <div class="grid">
+                <label>来源类型<select v-model="databaseTool.label_source_type"><option value="none">无标签</option><option value="db">DB</option><option value="internal">内部表</option><option value="forvia">Forvia表</option></select></label>
+                <label v-if="databaseTool.label_source_type==='db'">选择标签 DB<span class="input-row"><input v-model="databaseTool.source_label_db"><button @click="openBrowser('databaseTool.source_label_db','file')">选择</button></span></label>
+                <label v-if="['internal','forvia'].includes(databaseTool.label_source_type)">选择标签 CSV<span class="input-row"><input v-model="databaseTool.label_csv_draft" :placeholder="databaseTool.label_source_type==='forvia'?'Forvia 宽表 CSV':'内部标签事件 CSV'"><button @click="openBrowser('databaseTool.label_csv_draft','file')">选择</button><button class="primary" @click="addDatabaseCsv">添加</button></span></label>
+              </div>
+              <div v-if="['internal','forvia'].includes(databaseTool.label_source_type)">
+                <div class="key-data-list" style="margin-top:8px;max-height:180px">
+                  <div v-for="(path,index) in databaseTool.label_csvs" class="key-data-row" style="grid-template-columns:minmax(0,1fr) auto"><span class="key-data-path">{{path}}</span><button class="danger" @click="removeDatabaseCsv(index)">删除</button></div>
+                  <p v-if="!databaseTool.label_csvs.length" class="hint" style="padding:10px">未添加 CSV。</p>
+                </div>
+              </div>
+              <p class="hint">内部表使用统一标签事件表；Forvia 表会先转换成内部表再导入。</p>
+            </div>
+            <p v-if="databaseTool.file_mode==='manual'&&(databaseTool.action==='create'||databaseTool.update_kind==='append')" class="hint">已在数据库目录内模式不会移动文件；输入文件夹必须位于当前 TDMS 根目录中。</p>
+            <p v-if="databaseTool.action==='update'&&databaseTool.update_kind==='repair'" class="notice">将扫描当前 TDMS 根目录 <b>{{globalDatabase.tdms_root}}</b>，{{databaseTool.line?`只更新 ${databaseTool.line} 产线`:'更新全部产线'}}的 TDMS 路径、sample_id 和采样率。</p>
+            <div class="actions" style="margin-top:12px"><button @click="precheckDatabase" :disabled="databaseTool.scanning">{{databaseTool.scanning?'扫描中…':'预检查'}}</button><button class="primary" :disabled="databaseTool.running||!canExecuteDatabase" @click="runDatabaseAction">{{databaseTool.running?'处理中…':databaseTool.action==='create'?'新建数据库':databaseTool.update_kind==='repair'?'修复数据库路径':'追加 TDMS / 标签'}}</button></div>
+            <div v-if="databaseTool.precheck" class="precheck-panel">
+              <div class="precheck-metrics">
+                <div class="precheck-metric"><span>TDMS 数量</span><b>{{databaseTool.precheck.source_scan.tdms_count}}</b></div>
+                <div class="precheck-metric"><span>TDMS.ZST 数量</span><b>{{databaseTool.precheck.source_scan.tdms_zst_count}}</b></div>
+                <div class="precheck-metric"><span>需要压缩</span><b>{{databaseTool.precheck.source_scan.need_compress_count}}</b></div>
+                <div class="precheck-metric"><span>文件总大小</span><b>{{databaseTool.precheck.source_scan.total_size_text}}</b></div>
+              </div>
+              <div class="dist-row"><span v-for="x in databaseTool.precheck.source_scan.line_counts" class="dist-chip">{{x.line}}：{{x.count}}</span><span v-if="!databaseTool.precheck.source_scan.line_counts.length" class="hint">暂无产线识别结果</span></div>
+              <div class="precheck-metrics">
+                <div class="precheck-metric"><span>标签总数</span><b>{{databaseTool.precheck.label_preview.label_count||0}}</b></div>
+                <div class="precheck-metric"><span>可匹配 TDMS</span><b>{{databaseTool.precheck.label_preview.matched_tdms_count ?? '待导入计算'}}</b></div>
+                <div class="precheck-metric"><span>无法匹配</span><b>{{databaseTool.precheck.label_preview.unmatched_count ?? '待导入计算'}}</b></div>
+                <div class="precheck-metric"><span>预检查</span><b>{{databaseTool.precheck.ok?'通过':'未通过'}}</b></div>
+              </div>
+              <p v-for="x in databaseTool.precheck.errors" class="notice" style="border-color:var(--bad);color:var(--bad)">{{x}}</p>
+              <p v-for="x in databaseTool.precheck.warnings" class="notice">{{x}}</p>
+              <div class="label-chart" v-if="databaseTool.precheck.label_preview.distribution?.length"><div v-for="x in databaseTool.precheck.label_preview.distribution" class="label-bar-row"><span>{{distName(x.label)}}</span><div class="label-bar-track"><div class="label-bar-fill" :style="{width:barWidth(databaseTool.precheck.label_preview.distribution,x.count)}"></div></div><b>{{x.count}}</b></div></div>
+            </div>
+            <div class="stage-steps">
+              <div v-for="stage in databaseStages" class="stage-step" :class="{active:databaseStageActive(stage.id)}">{{stage.name}}</div>
+            </div>
             <div v-if="databaseTool.job" class="database-progress">
               <div class="database-progress-head"><b>{{databaseTool.job.progress_detail}}</b><span v-if="!databaseTool.job.tdms_total">{{Math.round(databaseTool.job.progress||0)}}%</span></div>
               <div v-if="databaseTool.job.tdms_total" class="database-progress-metrics">
@@ -409,8 +481,83 @@
               <p v-if="databaseTool.job.error" class="hint" style="color:var(--bad)">{{databaseTool.job.error}}</p>
             </div>
             <div v-if="databaseTool.result" class="dist-row" style="margin-top:12px">
-              <span class="tag succeeded">注册 TDMS 路径 {{databaseTool.result.registered_tdms_paths}}</span><span class="tag succeeded">注册 sample_id {{databaseTool.result.registered_sample_ids}}</span><span class="tag">文件处理 {{databaseTool.result.transferred_files}}</span><span v-if="databaseTool.result.labels" class="tag">新增标签 {{databaseTool.result.labels.imported_labels}}</span>
+              <span class="tag succeeded">注册 TDMS 路径 {{databaseTool.result.registered_tdms_paths}}</span><span class="tag succeeded">注册 sample_id {{databaseTool.result.registered_sample_ids}}</span><span class="tag">文件处理 {{databaseTool.result.transferred_files}}</span><span class="tag">压缩 TDMS {{databaseTool.result.compressed_files||0}}</span><span v-if="databaseTool.result.labels" class="tag">新增标签 {{databaseTool.result.labels.imported_labels}}</span>
             </div>
+          </div>
+        </div>
+        <div v-if="databaseUi.tab==='distribution'" class="page-title"><h3>数据标签分布</h3><div class="actions"><button @click="precheckDatabase">刷新状态条</button><button @click="loadLineOverview">刷新数据情况</button><button @click="loadModelOverview">刷新 XLSX 模型分布</button></div></div>
+        <div v-if="databaseUi.tab==='distribution'" class="status-strip">
+          <div v-for="item in databaseStatusItems" class="status-pill" :class="item.ok?'ok':'warn'"><span>{{item.name}}</span><b>{{item.text}}</b></div>
+        </div>
+        <div v-if="databaseUi.tab==='distribution'&&lineOverview" class="card">
+          <h3>现有数据（按 line / reference / 种类）</h3>
+          <p class="hint">每条产线分别展示标签分布图和 reference 分布。标签统计规则：{{lineOverview.filter_rule}}</p>
+          <div v-if="lineOverview.total" style="overflow:auto;margin:12px 0">
+            <table>
+              <thead><tr><th>范围</th><th>tdms数量</th><th>有效终标TDMS数量</th><th>标签分布(终标,样本级)</th></tr></thead>
+              <tbody>
+                <tr><td>全部</td><td>{{lineOverview.total.tdms_count||0}}</td><td>{{lineOverview.total.labeled_tdms_count||0}}</td><td>{{lineOverview.total.label_distribution_text||'—'}}</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div v-for="line in lineOverview.line_rows" class="line-overview">
+            <div class="line-overview-head"><h3>{{line.line}}</h3><span class="tag">TDMS {{line.tdms_count}}</span><span class="tag">reference {{line.reference_count}}</span><span class="tag succeeded">标签样本 {{line.label_count}}</span></div>
+            <div class="hint">产线总标签分布</div>
+            <div class="label-chart"><div v-for="x in line.labels" class="label-bar-row"><span>{{distName(x.label)}}</span><div class="label-bar-track"><div class="label-bar-fill" :style="{width:barWidth(line.labels,x.count)}"></div></div><b>{{x.count}}</b></div><span v-if="!line.labels.length" class="hint">暂无过滤后标签</span></div>
+            <div style="overflow:auto;margin:12px 0">
+              <table>
+                <thead><tr><th>reference</th><th>tdms数量</th><th>有效终标TDMS数量</th><th>标签分布(终标,样本级)</th></tr></thead>
+                <tbody>
+                  <tr v-for="ref in line.references">
+                    <td>{{ref.reference}}</td>
+                    <td>{{ref.tdms_count}}</td>
+                    <td>{{ref.labeled_tdms_count||0}}</td>
+                    <td>{{ref.label_distribution_text||'—'}}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="reference-grid">
+              <div v-for="ref in line.references" class="reference-card">
+                <div class="reference-title"><span>reference {{ref.reference}}</span><span>TDMS {{ref.tdms_count}} · 有效终标TDMS {{ref.labeled_tdms_count||0}}</span></div>
+                <div class="dist-row"><span v-for="x in ref.labels" class="dist-chip">{{distName(x.label)}}：{{x.count}}</span><span v-if="!ref.labels.length" class="hint">暂无过滤后标签</span></div>
+              </div>
+            </div>
+          </div>
+          <p v-if="!lineOverview.line_rows.length" class="hint">没有可显示的产线数据。</p>
+        </div>
+        <div v-if="databaseUi.tab==='distribution'&&modelOverview" class="card">
+          <h3>XLSX 模型数据标签分布图</h3>
+          <p class="hint">按 {{modelOverview.xlsx_path}} 中的产线 + reference 映射聚合。标签统计规则：{{modelOverview.filter_rule}}</p>
+          <div v-for="line in modelOverview.line_rows" class="line-overview">
+            <div class="line-overview-head"><h3>{{line.line}}</h3><span class="tag">模型 {{line.models.length}}</span></div>
+            <div v-for="model in line.models" class="model-overview">
+              <div class="model-overview-head"><h4>模型：{{model.model_name}}</h4><span v-if="model.strategy" class="tag">{{model.strategy}}</span><span class="tag">TDMS {{model.tdms_count}}</span><span class="tag succeeded">有效终标TDMS {{model.labeled_tdms_count||0}}</span><span class="tag succeeded">独立 sample {{model.label_count}}</span></div>
+              <div class="label-chart"><div v-for="x in model.labels" class="label-bar-row"><span>{{distName(x.label)}}</span><div class="label-bar-track"><div class="label-bar-fill" :style="{width:barWidth(model.labels,x.count)}"></div></div><b>{{x.count}}</b></div><span v-if="!model.labels.length" class="hint">暂无过滤后标签</span></div>
+              <div style="overflow:auto;margin:12px 0">
+                <table>
+                  <thead><tr><th>reference</th><th>tdms数量</th><th>有效终标TDMS数量</th><th>标签分布(终标,样本级)</th></tr></thead>
+                  <tbody>
+                    <tr v-for="ref in model.references"><td>{{ref.reference}}</td><td>{{ref.tdms_count}}</td><td>{{ref.labeled_tdms_count||0}}</td><td>{{ref.label_distribution_text||'—'}}</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="reference-grid"><div v-for="ref in model.references" class="reference-card"><div class="reference-title"><span>reference {{ref.reference}}</span><span>TDMS {{ref.tdms_count}} · 有效终标TDMS {{ref.labeled_tdms_count||0}}</span></div><div class="dist-row"><span v-for="x in ref.labels" class="dist-chip">{{distName(x.label)}}：{{x.count}}</span><span v-if="!ref.labels.length" class="hint">暂无过滤后标签</span></div></div></div>
+            </div>
+          </div>
+          <p v-if="!modelOverview.line_rows.length" class="hint">没有可显示的 XLSX 模型数据。</p>
+        </div>
+    </section>
+
+    <!-- 配置项目信息 -->
+    <section v-show="view==='data'">
+      <div class="page-title"><h2>配置项目信息</h2><div class="actions"><button class="primary" @click="saveProjectInfo">保存项目信息</button></div></div>
+      <template v-if="requireCurrent">
+        <div class="card">
+          <div class="project-info-form">
+            <label>模型识别码<input :value="editableModelId" readonly><span class="hint">由产线和模型名称生成，不包含 xgb、rf 等算法名称</span></label>
+            <label>产线 line<input v-model.trim="projectInfoForm.line_name" list="project-line-options"><datalist id="project-line-options"><option v-for="line in availableLines" :value="line"></option></datalist></label>
+            <label>模型名称<input v-model.trim="projectInfoForm.model_name"></label>
           </div>
         </div>
         <validation-panel :validation="validation"></validation-panel>
@@ -420,36 +567,67 @@
           <div class="metric"><div class="label">TDMS 根目录</div><div class="value">{{dataset.tdms_root_exists?'正常':'缺失'}}</div></div>
           <div class="metric"><div class="label">manifest 行数</div><div class="value">{{dataset.manifest_rows||0}}</div></div>
         </div>
-        <div v-if="lineOverview" class="card">
-          <h3>现有数据（按 line / reference / 种类）</h3>
-          <p class="hint">每条产线分别展示标签分布图和 reference 分布。标签统计规则：{{lineOverview.filter_rule}}</p>
-          <div v-for="line in lineOverview.line_rows" class="line-overview">
-            <div class="line-overview-head"><h3>{{line.line}}</h3><span class="tag">TDMS {{line.tdms_count}}</span><span class="tag">reference {{line.reference_count}}</span><span class="tag succeeded">标签样本 {{line.label_count}}</span></div>
-            <div class="hint">产线总标签分布</div>
-            <div class="label-chart"><div v-for="x in line.labels" class="label-bar-row"><span>{{distName(x.label)}}</span><div class="label-bar-track"><div class="label-bar-fill" :style="{width:barWidth(line.labels,x.count)}"></div></div><b>{{x.count}}</b></div><span v-if="!line.labels.length" class="hint">暂无过滤后标签</span></div>
-            <div class="reference-grid">
-              <div v-for="ref in line.references" class="reference-card">
-                <div class="reference-title"><span>reference {{ref.reference}}</span><span>TDMS {{ref.tdms_count}} · sample {{ref.label_count}}</span></div>
-                <div class="dist-row"><span v-for="x in ref.labels" class="dist-chip">{{distName(x.label)}}：{{x.count}}</span><span v-if="!ref.labels.length" class="hint">暂无过滤后标签</span></div>
-              </div>
-            </div>
-          </div>
-          <p v-if="!lineOverview.line_rows.length" class="hint">没有可显示的产线数据。</p>
-        </div>
-        <div v-if="modelOverview" class="card">
-          <h3>XLSX 模型数据标签分布图</h3>
-          <p class="hint">按 {{modelOverview.xlsx_path}} 中的产线 + reference 映射聚合。标签统计规则：{{modelOverview.filter_rule}}</p>
-          <div v-for="line in modelOverview.line_rows" class="line-overview">
-            <div class="line-overview-head"><h3>{{line.line}}</h3><span class="tag">模型 {{line.models.length}}</span></div>
-            <div v-for="model in line.models" class="model-overview">
-              <div class="model-overview-head"><h4>模型：{{model.model_name}}</h4><span v-if="model.strategy" class="tag">{{model.strategy}}</span><span class="tag">TDMS {{model.tdms_count}}</span><span class="tag succeeded">独立 sample {{model.label_count}}</span></div>
-              <div class="label-chart"><div v-for="x in model.labels" class="label-bar-row"><span>{{distName(x.label)}}</span><div class="label-bar-track"><div class="label-bar-fill" :style="{width:barWidth(model.labels,x.count)}"></div></div><b>{{x.count}}</b></div><span v-if="!model.labels.length" class="hint">暂无过滤后标签</span></div>
-              <div class="reference-grid"><div v-for="ref in model.references" class="reference-card"><div class="reference-title"><span>reference {{ref.reference}}</span><span>TDMS {{ref.tdms_count}} · sample {{ref.label_count}}</span></div><div class="dist-row"><span v-for="x in ref.labels" class="dist-chip">{{distName(x.label)}}：{{x.count}}</span><span v-if="!ref.labels.length" class="hint">暂无过滤后标签</span></div></div></div>
-            </div>
-          </div>
-          <p v-if="!modelOverview.line_rows.length" class="hint">没有可显示的 XLSX 模型数据。</p>
-        </div>
       </template>
+      <div v-else class="notice">请先到“项目列表（模型名称）”打开一个模型项目。</div>
+    </section>
+
+    <!-- 配置标签 -->
+    <section v-show="view==='database'&&databaseUi.tab==='labels'">
+      <div class="page-title">
+        <h2>配置标签</h2>
+        <div class="actions">
+          <button @click="loadLabelRules">重新加载</button>
+          <button @click="restoreDefaultLabelRules">恢复默认版本</button>
+          <button class="primary" :disabled="labelRules.saving" @click="saveLabelRules">{{labelRules.saving?'保存中…':'保存标签配置'}}</button>
+        </div>
+      </div>
+      <div class="card">
+        <p class="hint">编辑全局文件：{{labelRules.path || 'cfg/core/label_rules.yaml'}}。新增项的 id 由系统分配；保存后训练标签下拉会重新读取该文件。</p>
+        <div v-if="labelRules.loading" class="notice">正在加载标签规则...</div>
+        <div v-else class="label-rule-grid">
+          <div>
+            <div class="page-title"><h3>结果标签 results</h3><button @click="addResultRule">＋ 添加结果标签</button></div>
+            <div style="overflow:auto">
+              <table class="label-rule-table">
+                <thead><tr><th>key</th><th>id</th><th>名称</th><th>别名（每行一个）</th><th>备注</th><th>操作</th></tr></thead>
+                <tbody>
+                  <tr v-for="(row,index) in labelRules.results" :key="row.key || index">
+                    <td class="label-rule-key">{{row.key || '保存时生成'}}</td>
+                    <td><input type="number" v-model.number="row.id" readonly></td>
+                    <td><input v-model.trim="row.name"></td>
+                    <td><textarea v-model="row.aliasText"></textarea></td>
+                    <td><input v-model.trim="row.note"></td>
+                    <td><button class="danger" @click="removeResultRule(index)">删除</button></td>
+                  </tr>
+                  <tr v-if="!labelRules.results.length"><td colspan="6" class="hint">暂无结果标签。</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div>
+            <div class="page-title"><h3>原因标签 reasons</h3><button @click="addReasonRule">＋ 添加原因标签</button></div>
+            <div style="overflow:auto">
+              <table class="label-rule-table">
+                <thead><tr><th>key</th><th>id</th><th>名称</th><th>归属结果</th><th>别名（每行一个）</th><th>操作</th></tr></thead>
+                <tbody>
+                  <tr v-for="(row,index) in labelRules.reasons" :key="row.key || index">
+                    <td class="label-rule-key">{{row.key || '保存时生成'}}</td>
+                    <td><input type="number" v-model.number="row.id" readonly></td>
+                    <td><input v-model.trim="row.name"></td>
+                    <td><select v-model="row.parent"><option v-for="result in labelRules.results" :value="result.key">{{result.name}} ({{result.key}})</option></select></td>
+                    <td><textarea v-model="row.aliasText"></textarea></td>
+                    <td><button class="danger" @click="removeReasonRule(index)">删除</button></td>
+                  </tr>
+                  <tr v-if="!labelRules.reasons.length"><td colspan="6" class="hint">暂无原因标签。</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <label>meta（JSON）
+            <textarea v-model="labelRules.metaText" spellcheck="false"></textarea>
+          </label>
+        </div>
+      </div>
     </section>
 
     <!-- 训练 -->
@@ -461,7 +639,7 @@
           <div class="step-card-body">
             <div class="step-subsection">
               <h4>1.1 选择主要训练数据</h4>
-              <p class="hint">主要训练数据在 line、文件夹、reference 中三选一。候选项以多列方式展示。</p>
+              <p class="hint">按照 line、文件夹、reference 三种方式，选择参与训练的数据。</p>
               <div class="model-cards">
                 <div v-for="x in [{id:'line',name:'选择线'},{id:'folder',name:'选择文件夹'},{id:'reference',name:'选择 reference'}]" class="model-card data-mode-card" :class="{active:trainForm.data_mode===x.id}" @click="trainForm.data_mode=x.id">
                   <b>{{x.name}}</b><div class="hint">{{x.id==='line'?'按产线筛选':x.id==='folder'?'按 TDMS 所在目录筛选':'按 line/reference 精确筛选'}}</div>
@@ -481,7 +659,7 @@
 
             <div class="step-subsection">
               <h4>1.2 选择 key 数据</h4>
-              <p class="hint">手动选择文件夹和对应 line，点击加号后加入列表，支持跨线添加。</p>
+              <p class="hint">选择文件夹和对应 line，点击加号后加入列表。</p>
               <div class="key-add-row">
                 <label>key 文件夹<span class="input-row"><input v-model="keyFolderDraft.path" placeholder="key_sns / prototype 文件夹"><button @click="openBrowser('keyFolderDraft.path','dir')">选择</button></span></label>
                 <label>产线 line<select v-model="keyFolderDraft.line"><option value="">选择 line</option><option v-for="x in availableLines" :value="x">{{x}}</option></select></label>
@@ -522,6 +700,30 @@
           </div>
         </details>
         <details class="card step-card">
+          <summary>3. 标签分组与样本数量</summary>
+          <div class="step-card-body">
+          <p class="hint">默认一个标签一个组。每个类别显示过滤后的可用独立 sample 数量，以及考虑 sample 上限后的训练数量；`-1` 表示全部使用。</p>
+          <label class="method-option" style="display:inline-flex"><input type="checkbox" v-model="trainForm.extract_all_features">全量提取特征（超出训练样本数量的剩余数据全部加入测试集合）</label>
+          <div class="reason-pool"><button v-for="r in options.reasons" class="reason-chip" :class="{used:reasonUsed(r)}" :disabled="reasonUsed(r)" @click="addReason(r)">{{r}} <small>（样本 {{labelCountsReady?reasonCount(r):'加载中'}}）</small></button></div>
+          <button @click="addLabelGroup">＋ 新建类别组</button> <button @click="resetLabelGroups">重置为一个标签一组</button>
+          <div class="group-grid">
+            <div v-for="(g,gi) in trainForm.label_groups" class="compact-group" :class="{selected:selectedGroup===gi}" @click="selectedGroup=gi">
+              <div class="compact-group-head"><b :title="g.reasons.map(r=>r.reason).join(' / ')">{{g.reasons.map(r=>r.reason).join(' / ')||`空类别组 ${gi+1}`}}</b><button>{{selectedGroup===gi?'当前':'选中'}}</button><button class="danger" @click.stop="removeLabelGroup(gi)">删除</button></div>
+              <div class="compact-group-counts"><span class="tag">可用 {{labelCountsReady?groupAvailableCount(g):'加载中'}}</span><span class="tag succeeded">训练 {{labelCountsReady?groupTrainingCount(g):'加载中'}}</span></div>
+              <div class="compact-group-controls" @click.stop>
+                <label class="compact-control"><span>类别权重</span><input type="number" min="0.01" step="0.1" v-model.number="g.weight"></label>
+                <div v-for="(r,ri) in g.reasons" class="compact-sample-control">
+                  <label class="compact-control"><span :title="`${r.reason} · 可用 ${labelCountsReady?reasonCount(r.reason):'加载中'}`">{{r.reason}} 样本数量</span><input type="number" min="-1" v-model.number="r.sample"></label>
+                  <button class="danger" @click="removeReason(gi,ri)">×</button>
+                </div>
+              </div>
+              <p v-if="!g.reasons.length" class="hint">空组，点击上方标签加入。</p>
+            </div>
+          </div>
+          <div style="display:flex;justify-content:flex-end;margin-top:14px"><button class="primary" @click="saveTrain()">确认参数</button></div>
+          </div>
+        </details>
+        <details class="card step-card">
           <summary>2. 模型与参数配置</summary>
           <div class="step-card-body">
             <div class="model-cards">
@@ -548,37 +750,14 @@
             </div>
           </div>
         </details>
-        <details class="card step-card">
-          <summary>4. 标签分组与样本数量</summary>
-          <div class="step-card-body">
-          <p class="hint">默认一个标签一个组。每个类别显示过滤后的可用独立 sample 数量，以及考虑 sample 上限后的训练数量；`-1` 表示全部使用。</p>
-          <label class="method-option" style="display:inline-flex"><input type="checkbox" v-model="trainForm.extract_all_features">全量提取特征（超出训练样本数量的剩余数据全部加入测试集合）</label>
-          <div class="reason-pool"><button v-for="r in options.reasons" class="reason-chip" :class="{used:reasonUsed(r)}" :disabled="reasonUsed(r)" @click="addReason(r)">{{r}} <small>（样本 {{labelCountsReady?reasonCount(r):'加载中'}}）</small></button></div>
-          <button @click="addLabelGroup">＋ 新建类别组</button> <button @click="resetLabelGroups">重置为一个标签一组</button>
-          <div class="group-grid">
-            <div v-for="(g,gi) in trainForm.label_groups" class="compact-group" :class="{selected:selectedGroup===gi}" @click="selectedGroup=gi">
-              <div class="compact-group-head"><b :title="g.reasons.map(r=>r.reason).join(' / ')">{{g.reasons.map(r=>r.reason).join(' / ')||`空类别组 ${gi+1}`}}</b><button>{{selectedGroup===gi?'当前':'选中'}}</button><button class="danger" @click.stop="removeLabelGroup(gi)">删除</button></div>
-              <div class="compact-group-counts"><span class="tag">可用 {{labelCountsReady?groupAvailableCount(g):'加载中'}}</span><span class="tag succeeded">训练 {{labelCountsReady?groupTrainingCount(g):'加载中'}}</span></div>
-              <div class="compact-group-controls" @click.stop>
-                <label class="compact-control"><span>类别权重</span><input type="number" min="0.01" step="0.1" v-model.number="g.weight"></label>
-                <div v-for="(r,ri) in g.reasons" class="compact-sample-control">
-                  <label class="compact-control"><span :title="`${r.reason} · 可用 ${labelCountsReady?reasonCount(r.reason):'加载中'}`">{{r.reason}} 样本数量</span><input type="number" min="-1" v-model.number="r.sample"></label>
-                  <button class="danger" @click="removeReason(gi,ri)">×</button>
-                </div>
-              </div>
-              <p v-if="!g.reasons.length" class="hint">空组，点击上方标签加入。</p>
-            </div>
-          </div>
-          <div style="display:flex;justify-content:flex-end;margin-top:14px"><button class="primary" @click="saveTrain()">确认参数</button></div>
-          </div>
-        </details>
+
         <validation-panel :validation="validation"></validation-panel>
         <div class="card">
-          <h3>5. 提取特征与训练</h3>
-          <p class="hint">先执行“提取特征”生成完整数据，再使用已有特征训练。训练启动前会校验 sample_view 与 features 是否一致。</p>
+          <h3>4. 提取特征与训练</h3>
+          <p class="hint">先执行“提取特征”生成完整数据，再使用已有特征训练模型。训练启动前会校验 sample_view 与 features 是否一致。</p>
           <div class="action-flow prominent-actions">
             <button class="action-step" :class="featureActionClass" @click="startRun('data')"><b>1. 提取特征</b><small>{{featureActionText}}</small></button>
-            <button class="action-step" :class="trainActionClass" @click="startRun('train')"><b>2. 使用已有特征训练</b><small>{{trainActionText}}</small></button>
+            <button class="action-step" :class="trainActionClass" @click="startRun('train')"><b>2. 训练模型</b><small>{{trainActionText}}</small></button>
           </div>
         </div>
         <details class="card step-card">
@@ -701,11 +880,14 @@ createApp({
   components:{RunPanel,ValidationPanel},
   setup(){
     const s=reactive({
-      tabs:[{id:'projects',label:'项目列表（模型名称）'},{id:'data',label:'配置数据库'},{id:'train',label:'训练（配置参数 + 提取特征 + 训练）'},{id:'results',label:'结果分析'},{id:'predict',label:'模型推理'}],
-      view:'projects', projects:[], projectDetails:{}, current:null, options:{model_types:['xgb','rf','brf'],train_modes:['normal','grid','cross'],split_strategies:[],reasons:[],line_options:[],augmentation_methods:[],run_stages:{},model_specs:{},database_catalog:{lines:[]}},
+      tabs:[{id:'data',label:'配置项目信息'},{id:'train',label:'训练（配置参数 + 提取特征 + 训练）'},{id:'results',label:'结果分析'},{id:'predict',label:'模型推理'}],
+      view:'database', projects:[], projectDetails:{}, current:null, options:{model_types:['xgb','rf'],train_modes:['normal','grid','cross'],split_strategies:[],reasons:[],line_options:[],augmentation_methods:[],run_stages:{},model_specs:{},database_catalog:{lines:[]}},
       showCreate:false, createForm:{line_name:'',model_name:'',model_type:'xgb'}, message:'',messageError:false,
-      projectInfoForm:{name:'',line_name:'',model_name:'',model_type:'xgb',config_path:''},dataForm:{},trainForm:{label_groups:[],model_params:{}},trainingOptions:{lines:[],folders:[],references:[],key_sns:[],key_sns_by_line:{}},lineOverview:null,modelOverview:null,selectedGroup:0,keyFolderDraft:{path:'',line:''},yamlText:'',dataset:null,results:null,runs:[],runDetail:null,validation:null,
-      databaseTool:{action:'create',last_operation:'',configured:false,source_folder:'',source_label_db:'',label_csvs:[],label_csv_draft:'',output_data_root:'',storage_root:'factory_raw',line:'',file_mode:'manual',workers:0,running:false,result:null,job:null},
+      projectInfoForm:{line_name:'',model_name:'',model_type:'xgb'},dataForm:{},trainForm:{label_groups:[],model_params:{}},trainingOptions:{lines:[],folders:[],references:[],key_sns:[],key_sns_by_line:{}},lineOverview:null,modelOverview:null,selectedGroup:0,keyFolderDraft:{path:'',line:''},yamlText:'',dataset:null,results:null,runs:[],runDetail:null,validation:null,
+      databaseUi:{tab:'operation'},
+      globalDatabase:{data_root:'/Volumes/18555440521/fault/data_root',label_records_db_path:'/Volumes/18555440521/fault/data_root/metadata/label_records.db',manifest_path:'/Volumes/18555440521/fault/data_root/metadata/tdms_manifest.csv',tdms_root:'/Volumes/18555440521/fault/data_root/factory_raw'},
+      labelRules:{loading:false,saving:false,path:'',results:[],reasons:[],meta:{},metaText:''},
+      databaseTool:{action:'',update_kind:'repair',label_source_type:'none',last_operation:'',configured:false,source_folder:'',source_label_db:'',label_csvs:[],label_csv_draft:'',output_data_root:'',storage_root:'factory_raw',line:'',file_mode:'manual',workers:0,running:false,scanning:false,precheck:null,result:null,job:null},
       augmentationForm:{enabled:false,folders:[],methods:['white_noise'],output_dir:''},
       predictForm:{mode:'single',input_path:'',output_path:'',threshold:''},
       browser:{open:false,path:'',parent:'',dirs:[],files:[],roots:[],target:'',mode:'file',writeMode:'replace',selected:''},
@@ -725,9 +907,157 @@ createApp({
     const trainActionText=computed(()=>trainIsCurrent.value?'已完成':latestTrainRun.value&&['queued','running'].includes(latestTrainRun.value.status)?'正在训练':'等待最新特征');
     const availableLines=computed(()=>[...new Set([s.current?.line_name,...(s.options.line_options||[]),...(s.dataset?.lines||[]),...(s.options.database_catalog?.lines||[])].filter(Boolean))]);
     const labelCountsReady=computed(()=>!!s.lineOverview);
+    const databaseActionChoices=[{no:1,id:'create',name:'新建数据库',desc:'选择 data_root、源 TDMS 文件夹和标签来源，从零生成数据库。'},{no:2,id:'update',name:'更新数据库',desc:'修复已有数据库路径，或追加新增 TDMS 与标签。'}];
+    const databaseStages=[{id:'scan',name:'扫描文件'},{id:'compress',name:'压缩 TDMS'},{id:'transfer',name:'复制/移动'},{id:'manifest',name:'注册 TDMS'},{id:'samples',name:'生成样本'},{id:'labels',name:'导入标签'},{id:'done',name:'完成'}];
+    const canExecuteDatabase=computed(()=>Boolean(s.databaseTool.precheck?.ok&&!s.databaseTool.scanning));
+    const databaseStatusItems=computed(()=>{
+      const status=s.databaseTool.precheck?.status||{};
+      return [
+        {name:'数据库文件存在',ok:!!status.db_exists,text:status.db_exists?'存在':'缺失'},
+        {name:'manifest存在',ok:!!status.manifest_exists,text:status.manifest_exists?'存在':'缺失'},
+        {name:'factory_raw存在',ok:!!status.factory_raw_exists,text:status.factory_raw_exists?'存在':'缺失'},
+        {name:'标签规则正常',ok:!!status.label_rules_ok,text:status.label_rules_ok?'正常':'异常'},
+        {name:'采样率完整度',ok:!!status.sampling_complete,text:status.sampling_rate_text||'0/0'},
+      ];
+    });
     function notify(text,err=false){s.message=text;s.messageError=err;setTimeout(()=>{if(s.message===text)s.message=''},5000)}
     async function api(url,opt={}){const r=await fetch(url,{headers:{'Content-Type':'application/json',...(opt.headers||{})},...opt});const d=await r.json();if(!r.ok)throw new Error(d.detail||'请求失败');return d}
     async function loadProjects(){s.projects=(await api('/api/projects')).projects}
+    function deriveGlobalDatabasePaths(){
+      const root=String(s.globalDatabase.data_root||'').replace(/\/$/,'');
+      s.globalDatabase.label_records_db_path=root?`${root}/metadata/label_records.db`:'';
+      s.globalDatabase.manifest_path=root?`${root}/metadata/tdms_manifest.csv`:'';
+      s.globalDatabase.tdms_root=root?`${root}/factory_raw`:'';
+      if(s.databaseTool.action==='create'&&!s.databaseTool.output_data_root)s.databaseTool.output_data_root=root;
+    }
+    function applyDatabaseDefaults(){
+      const defaults=s.options.database_defaults||{};
+      const root=String(defaults.data_root||s.globalDatabase.data_root||'').trim();
+      if(root)s.globalDatabase.data_root=root;
+      s.databaseTool.storage_root=String(defaults.tdms_storage_root||s.databaseTool.storage_root||'factory_raw');
+      deriveGlobalDatabasePaths();
+    }
+    function chooseDatabaseAction(action){
+      s.databaseTool.action=action;
+      s.databaseTool.precheck=null;
+      s.databaseTool.result=null;
+      s.databaseTool.job=null;
+      if(action==='create'){
+        s.databaseTool.update_kind='';
+        s.databaseTool.file_mode='copy';
+      }else{
+        s.databaseTool.update_kind='repair';
+        s.databaseTool.file_mode='manual';
+      }
+      deriveGlobalDatabasePaths();
+    }
+    function resetDatabaseAction(){
+      Object.assign(s.databaseTool,{action:'',update_kind:'repair',precheck:null,result:null,job:null,running:false,scanning:false});
+    }
+    function databaseExecutionAction(){
+      if(s.databaseTool.action==='create')return 'create';
+      return s.databaseTool.update_kind==='append'?'append':'refresh';
+    }
+    function databasePayload(){
+      deriveGlobalDatabasePaths();
+      const draft=s.databaseTool.label_csv_draft.trim();
+      if(draft&&!s.databaseTool.label_csvs.includes(draft))s.databaseTool.label_csvs.push(draft);
+      s.databaseTool.label_csv_draft='';
+      return {
+        action:databaseExecutionAction(),
+        update_kind:s.databaseTool.update_kind,
+        label_source_type:s.databaseTool.label_source_type,
+        source_folder:s.databaseTool.source_folder,
+        source_label_db:s.databaseTool.label_source_type==='db'?s.databaseTool.source_label_db:'',
+        label_csvs:['internal','forvia'].includes(s.databaseTool.label_source_type)?[...s.databaseTool.label_csvs]:[],
+        output_data_root:s.globalDatabase.data_root,
+        label_records_db_path:s.globalDatabase.label_records_db_path,
+        tdms_root:s.globalDatabase.tdms_root,
+        storage_root:s.databaseTool.storage_root,
+        line:s.databaseTool.line,
+        file_mode:s.databaseTool.file_mode,
+        workers:Number(s.databaseTool.workers)||0
+      };
+    }
+    async function precheckDatabase(quiet=false){
+      s.databaseTool.scanning=true;
+      try{
+        const d=await api('/api/database/precheck',{method:'POST',body:JSON.stringify({data_root:s.globalDatabase.data_root,...databasePayload(),action:s.databaseTool.action})});
+        s.databaseTool.precheck=d;
+        if(d.source_scan?.recommended_file_mode&&s.databaseTool.action==='create'&&!d.source_scan.inside_factory_raw)s.databaseTool.file_mode=d.source_scan.recommended_file_mode;
+        if(!quiet)notify(d.ok?'预检查通过':'预检查发现问题',!d.ok);
+      }catch(e){notify(e.message,true)}
+      finally{s.databaseTool.scanning=false}
+    }
+    function databaseStageActive(id){
+      const job=s.databaseTool.job;
+      if(!job)return false;
+      if(id==='done')return job.status==='succeeded';
+      const phase=String(job.tdms_phase||'');
+      const detail=String(job.progress_detail||'');
+      if(id==='transfer')return phase==='transfer'||detail.includes('复制')||detail.includes('移动');
+      if(id==='manifest')return phase==='manifest'||detail.includes('manifest')||detail.includes('TDMS 路径');
+      if(id==='samples')return phase==='samples'||detail.includes('样本');
+      if(id==='labels')return phase==='labels'||detail.includes('标签');
+      if(id==='compress')return detail.includes('压缩')||detail.includes('.tdms.zst');
+      if(id==='scan')return detail.includes('扫描')||detail.includes('校验');
+      return false;
+    }
+    function withAliasText(row){return {...row,aliasText:(row.alias||[]).join('\n')}}
+    function splitAliasText(text){return String(text||'').split(/\n/).map(x=>x.trim()).filter(Boolean)}
+    function nextRuleId(rows){const ids=(rows||[]).map(x=>Number(x.id)).filter(Number.isFinite);return ids.length?Math.max(...ids)+1:0}
+    async function loadLabelRules(){
+      s.labelRules.loading=true;
+      try{
+        const d=await api('/api/label-rules');
+        Object.assign(s.labelRules,{
+          loading:false,saving:false,path:d.path||'',results:(d.results||[]).map(withAliasText),reasons:(d.reasons||[]).map(withAliasText),meta:d.meta||{},metaText:JSON.stringify(d.meta||{},null,2)
+        });
+      }catch(e){s.labelRules.loading=false;notify(e.message,true)}
+    }
+    function labelRulePayload(){
+      let meta={};
+      try{meta=JSON.parse(s.labelRules.metaText||'{}')}catch(e){throw new Error('meta 必须是合法 JSON')}
+      return {
+        results:s.labelRules.results.map(row=>({key:row.key||'',id:Number.isFinite(Number(row.id))?Number(row.id):null,name:row.name||'',alias:splitAliasText(row.aliasText),note:row.note||''})),
+        reasons:s.labelRules.reasons.map(row=>({key:row.key||'',id:Number.isFinite(Number(row.id))?Number(row.id):null,name:row.name||'',parent:row.parent||'',alias:splitAliasText(row.aliasText)})),
+        meta
+      }
+    }
+    async function saveLabelRules(){
+      s.labelRules.saving=true;
+      try{
+        const d=await api('/api/label-rules',{method:'PUT',body:JSON.stringify(labelRulePayload())});
+        Object.assign(s.labelRules,{saving:false,path:d.path||'',results:(d.results||[]).map(withAliasText),reasons:(d.reasons||[]).map(withAliasText),meta:d.meta||{},metaText:JSON.stringify(d.meta||{},null,2)});
+        s.options=await api('/api/options');
+        notify('标签配置已保存');
+      }catch(e){s.labelRules.saving=false;notify(e.message,true)}
+    }
+    async function restoreDefaultLabelRules(){
+      if(!confirm('恢复默认标签配置会覆盖 cfg/core/label_rules.yaml，确认继续？'))return;
+      s.labelRules.saving=true;
+      try{
+        const d=await api('/api/label-rules/restore-default',{method:'POST'});
+        Object.assign(s.labelRules,{saving:false,path:d.path||'',results:(d.results||[]).map(withAliasText),reasons:(d.reasons||[]).map(withAliasText),meta:d.meta||{},metaText:JSON.stringify(d.meta||{},null,2)});
+        s.options=await api('/api/options');
+        notify('已恢复默认标签配置');
+      }catch(e){s.labelRules.saving=false;notify(e.message,true)}
+    }
+    function addResultRule(){
+      const id=nextRuleId(s.labelRules.results);
+      s.labelRules.results.push({key:`result_${id}`,id,name:'新结果标签',aliasText:'',note:''});
+    }
+    function removeResultRule(index){
+      const key=s.labelRules.results[index]?.key;
+      if(key&&s.labelRules.reasons.some(row=>row.parent===key)&&!confirm('该结果标签仍有原因标签归属，删除后这些原因标签需要重新选择 parent。确认删除？'))return;
+      s.labelRules.results.splice(index,1);
+    }
+    function addReasonRule(){
+      const id=nextRuleId(s.labelRules.reasons);
+      const parent=s.labelRules.results[0]?.key||'';
+      s.labelRules.reasons.push({key:`reason_${id}`,id,name:'新原因标签',parent,aliasText:''});
+    }
+    function removeReasonRule(index){s.labelRules.reasons.splice(index,1)}
 
     function projectModelId(p){return [p.line_name,p.model_name].filter(Boolean).join('_')}
     function detailLines(v){return Array.isArray(v)?v.map(x=>typeof x==='string'?x:(x?.path||x?.reference||x?.line||'')).filter(Boolean).join('\n'):''}
@@ -746,7 +1076,7 @@ createApp({
       const c=JSON.parse(JSON.stringify(project.config||{})), train=c.train||{}, dataset=c.dataset||{}, database=c.database||{}, data=c.data||{}, aug=c.augmentation||{};
       const type=project.model_type||(train.model_type||'xgb'), spec=modelSpec(type), paramKey=spec.parameter_key||`${type}_params`;
       return {
-        name:project.name||'', line_name:project.line_name||c.line_name||'', model_name:project.model_name||(c.model||{}).model_name||'', model_type:type, config_path:project.config_path||'',
+        line_name:project.line_name||c.line_name||'', model_name:project.model_name||(c.model||{}).model_name||'', model_type:type,
         train_mode:train.train_mode||'normal', split_strategy:train.split_strategy||'reference_in', seed_runs:Number(train.seed_runs||10),
         num_workers:Number(dataset.num_workers||8), results_path:c.results_path||'./results/', data_root:c.data_root||dataset.data_root||'',
         label_records_db_path:database.label_records_db_path||c.label_records_db_path||dataset.label_records_db_path||'', tdms_root:database.tdms_root||'', manifest_path:database.manifest_path||dataset.manifest_path||'',
@@ -769,7 +1099,7 @@ createApp({
       const spec=modelSpec(f.model_type), paramKey=spec.parameter_key||`${f.model_type}_params`;
       c.train[paramKey]=rowsToParams(f.model_params);
       c.augmentation={...(c.augmentation||{}),methods:parseLines(f.augmentation_methods),count:Number(f.augmentation_count)||1};
-      return {name:f.name,line_name:f.line_name,model_name:f.model_name,model_type:f.model_type,config_path:(f.config_path||'').trim(),config:c};
+      return {line_name:f.line_name,model_name:f.model_name,model_type:f.model_type,config:c};
     }
     async function ensureProjectDetails(p){
       if(!s.projectDetails[p.id])s.projectDetails[p.id]={open:false,loading:false,project:p,yaml:'',validation:null,form:null};
@@ -787,14 +1117,13 @@ createApp({
     async function validateProjectYaml(p){try{await ensureProjectDetails(p);const d=await api(`/api/projects/${p.id}/validate-yaml`,{method:'POST',body:JSON.stringify({yaml:s.projectDetails[p.id].yaml})});s.projectDetails[p.id].validation=d;notify(d.ok?'当前编辑内容校验通过':'当前编辑内容校验失败',!d.ok)}catch(e){notify(e.message,true)}}
     async function createProject(){try{const d=await api('/api/projects',{method:'POST',body:JSON.stringify(s.createForm)});s.showCreate=false;await loadProjects();await selectProject(d.project)}catch(e){notify(e.message,true)}}
     async function duplicateProject(p){try{const d=await api(`/api/projects/${p.id}/duplicate`,{method:'POST',body:'{}'});await loadProjects();notify(`已复制为 ${d.project.name}`)}catch(e){notify(e.message,true)}}
-    async function renameProject(p){const name=prompt('项目显示名称',p.name);if(!name||name===p.name)return;try{const d=await api(`/api/projects/${p.id}`,{method:'PUT',body:JSON.stringify({name,line_name:p.line_name,model_name:p.model_name,model_type:p.model_type,config:p.config})});if(s.current&&s.current.id===p.id)s.current=d.project;await loadProjects();notify('项目已重命名')}catch(e){notify(e.message,true)}}
     async function selectProject(p){try{const d=await api(`/api/projects/${p.id}`);s.current=d.project;s.yamlText=d.yaml;syncForms();await loadRuns();s.view='data';await Promise.all([loadDatasetSummary(),loadTrainingOptions()]);notify(`已打开 ${p.name}`)}catch(e){notify(e.message,true)}}
     async function removeProject(p){if(!confirm(`删除项目 ${p.name}、配置 YAML 及运行记录？results 中的模型结果会保留。`))return;await api(`/api/projects/${p.id}`,{method:'DELETE'});if(s.current&&s.current.id===p.id){s.current=null;s.view='projects';s.runs=[];s.runDetail=null;s.results=null}s.projects=s.projects.filter(x=>x.id!==p.id);loadProjects()}
     function lines(text){return String(text||'').split(/\n/).map(x=>x.trim()).filter(Boolean)}
     function arrayValue(value){return Array.isArray(value)?value:(value?[value]:[])}
     function syncForms(){
       const c=s.current.config, data=c.data||{}, train=c.train||{}, ds=c.dataset||{};s.validation=null;s.dataset=null;s.lineOverview=null;s.modelOverview=null;
-      Object.assign(s.projectInfoForm,{name:s.current.name||'',line_name:s.current.line_name||'',model_name:s.current.model_name||'',model_type:s.current.model_type||train.model_type||'xgb',config_path:s.current.config_path||''});
+      Object.assign(s.projectInfoForm,{line_name:s.current.line_name||'',model_name:s.current.model_name||'',model_type:s.current.model_type||train.model_type||'xgb'});
       const database=c.database||{};
       s.dataForm={label_records_db_path:database.label_records_db_path||c.label_records_db_path||'',tdms_root:database.tdms_root||'',manifest_path:database.manifest_path||''};
       Object.assign(s.databaseTool,{configured:database.configured===true,last_operation:database.last_operation||''});
@@ -807,36 +1136,37 @@ createApp({
       s.trainForm={model_type:modelType,train_mode:train.train_mode||'normal',split_strategy:train.split_strategy||'reference_in',seed_runs:train.seed_runs||10,num_workers:ds.num_workers||8,early_stopping_metric:train.early_stopping_rounds?train.early_stopping_metric||'eval_metric':'disabled',early_stopping_rounds:Number(train.early_stopping_rounds||30),data_mode:dataMode,selected_lines:selectedLines.length?selectedLines:[s.current.line_name],selected_folders:[...selectedFolders],selected_references:[...selectedReferences],key_rows:keyRows,model_params:params,extract_all_features:Boolean((train.label_mapping||{}).extract_all_features),label_groups:groups.length?groups:(s.options.reasons||[]).map(reason=>({weight:1,reasons:[{reason,sample:-1}]}))};s.selectedGroup=0;
       const augmentation=c.augmentation||{};
       const augmentationFolders=arrayValue(augmentation.input_folders||augmentation.input_folder).map(item=>typeof item==='object'&&item!==null?{path:String(item.path||''),count:Number(item.count||1)}:{path:String(item),count:Number(augmentation.count||1)}).filter(x=>x.path);
-      Object.assign(s.augmentationForm,{enabled:augmentationFolders.length>0,folders:augmentationFolders,methods:arrayValue(augmentation.methods).length?arrayValue(augmentation.methods):['white_noise'],output_dir:`./results/${currentModelId()}/dataset_csv`});
+      Object.assign(s.augmentationForm,{enabled:augmentationFolders.length>0,folders:augmentationFolders,methods:arrayValue(augmentation.methods).length?arrayValue(augmentation.methods):['white_noise'],output_dir:currentProjectDatasetDir()});
       Object.assign(s.keyFolderDraft,{path:'',line:s.current.line_name||''});
     }
     async function saveCurrent(){
       const c=s.current.config;c.line_name=s.current.line_name;c.model=c.model||{};c.model.model_name=s.current.model_name;
       const retained={dataset:s.dataset,lineOverview:s.lineOverview,modelOverview:s.modelOverview};
-      const payload={name:s.current.name,line_name:s.current.line_name,model_name:s.current.model_name,model_type:(c.train||{}).model_type||s.current.model_type,config:c};
+      const payload={line_name:s.current.line_name,model_name:s.current.model_name,model_type:(c.train||{}).model_type||s.current.model_type,config:c};
       const d=await api(`/api/projects/${s.current.id}`,{method:'PUT',body:JSON.stringify(payload)});s.current=d.project;s.yamlText=(await api(`/api/projects/${s.current.id}`)).yaml;syncForms();Object.assign(s,retained);loadProjects();
     }
     async function saveProjectInfo(){
       try{
         const f=s.projectInfoForm;
-        if(!f.name||!f.line_name||!f.model_name)throw new Error('项目名称、产线和模型名称不能为空');
+        if(!f.line_name||!f.model_name)throw new Error('产线和模型名称不能为空');
         const c=JSON.parse(JSON.stringify(s.current.config||{}));
-        c.line_name=f.line_name;c.model={...(c.model||{}),model_name:f.model_name};c.train={...(c.train||{}),model_type:f.model_type};
-        const payload={name:f.name,line_name:f.line_name,model_name:f.model_name,model_type:f.model_type,config_path:f.config_path,config:c};
+        c.line_name=f.line_name;c.model={...(c.model||{}),model_name:f.model_name};
+        const preservedModelType=(c.train||{}).model_type||s.current.model_type||'xgb';
+        const payload={line_name:f.line_name,model_name:f.model_name,model_type:preservedModelType,config:c};
         const d=await api(`/api/projects/${s.current.id}`,{method:'PUT',body:JSON.stringify(payload)});
         const detail=await api(`/api/projects/${s.current.id}`);s.current=d.project;s.yamlText=detail.yaml;syncForms();await Promise.all([loadProjects(),loadTrainingOptions()]);notify('项目与模型信息已保存');
       }catch(e){notify(e.message,true)}
     }
     function addDatabaseCsv(){const path=s.databaseTool.label_csv_draft.trim();if(!path){notify('请选择标签 CSV',true);return}if(!s.databaseTool.label_csvs.includes(path))s.databaseTool.label_csvs.push(path);s.databaseTool.label_csv_draft=''}
     function removeDatabaseCsv(index){s.databaseTool.label_csvs.splice(index,1)}
-    async function runDatabaseAction(){if(s.databaseTool.file_mode==='move'&&s.databaseTool.action!=='refresh'&&!confirm('移动模式会从原文件夹移走 TDMS 文件，确认继续？'))return;const draft=s.databaseTool.label_csv_draft.trim();if(draft&&!s.databaseTool.label_csvs.includes(draft))s.databaseTool.label_csvs.push(draft);s.databaseTool.label_csv_draft='';s.databaseTool.running=true;s.databaseTool.last_operation=s.databaseTool.action;s.databaseTool.result=null;s.databaseTool.job=null;try{const payload={action:s.databaseTool.action,source_folder:s.databaseTool.source_folder,source_label_db:s.databaseTool.source_label_db,label_csvs:[...s.databaseTool.label_csvs],output_data_root:s.databaseTool.output_data_root,label_records_db_path:s.dataForm.label_records_db_path,tdms_root:s.dataForm.tdms_root,storage_root:s.databaseTool.storage_root,line:s.databaseTool.line,file_mode:s.databaseTool.file_mode,workers:Number(s.databaseTool.workers)||0};const d=await api(`/api/projects/${s.current.id}/database-actions`,{method:'POST',body:JSON.stringify(payload)});s.databaseTool.job=d.job;notify('数据库任务已启动')}catch(e){s.databaseTool.running=false;notify(e.message,true)}}
-    async function loadDatabaseJob(){if(!s.databaseTool.job||!['queued','running'].includes(s.databaseTool.job.status))return;try{const d=await api(`/api/database-actions/${s.databaseTool.job.id}`);s.databaseTool.job=d.job;s.databaseTool.running=['queued','running'].includes(d.job.status);if(d.job.status==='succeeded'){s.databaseTool.result=d.job.result;s.current=d.job.project;s.yamlText=(await api(`/api/projects/${s.current.id}`)).yaml;syncForms();s.databaseTool.job=d.job;s.databaseTool.result=d.job.result;await Promise.all([loadDatasetSummary(),loadTrainingOptions()]);s.options=await api('/api/options');notify('数据库操作完成')}else if(d.job.status==='failed'){notify(d.job.error||'数据库操作失败',true)}}catch(e){s.databaseTool.running=false;s.databaseTool.job=null;if(!String(e.message||'').includes('数据库任务不存在'))notify(e.message,true)}}
-    async function saveTrain(quiet=false){try{const c=s.current.config;c.train=c.train||{};Object.assign(c.train,{model_type:s.trainForm.model_type,train_mode:s.trainForm.train_mode,split_strategy:s.trainForm.split_strategy,seed_runs:Number(s.trainForm.seed_runs)});if(s.trainForm.model_type==='xgb'&&s.trainForm.early_stopping_metric!=='disabled'){const rounds=Number(s.trainForm.early_stopping_rounds);if(!Number.isFinite(rounds)||rounds<1)throw new Error('早停等待轮数必须大于 0');c.train.early_stopping_metric=s.trainForm.early_stopping_metric;c.train.early_stopping_rounds=Math.floor(rounds)}else{delete c.train.early_stopping_metric;delete c.train.early_stopping_rounds}const spec=modelSpec(s.trainForm.model_type);c.train[spec.parameter_key]={...s.trainForm.model_params};const groups=s.trainForm.label_groups.filter(g=>g.reasons.length).map(g=>({weight:Number(g.weight)||1,reasons:g.reasons.map(r=>({reason:r.reason,sample:Number(r.sample)}))}));c.train.label_mapping={enable:true,auto_mlabel:true,extract_all_features:Boolean(s.trainForm.extract_all_features),groups};c.train.class_weights=Object.fromEntries(groups.map(g=>[g.reasons.map(r=>r.reason).join('_'),g.weight]));const data={key_sns:s.trainForm.key_rows.filter(x=>x.selected).map(x=>({path:x.path,line:x.line}))};if(s.trainForm.data_mode==='line')data.line=[...s.trainForm.selected_lines];if(s.trainForm.data_mode==='folder')data.folders=[...s.trainForm.selected_folders];if(s.trainForm.data_mode==='reference')data.reference=[...s.trainForm.selected_references];c.data=data;c.augmentation={input_folders:s.augmentationForm.folders.map(x=>({path:x.path.trim(),count:Math.max(1,Number(x.count)||1)})).filter(x=>x.path),methods:[...s.augmentationForm.methods],output_dir:s.augmentationForm.output_dir.trim()};c.dataset={...(c.dataset||{}),num_workers:Number(s.trainForm.num_workers)};delete c.dataset.batch_size;s.current.model_type=s.trainForm.model_type;await saveCurrent();if(!quiet)notify('训练配置已保存')}catch(e){notify(e.message,true);throw e}}
+    async function runDatabaseAction(){if(!s.databaseTool.precheck?.ok){await precheckDatabase();if(!s.databaseTool.precheck?.ok)return}if(s.databaseTool.file_mode==='move'&&(s.databaseTool.action==='create'||s.databaseTool.update_kind==='append')&&!confirm('移动模式会从原文件夹移走 TDMS 文件，确认继续？'))return;s.databaseTool.running=true;s.databaseTool.last_operation=s.databaseTool.action;s.databaseTool.result=null;s.databaseTool.job=null;try{const d=await api('/api/database-actions',{method:'POST',body:JSON.stringify(databasePayload())});s.databaseTool.job=d.job;notify('数据库任务已启动')}catch(e){s.databaseTool.running=false;notify(e.message,true)}}
+    async function loadDatabaseJob(){if(!s.databaseTool.job||!['queued','running'].includes(s.databaseTool.job.status))return;try{const d=await api(`/api/database-actions/${s.databaseTool.job.id}`);s.databaseTool.job=d.job;s.databaseTool.running=['queued','running'].includes(d.job.status);if(d.job.status==='succeeded'){s.databaseTool.result=d.job.result;if(d.job.project){s.current=d.job.project;s.yamlText=(await api(`/api/projects/${s.current.id}`)).yaml;syncForms();await Promise.all([loadDatasetSummary(),loadTrainingOptions()])}deriveGlobalDatabasePaths();s.databaseTool.job=d.job;s.databaseTool.result=d.job.result;s.options=await api('/api/options');await precheckDatabase();s.databaseUi.tab='distribution';await loadLineOverview();notify('数据库操作完成')}else if(d.job.status==='failed'){notify(d.job.error||'数据库操作失败',true)}}catch(e){s.databaseTool.running=false;s.databaseTool.job=null;if(!String(e.message||'').includes('数据库任务不存在'))notify(e.message,true)}}
+    async function saveTrain(quiet=false){try{syncAugmentationOutputDir();const c=s.current.config;c.train=c.train||{};Object.assign(c.train,{model_type:s.trainForm.model_type,train_mode:s.trainForm.train_mode,split_strategy:s.trainForm.split_strategy,seed_runs:Number(s.trainForm.seed_runs)});if(s.trainForm.model_type==='xgb'&&s.trainForm.early_stopping_metric!=='disabled'){const rounds=Number(s.trainForm.early_stopping_rounds);if(!Number.isFinite(rounds)||rounds<1)throw new Error('早停等待轮数必须大于 0');c.train.early_stopping_metric=s.trainForm.early_stopping_metric;c.train.early_stopping_rounds=Math.floor(rounds)}else{delete c.train.early_stopping_metric;delete c.train.early_stopping_rounds}const spec=modelSpec(s.trainForm.model_type);c.train[spec.parameter_key]={...s.trainForm.model_params};const groups=s.trainForm.label_groups.filter(g=>g.reasons.length).map(g=>({weight:Number(g.weight)||1,reasons:g.reasons.map(r=>({reason:r.reason,sample:Number(r.sample)}))}));c.train.label_mapping={enable:true,auto_mlabel:true,extract_all_features:Boolean(s.trainForm.extract_all_features),groups};c.train.class_weights=Object.fromEntries(groups.map(g=>[g.reasons.map(r=>r.reason).join('_'),g.weight]));const data={key_sns:s.trainForm.key_rows.filter(x=>x.selected).map(x=>({path:x.path,line:x.line}))};if(s.trainForm.data_mode==='line')data.line=[...s.trainForm.selected_lines];if(s.trainForm.data_mode==='folder')data.folders=[...s.trainForm.selected_folders];if(s.trainForm.data_mode==='reference')data.reference=[...s.trainForm.selected_references];c.data=data;c.augmentation={input_folders:s.augmentationForm.folders.map(x=>({path:x.path.trim(),count:Math.max(1,Number(x.count)||1)})).filter(x=>x.path),methods:[...s.augmentationForm.methods],output_dir:s.augmentationForm.output_dir.trim()};c.dataset={...(c.dataset||{}),num_workers:Number(s.trainForm.num_workers)};delete c.dataset.batch_size;s.current.model_type=s.trainForm.model_type;await saveCurrent();if(!quiet)notify('训练配置已保存')}catch(e){notify(e.message,true);throw e}}
     async function saveYaml(){try{const d=await api(`/api/projects/${s.current.id}/yaml`,{method:'PUT',body:JSON.stringify({yaml:s.yamlText})});s.current=d.project;s.yamlText=d.yaml;syncForms();notify('YAML 已保存')}catch(e){notify(e.message,true)}}
     async function loadDatasetSummary(){try{s.dataset=await api(`/api/projects/${s.current.id}/dataset-summary`)}catch(e){notify(e.message,true)}}
-    async function loadLineOverview(){try{s.lineOverview=await api(`/api/projects/${s.current.id}/line-reference-overview`);notify('已刷新产线与 reference 数据情况')}catch(e){notify(e.message,true)}}
-    async function loadModelOverview(){try{s.modelOverview=await api(`/api/projects/${s.current.id}/xlsx-model-overview`);notify('已刷新 XLSX 模型数据标签分布')}catch(e){notify(e.message,true)}}
-    async function loadLabelCounts(){try{if(!s.lineOverview)s.lineOverview=await api(`/api/projects/${s.current.id}/line-reference-overview`)}catch(e){notify(e.message,true)}}
+    async function loadLineOverview(){try{deriveGlobalDatabasePaths();s.lineOverview=await api(`/api/database/line-reference-overview?data_root=${encodeURIComponent(s.globalDatabase.data_root)}`);notify('已刷新产线与 reference 数据情况')}catch(e){notify(e.message,true)}}
+    async function loadModelOverview(){try{deriveGlobalDatabasePaths();s.modelOverview=await api(`/api/database/xlsx-model-overview?data_root=${encodeURIComponent(s.globalDatabase.data_root)}`);notify('已刷新 XLSX 模型数据标签分布')}catch(e){notify(e.message,true)}}
+    async function loadLabelCounts(){try{if(s.current)s.lineOverview=await api(`/api/projects/${s.current.id}/line-reference-overview`)}catch(e){notify(e.message,true)}}
     async function loadTrainingOptions(){try{const data=await api(`/api/projects/${s.current.id}/training-data-options`);s.trainingOptions=data;if(!s.trainForm.key_rows.length&&data.selected_key_sns?.length)s.trainForm.key_rows=data.selected_key_sns.map(x=>({path:x.path,line:x.line||s.current.line_name,selected:true}))}catch(e){notify(e.message,true)}}
     async function validateCurrent(show=false){try{if(s.view==='train')await saveTrain(true);s.validation=await api(`/api/projects/${s.current.id}/validate`);if(show)notify(s.validation.ok?'配置校验通过':'配置校验失败',!s.validation.ok);return s.validation}catch(e){notify(e.message,true)}}
     async function loadRuns(){if(!s.current)return;s.runs=(await api(`/api/runs?project_id=${s.current.id}`)).runs;if(s.runDetail){const d=await api(`/api/runs/${s.runDetail.run.id}`);s.runDetail=d}}
@@ -846,6 +1176,8 @@ createApp({
     async function loadResults(){try{s.results=await api(`/api/projects/${s.current.id}/results`)}catch(e){notify(e.message,true)}}
     async function startPredict(){try{const payload={...s.predictForm,threshold:s.predictForm.threshold===''?null:Number(s.predictForm.threshold)};const d=await api(`/api/projects/${s.current.id}/predict`,{method:'POST',body:JSON.stringify(payload)});await loadRuns();showRun(d.run)}catch(e){notify(e.message,true)}}
     function currentModelId(){return s.current?[s.current.line_name,s.current.model_name].filter(Boolean).join('_'):''}
+    function currentProjectDatasetDir(){const id=currentModelId();return id?`./results/${id}/dataset_csv`:''}
+    function syncAugmentationOutputDir(){s.augmentationForm.output_dir=currentProjectDatasetDir()}
     function pathBasename(path){return String(path||'').replace(/\/$/,'').split('/').pop()||''}
     function addKeyFolder(){const path=s.keyFolderDraft.path.trim(),line=s.keyFolderDraft.line;if(!path){notify('请选择 key 文件夹',true);return}if(!line){notify('请选择 key 数据产线',true);return}const existing=s.trainForm.key_rows.find(x=>x.path===path);if(existing){existing.line=line;existing.selected=true}else{s.trainForm.key_rows.push({path,line,selected:true})}Object.assign(s.keyFolderDraft,{path:'',line:s.current.line_name||''})}
     function removeKeyFolder(index){s.trainForm.key_rows.splice(index,1)}
@@ -853,7 +1185,7 @@ createApp({
     function disableAugmentation(){s.augmentationForm.enabled=false;s.augmentationForm.folders=[]}
     function addAugmentationFolder(){s.augmentationForm.enabled=true;s.augmentationForm.folders.push({path:'',count:1})}
     function removeAugmentationFolder(index){s.augmentationForm.folders.splice(index,1);if(!s.augmentationForm.folders.length)s.augmentationForm.enabled=false}
-    async function startAugmentation(){try{const folderMap=new Map();for(const item of s.augmentationForm.folders){const path=item.path.trim();if(path)folderMap.set(path,{path,count:Math.max(1,Number(item.count)||1)})}const inputFolders=[...folderMap.values()];if(!inputFolders.length)throw new Error('请至少选择一个包含 TDMS 的文件夹');await saveTrain(true);const payload={input_folders:inputFolders,methods:[...s.augmentationForm.methods],line:s.current.line_name};const d=await api(`/api/projects/${s.current.id}/augmentation`,{method:'POST',body:JSON.stringify(payload)});await loadRuns();showRun(d.run);notify(`数据增强与特征提取已启动，共 ${inputFolders.length} 个文件夹`)}catch(e){notify(e.message,true)}}
+    async function startAugmentation(){try{syncAugmentationOutputDir();const folderMap=new Map();for(const item of s.augmentationForm.folders){const path=item.path.trim();if(path)folderMap.set(path,{path,count:Math.max(1,Number(item.count)||1)})}const inputFolders=[...folderMap.values()];if(!inputFolders.length)throw new Error('请至少选择一个包含 TDMS 的文件夹');await saveTrain(true);const payload={input_folders:inputFolders,methods:[...s.augmentationForm.methods],line:s.current.line_name,output_dir:s.augmentationForm.output_dir};const d=await api(`/api/projects/${s.current.id}/augmentation`,{method:'POST',body:JSON.stringify(payload)});await loadRuns();showRun(d.run);notify(`数据增强与特征提取已启动，共 ${inputFolders.length} 个文件夹`)}catch(e){notify(e.message,true)}}
     function targetValue(path){return path.split('.').reduce((x,k)=>x[k],s)}
     function setTargetValue(path,value){const keys=path.split('.');const key=keys.pop();const parent=keys.reduce((x,k)=>x[k],s);parent[key]=value}
     function joinPath(base,name){return String(base).replace(/\/$/,'')+'/'+name}
@@ -903,13 +1235,13 @@ createApp({
     function fmt(v){const n=Number(v);return Number.isFinite(n)?n.toFixed(4):'—'}
     function distName(v){const text=String(v||'');const i=text.indexOf(':');return i>=0?`${text.slice(i+1)} (${text.slice(0,i)})`:text}
     function barWidth(items,count){const max=Math.max(1,...(items||[]).map(x=>Number(x.count)||0));return `${Math.max(1,Number(count)/max*100)}%`}
-    function tabDisabled(id){return id!=='projects'&&!s.current}
-    const workflowTabs=computed(()=>s.tabs.filter(x=>x.id!=='projects').map(x=>({...x,label:x.label.replace(/（.*）/,'')})));
+    function tabDisabled(id){return ['train','results','predict'].includes(id)&&!s.current}
+    const workflowTabs=computed(()=>s.tabs.map(x=>({...x,label:x.label.replace(/（.*）/,'' )})));
     const projectComplete=computed(()=>s.runs.some(x=>['train','full'].includes(x.kind)&&x.status==='succeeded'));
     function workflowClass(id){return {active:s.view===id,done:projectComplete.value}}
-    async function openTab(id){if(tabDisabled(id))return;s.view=id;if(['data','train'].includes(id))loadDatasetSummary();if(id==='train'){loadTrainingOptions();loadLabelCounts()}if(id==='results')loadResults();if(id!=='projects')loadRuns()}
-    onMounted(async()=>{try{s.options=await api('/api/options');s.createForm.line_name=s.options.line_options?.[0]||'';await loadProjects();setInterval(loadRuns,2000);setInterval(loadDatabaseJob,1000)}catch(e){notify(e.message,true)}});
-    return {...Vue.toRefs(s),createModelId,editableModelId,currentModelId,requireCurrent,pipelineRuns,augmentationRuns,predictRuns,featureActionClass,featureActionText,trainActionClass,trainActionText,availableLines,labelCountsReady,workflowTabs,projectComplete,workflowClass,tabDisabled,openTab,createProject,projectModelId,toggleProjectDetails,reloadProjectDetails,saveProjectYaml,validateProjectYaml,saveProjectForm,saveProjectInfo,duplicateProject,renameProject,selectProject,removeProject,addDatabaseCsv,removeDatabaseCsv,runDatabaseAction,saveTrain,saveYaml,loadDatasetSummary,loadLineOverview,loadModelOverview,loadTrainingOptions,validateCurrent,startRun,startAugmentation,enableAugmentation,disableAugmentation,addAugmentationFolder,removeAugmentationFolder,addKeyFolder,removeKeyFolder,cancelRun,showRun,loadResults,startPredict,openBrowser,browse,joinPath,chooseBrowserPath,pathBasename,modelSpec,modelTitle,selectModel,reasonUsed,reasonCount,groupAvailableCount,groupTrainingCount,addLabelGroup,resetLabelGroups,removeLabelGroup,addReason,removeReason,stagesFor,stageClass,artifactUrl,fmt,distName,barWidth};
+    async function openTab(id){if(tabDisabled(id))return;s.view=id;if(id==='database'){deriveGlobalDatabasePaths();precheckDatabase(true)}if(s.current&&['data','train'].includes(id))loadDatasetSummary();if(id==='train'){loadTrainingOptions();loadLabelCounts()}if(id==='results')loadResults();if(s.current&&id!=='projects'&&id!=='database')loadRuns()}
+    onMounted(async()=>{try{deriveGlobalDatabasePaths();s.options=await api('/api/options');applyDatabaseDefaults();s.createForm.line_name=s.options.line_options?.[0]||'';await Promise.all([loadProjects(),loadLabelRules(),precheckDatabase(true)]);setInterval(loadRuns,2000);setInterval(loadDatabaseJob,1000)}catch(e){notify(e.message,true)}});
+    return {...Vue.toRefs(s),createModelId,editableModelId,currentModelId,requireCurrent,pipelineRuns,augmentationRuns,predictRuns,featureActionClass,featureActionText,trainActionClass,trainActionText,availableLines,labelCountsReady,databaseActionChoices,databaseStages,canExecuteDatabase,databaseStatusItems,workflowTabs,projectComplete,workflowClass,tabDisabled,openTab,createProject,projectModelId,toggleProjectDetails,reloadProjectDetails,saveProjectYaml,validateProjectYaml,saveProjectForm,saveProjectInfo,duplicateProject,selectProject,removeProject,deriveGlobalDatabasePaths,chooseDatabaseAction,resetDatabaseAction,precheckDatabase,databaseStageActive,loadLabelRules,saveLabelRules,restoreDefaultLabelRules,addResultRule,removeResultRule,addReasonRule,removeReasonRule,addDatabaseCsv,removeDatabaseCsv,runDatabaseAction,saveTrain,saveYaml,loadDatasetSummary,loadLineOverview,loadModelOverview,loadTrainingOptions,validateCurrent,startRun,startAugmentation,enableAugmentation,disableAugmentation,addAugmentationFolder,removeAugmentationFolder,addKeyFolder,removeKeyFolder,cancelRun,showRun,loadResults,startPredict,openBrowser,browse,joinPath,chooseBrowserPath,pathBasename,modelSpec,modelTitle,selectModel,reasonUsed,reasonCount,groupAvailableCount,groupTrainingCount,addLabelGroup,resetLabelGroups,removeLabelGroup,addReason,removeReason,stagesFor,stageClass,artifactUrl,fmt,distName,barWidth};
   }
 }).mount('#app');
 </script>

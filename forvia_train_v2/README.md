@@ -43,7 +43,7 @@ v2 以新的 SQLite 数据库 `sample_records.db` 为主输入：
 
 配置数据库页面通过 `forvia_train_v2.backend.database_service.execute_database_action` 提供三种方式：
 
-- 新建数据库：选择 TDMS 根目录，可选已有 `label_records.db` 作为标签来源，或添加多个标签 CSV；CSV 会依次转换写入新 DB，manifest 自动生成。
+- 新建数据库：选择 TDMS 根目录，标签来源支持 DB、内部标签事件表或 Forvia 宽表；Forvia 表会先转换为内部表再写入 DB，manifest 自动生成。
 - 追加已有数据库：可追加 TDMS、多个标签 CSV，或只追加 CSV。
 - 更新已有数据库：选择 line 时只更新该产线；不选择 line 时递归更新当前 TDMS 根目录下全部产线的 TDMS 路径和 sample_id。已有标签按 `line / sn / sample_id` 保留。
 
@@ -56,7 +56,7 @@ v2 以新的 SQLite 数据库 `sample_records.db` 为主输入：
 
 - 输入为一个或多个包含 `.tdms` / `.tdms.zst` 的文件夹。
 - 支持设置每个原始 TDMS 的生成数量、增强方法和随机种子。
-- 当前方法包括随机白噪声、随机裁剪、随机增加片段、随机振幅缩放、随机时序伸缩，每个方法位于独立 Python 文件。
+- 当前方法包括加噪、混响、时频遮挡、速度扰动、随机白噪声、随机裁剪、随机增加片段、随机振幅缩放、随机时序伸缩，每个方法位于独立 Python 文件。
 - TDMS 信号只在内存中增强，不写增强 TDMS、manifest 或临时 sample view。
 - 最终只写 `results/<model_id>/dataset_csv/features_batch_augmented.csv`。
 
@@ -66,7 +66,7 @@ python -m data_augmentation.direct_features \
   --input-folder /path/to/tdms \
   --output-dir results/epump2_general/dataset_csv \
   --count 2 \
-  --methods white_noise,random_crop,random_add_segment \
+  --methods add_noise,reverberation,time_frequency_mask,speed_perturb \
   --line epump2
 ```
 
@@ -76,10 +76,10 @@ python -m data_augmentation.direct_features \
 
 ```bash
 pip install -r forvia_train_v2/requirements.txt
-uvicorn forvia_train_v2.backend.main:app --reload --port 8000
+uvicorn forvia_train_v2.backend.main:app --reload --port 8001
 ```
 
-打开 `http://127.0.0.1:8000`。
+打开 `http://127.0.0.1:8001`。
 
 ## 状态与产物
 

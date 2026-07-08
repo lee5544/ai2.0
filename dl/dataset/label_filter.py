@@ -22,13 +22,15 @@ from data_manager.label_database import load_label_dataframe, resolve_database_p
 from data_manager.label_internal_registry import normalize_label_source_category
 
 def resolve_output_dir(cfg: dict) -> Path:
-    """DL 专属输出目录：results/{line}_{model}_{dl.model_type}/dl_dataset_csv/"""
+    """DL 专属数据集目录：results/{line}_{model}/dl_dataset_csv/。
+
+    ``line_name + model.model_name`` 是一个 DL 实验的唯一识别码；特征与训练结果
+    都必须落在这个唯一根目录下，避免不同模型架构自动共享或分叉目录。
+    """
     line = str(cfg.get("line_name") or "line").strip()
     model = str((cfg.get("model") or {}).get("model_name") or "model").strip()
-    dl_cfg = cfg.get("dl") if isinstance(cfg.get("dl"), dict) else {}
-    model_type = str(dl_cfg.get("model_type") or "cnn").strip()
     results = Path(str(cfg.get("results_path") or "./results")).expanduser()
-    return results / f"{line}_{model}_{model_type}" / "dl_dataset_csv"
+    return results / f"{line}_{model}" / "dl_dataset_csv"
 
 
 DM_CFG = load_data_manager_config()
@@ -61,6 +63,7 @@ REQUIRED_SAMPLE_VIEW_COLUMNS = ("line", "sn", "sample_id")
 
 
 MIN_CONSISTENT_EMPLOYEE_LABELS = 2
+LABEL_FILTER_STATUSES = ("confirmed", "unconfirmed")
 
 
 def standardize_sample_view(df: pd.DataFrame) -> pd.DataFrame:
@@ -435,7 +438,7 @@ def main() -> None:
     db_raw = ((cfg.get("database") or {}).get("label_records_db_path")
               or cfg.get("label_records_db_path")
               or (cfg.get("dataset") or {}).get("label_records_db_path") or "")
-    labels = load_label_dataframe(resolve_database_path(str(db_raw)))
+    labels = load_label_dataframe(resolve_database_path(str(db_raw)), statuses=LABEL_FILTER_STATUSES)
     candidates = pd.read_csv(sv, encoding="utf-8-sig")
     filtered, _stats = filter_sample_view_dataframe(candidates, labels, cfg)
     filtered.to_csv(sv, index=False, encoding="utf-8-sig")

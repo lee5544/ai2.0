@@ -135,7 +135,9 @@ def _model_tag_from_arch(model_arch: str) -> str:
     model_arch = normalize_model_arch(model_arch)
     return {
         "cnn1d": "cnn",
+        "cnn1d_attention": "cnn1d_attention",
         "cnn2d": "cnn2d",
+        "cnn2d_attention": "cnn2d_attention",
         "resnet": "resnet",
         "lstm": "lstm",
         "tcn": "tcn",
@@ -160,11 +162,11 @@ def _resolve_model_arch(cfg: Dict[str, Any], cli_arch: str | None) -> str:
 def _resolve_results_root(cfg: Dict[str, Any], cli_output_root: str | None, model_arch: str) -> Path:
     if cli_output_root:
         return Path(cli_output_root).expanduser()
+    del model_arch
     line_name = _to_text(cfg.get("line_name")) or "line"
     model_name = _to_text((cfg.get("model") or {}).get("model_name")) or "model"
-    model_type = _model_tag_from_arch(model_arch)
     results_path = Path(str(cfg.get("results_path") or "./results")).expanduser()
-    return results_path / f"{line_name}_{model_name}_{model_type}"
+    return results_path / f"{line_name}_{model_name}"
 
 
 def _resolve_dataset_dir(cfg: Dict[str, Any], cli_dataset_dir: str | None, model_arch: str) -> Path:
@@ -179,24 +181,8 @@ def _resolve_dataset_dir(cfg: Dict[str, Any], cli_dataset_dir: str | None, model
     line_name = _to_text(cfg.get("line_name")) or "line"
     model_name = _to_text((cfg.get("model") or {}).get("model_name")) or "model"
     results_path = Path(str(cfg.get("results_path") or "./results")).expanduser()
-    tags = [
-        _model_tag_from_arch(model_arch),
-        _to_text(dl_cfg.get("model_type")) or "cnn",
-        "cnn",
-        "cnn1d",
-    ]
-    candidates: List[Path] = []
-    seen: set[str] = set()
-    for tag in tags:
-        key = _to_text(tag)
-        if not key or key in seen:
-            continue
-        seen.add(key)
-        candidates.append(results_path / f"{line_name}_{model_name}_{key}" / "dl_dataset_csv")
-    for path in candidates:
-        if path.exists():
-            return path
-    return candidates[0]
+    del model_arch
+    return results_path / f"{line_name}_{model_name}" / "dl_dataset_csv"
 
 
 def _load_feature_schema(dataset_dir: Path) -> Dict[str, Any]:

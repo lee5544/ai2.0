@@ -5,7 +5,9 @@ from .base_model import (
     save_history_plot,
     save_loss_plot,
 )
+from .cnn1d_attention_model import CNN1DAttentionClassifier
 from .cnn1d_model import CNN1DClassifier
+from .cnn2d_attention_model import CNN2DAttentionClassifier
 from .cnn2d_model import CNN2DClassifier
 from .lstm_model import LSTMClassifier
 from .multiscale_cnn1d import MultiScaleCNN1DClassifier
@@ -23,7 +25,9 @@ __all__ = [
     "save_loss_plot",
     "CNNWindowClassifier",
     "CNN1DClassifier",
+    "CNN1DAttentionClassifier",
     "CNN2DClassifier",
+    "CNN2DAttentionClassifier",
     "ResNet2DClassifier",
     "LSTMClassifier",
     "TCNClassifier",

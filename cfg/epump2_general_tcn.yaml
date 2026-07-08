@@ -60,6 +60,8 @@ train:
         sample: -1
       - reason: 边界
         sample: -1
+    - weight: 1
+      reasons:
       - reason: 传感器错误
         sample: -1
     - weight: 1

@@ -1,0 +1,109 @@
+# ============================================================
+# Step 1 · 小数据过拟合测试（mel + CNN1D）
+# 目的：每类只取 ~20 个样本，看 train accuracy 能否逼近 100%。
+#       过拟合不了 → 问题在标签/shape/loss/lr/预处理，而不是模型不够强。
+# 用法：
+#   python dl/main_dataset.py --config cfg/exp_overfit_mel_cnn1d.yaml
+#   python dl/main_train.py   --config cfg/exp_overfit_mel_cnn1d.yaml
+# 输出：results/epump2_overfit_cnn/
+# 结论：
+#   mel 频谱做样本内部 per-bin z-score 后，小数据过拟合失败；
+#   去掉该标准化后可以实现过拟合。
+#   说明类别判别依赖绝对能量/幅值信息，样本级标准化不适合作为默认预处理。
+#   后续采用 log-mel 原始值，或训练集统计量标准化。
+# ============================================================
+
+line_name: epump2
+model:
+  model_name: overfit        # 隔离输出目录
+
+results_path: ./results/
+
+database:
+  label_records_db_path: /Volumes/18555440521/fault/data_root/metadata/label_records.db
+  tdms_root:             /Volumes/18555440521/fault/data_root/factory_raw
+  manifest_path:         /Volumes/18555440521/fault/data_root/metadata/tdms_manifest.csv
+  configured: true
+  last_operation: existing
+data_root: /Volumes/18555440521/fault/data_root
+label_records_db_path: /Volumes/18555440521/fault/data_root/metadata/label_records.db
+
+data:
+  line:
+    - epump2
+
+dataset:
+  num_workers: 8
+  data_root:             /Volumes/18555440521/fault/data_root
+  label_records_db_path: /Volumes/18555440521/fault/data_root/metadata/label_records.db
+  manifest_path:         /Volumes/18555440521/fault/data_root/metadata/tdms_manifest.csv
+
+train:
+  split_strategy: reference_in
+  random_state: 42
+  label_mapping:
+    enable: true
+    auto_mlabel: true
+    # 每类只取很少样本做过拟合测试（训练阶段精调到该数量）
+    groups:
+    - weight: 1
+      reasons:
+      - {reason: 正常, sample: 20}
+      - {reason: 干扰, sample: 20}
+      - {reason: 边界, sample: 20}
+    - weight: 1
+      reasons:
+      - {reason: 传感器错误, sample: 20}
+    - weight: 1
+      reasons:
+      - {reason: 秒表, sample: 20}
+    - weight: 1
+      reasons:
+      - {reason: 摩擦, sample: 10}
+      - {reason: 摩擦acc, sample: 20}
+    - weight: 1
+      reasons:
+      - {reason: 杂音, sample: 20}
+    - weight: 1
+      reasons:
+      - {reason: 咬齿, sample: 20}
+      - {reason: 哒哒_咔咔, sample: 5}
+    - weight: 1
+      reasons:
+      - {reason: 震颤, sample: 20}
+      - {reason: 马达, sample: 20}
+
+dl:
+  feature_type: mel
+  extract:
+    sample: true             # 提取阶段也只取这点样本（过拟合测试，提取快）
+    mel:
+      n_fft: 256
+      hop_length: 128
+      n_mels: 64
+      max_frames: 1024
+      fmin: 0
+      fmax: null
+  model:
+    arch: cnn1d              # mel[64,1024] → CNN1D(in_channels=64)
+    # conv_channels: [64, 128, 256]
+    # hidden_dim: 256
+    conv_channels: [64, 128, 256, 256]
+    hidden_dim: 512
+    kernel_size: 5
+    dropout: 0.0             # 过拟合测试：关 dropout
+
+  train:
+    epochs: 200              # 多跑，逼到过拟合
+    batch_size: 16
+    learning_rate: 0.001
+    weight_decay: 0.0        # 关正则
+    num_workers: 4
+    use_amp: true
+    seed_runs: 1
+    scheduler: none
+    early_stopping:
+      enable: false          # 不早停，看 train 能否到 ~100%
+    loss:
+      type: ce               # 不加权（过拟合测试看纯拟合能力）
+      label_smoothing: 0.0

@@ -97,4 +97,4 @@ dl:
     output_file_prefix: dl_mel_spec
     output_format: pickle   # pickle / csv
     batch_size: 2000
-    # output_feature_folder: 留空则默认 results/{line}_{model}_cnn/dl_dataset_csv
+    # output_feature_folder: 留空则默认 results/{line}_{model}/dl_dataset_csv

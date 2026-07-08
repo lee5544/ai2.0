@@ -126,12 +126,23 @@ def filter_samples(cfg: dict, output_folder: str | Path | None = None) -> Path:
         for col in manifest_cols:
             if col not in manifest.columns:
                 manifest[col] = ""
-        merged = samples.merge(manifest[manifest_cols].drop_duplicates(), on=["line", "sn"], how="inner")
+        manifest_value_cols = [col for col in manifest_cols if col not in {"line", "sn"}]
+        sample_base = samples.drop(columns=[col for col in manifest_value_cols if col in samples.columns])
+        merged = sample_base.merge(manifest[manifest_cols].drop_duplicates(), on=["line", "sn"], how="inner")
         merged.insert(0, "view_name", "train")
         for col in OUTPUT_COLUMNS:
             if col not in merged.columns:
                 merged[col] = ""
         merged = merged[OUTPUT_COLUMNS].drop_duplicates()
+        key_cols = ["line", "sn", "sample_id", "group_name", "channel_name", "tdms_storage_root", "relative_path"]
+        key_mask = pd.Series(True, index=merged.index)
+        for col in key_cols:
+            key_mask &= ~merged[col].isna()
+            key_mask &= ~merged[col].astype(str).str.strip().str.lower().isin({"", "nan", "none", "null"})
+        dropped = int((~key_mask).sum())
+        if dropped:
+            print(f"[WARN] 丢弃主键字段不完整的 sample_view 行: {dropped}")
+        merged = merged[key_mask].copy()
 
     merged = standardize_sample_view(merged)
     out = (Path(output_folder).expanduser() if output_folder is not None else resolve_output_dir(cfg)) / "sample_view.csv"

@@ -15,7 +15,11 @@ from .methods import METHODS
 from .tdms_writer import write_augmented_tdms
 
 AUGMENTATION_METHODS = {
+    "add_noise": "加噪",
     "white_noise": "随机白噪声",
+    "reverberation": "混响",
+    "time_frequency_mask": "时频遮挡",
+    "speed_perturb": "速度扰动",
     "random_crop": "随机裁剪",
     "random_add_segment": "随机增加片段",
     "random_amplitude": "随机振幅缩放",

@@ -4,7 +4,17 @@ from typing import Any
 
 from torch import nn
 
+from .cnn1d_attention_model import (
+    CNN1DAttentionClassifier,
+    build_cnn1d_attention_model,
+    resolve_cnn1d_attention_config,
+)
 from .cnn1d_model import CNN1DClassifier, build_cnn1d_model, resolve_cnn1d_config
+from .cnn2d_attention_model import (
+    CNN2DAttentionClassifier,
+    build_cnn2d_attention_model,
+    resolve_cnn2d_attention_config,
+)
 from .cnn2d_model import CNN2DClassifier, build_cnn2d_model, resolve_cnn2d_config
 from .lstm_model import LSTMClassifier, build_lstm_model, resolve_lstm_config
 from .multiscale_cnn1d import (
@@ -24,9 +34,19 @@ def normalize_model_arch(value: str | None) -> str:
         "cnn1d": "cnn1d",
         "1dcnn": "cnn1d",
         "conv1d": "cnn1d",
+        "cnn1dattention": "cnn1d_attention",
+        "cnn1dattn": "cnn1d_attention",
+        "attentioncnn1d": "cnn1d_attention",
+        "attncnn1d": "cnn1d_attention",
+        "1dcnnattention": "cnn1d_attention",
         "cnn2d": "cnn2d",
         "2dcnn": "cnn2d",
         "conv2d": "cnn2d",
+        "cnn2dattention": "cnn2d_attention",
+        "cnn2dattn": "cnn2d_attention",
+        "attentioncnn2d": "cnn2d_attention",
+        "attncnn2d": "cnn2d_attention",
+        "2dcnnattention": "cnn2d_attention",
         "resnet": "resnet",
         "resnet2d": "resnet",
         "lstm": "lstm",
@@ -66,6 +86,22 @@ def build_dl_model(
     elif model_arch == "cnn2d":
         resolved_config = resolve_cnn2d_config(model_cfg=model_cfg, train_cfg=train_cfg)
         model = build_cnn2d_model(
+            in_channels=in_channels,
+            sequence_length=sequence_length,
+            num_classes=num_classes,
+            config=resolved_config,
+        )
+    elif model_arch == "cnn1d_attention":
+        resolved_config = resolve_cnn1d_attention_config(model_cfg=model_cfg, train_cfg=train_cfg)
+        model = build_cnn1d_attention_model(
+            in_channels=in_channels,
+            sequence_length=sequence_length,
+            num_classes=num_classes,
+            config=resolved_config,
+        )
+    elif model_arch == "cnn2d_attention":
+        resolved_config = resolve_cnn2d_attention_config(model_cfg=model_cfg, train_cfg=train_cfg)
+        model = build_cnn2d_attention_model(
             in_channels=in_channels,
             sequence_length=sequence_length,
             num_classes=num_classes,

@@ -493,7 +493,7 @@ def _build_manifest_lookup(manifest_path: Path) -> Dict[Tuple[str, str], Dict[st
 
 
 def _build_label_lookup(label_records_db_path: Path) -> Dict[Tuple[str, str, str], Dict[str, Any]]:
-    label_df = load_label_dataframe(label_records_db_path)
+    label_df = load_label_dataframe(label_records_db_path, statuses=("confirmed", "unconfirmed"))
     if label_df.empty:
         return {}
 
@@ -1773,7 +1773,8 @@ def generate(cfg: dict, output_folder: str | Path | None = None) -> Path:
 
     candidate_path = filter_samples(cfg, output_folder)
     candidates = pd.read_csv(candidate_path, encoding="utf-8-sig")
-    labels = load_label_dataframe(_database_path(cfg))
+    from ml.dataset.label_filter import LABEL_FILTER_STATUSES
+    labels = load_label_dataframe(_database_path(cfg), statuses=LABEL_FILTER_STATUSES)
     filtered, _stats = filter_sample_view_dataframe(candidates, labels, cfg)
     filtered.to_csv(candidate_path, index=False, encoding="utf-8-sig")
     print(

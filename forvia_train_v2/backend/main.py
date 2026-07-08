@@ -1,21 +1,33 @@
 from __future__ import annotations
 
 import copy
+import csv
 from pathlib import Path
 import subprocess
 import sys
+import sqlite3
+from collections import Counter
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+import yaml
+from data_manager.tdms_read import (
+    is_compressed_tdms_path,
+    is_uncompressed_tdms_path,
+    iter_tdms_files,
+)
 from ml.train import list_registered_model_types
 from ml.training.app_api import (
+    config_filename,
     config_path_for_project,
     data_manager_defaults,
+    database_distribution,
     dataset_summary,
     dump_yaml,
     line_reference_overview,
+    _model_xlsx_path_from_manifest,
     model_id,
     normalize_project_payload,
     parse_yaml,
@@ -39,6 +51,138 @@ from .config import (
 
 
 app = FastAPI(title="Forvia Train v2")
+
+LABEL_RULES_PATH = PROJECT_ROOT / "cfg" / "core" / "label_rules.yaml"
+DEFAULT_LABEL_RULES_TEXT = """results:
+  ok:
+    id: 0
+    name: 正常
+    alias:
+    - OK
+    - 正常状态
+    note: 非异常样本
+  nok:
+    id: 1
+    name: 异常
+    alias:
+    - ng
+    - 不良
+    - 故障
+    note: 存在明确异常风险
+  boundary:
+    id: 2
+    name: 边界
+    alias:
+    - 不确定
+    - 待确认
+reasons:
+  clean_normal:
+    id: 0
+    name: 正常
+    alias:
+    - 干净正常
+    - 无异常
+    parent: ok
+  noisy_normal:
+    id: -1
+    name: 干扰
+    alias:
+    - 杂音干扰
+    - 轻微噪声
+    parent: ok
+  boundary:
+    id: 2
+    name: 边界
+    alias:
+    - 不确定
+    - 无法判断
+    parent: boundary
+  sensor_error:
+    id: 101
+    name: 传感器错误
+    alias:
+    - 传感器故障
+    - 传感器异常
+    - 传感器跳变
+    - sensor error
+    parent: nok
+  tick_tock:
+    id: 102
+    name: 秒表
+    alias:
+    - tick-tock
+    - 节拍声
+    parent: nok
+  friction:
+    id: 103
+    name: 摩擦
+    alias:
+    - 摩擦音
+    - 摩擦噪声
+    parent: nok
+  friction_acc:
+    id: 104
+    name: 摩擦acc
+    alias:
+    - 摩擦加速度
+    - 摩擦acc
+    parent: nok
+  noise:
+    id: 105
+    name: 杂音
+    alias:
+    - 噪声
+    - background noise
+    parent: nok
+  gear_chatter:
+    id: 106
+    name: 咬齿
+    alias:
+    - 齿轮咬合
+    - gear chatter
+    parent: nok
+  chatter:
+    id: 107
+    name: 震颤
+    alias:
+    - 抖动
+    - 颤振
+    parent: nok
+  mada:
+    id: 108
+    name: 马达
+    alias: []
+    parent: nok
+  dada:
+    id: 109
+    name: 哒哒_咔咔
+    alias: [咔咔, 哒哒音, 咔咔音]
+    parent: nok
+  other:
+    id: 199
+    name: 其它
+    alias:
+    - 其他
+    - 未知异常
+    parent: nok
+meta:
+  version: v1.1
+  note: Noise label with alias support
+  legacy_label_to_reason:
+    '-1': noisy_normal
+    '0': clean_normal
+    '2': boundary
+    '10': sensor_error
+    '11': tick_tock
+    '12': friction
+    '121': friction_acc
+    '13': noise
+    '14': gear_chatter
+    '15': chatter
+    '16': other
+    '151': mada
+    '142': dada
+"""
 
 
 @app.on_event("startup")
@@ -100,13 +244,198 @@ def _require_project(project_id: str) -> dict:
     return project
 
 
+def _same_path(left: str | Path, right: str | Path) -> bool:
+    try:
+        return Path(left).expanduser().resolve() == Path(right).expanduser().resolve()
+    except Exception:
+        return str(left) == str(right)
+
+
+def _project_config_path(line_name: str, model_name: str, old_path: str = "") -> Path:
+    directory = Path(old_path).expanduser().parent if old_path else CFG_DIR
+    return directory / config_filename(line_name, model_name)
+
+
+def _save_project_config_auto_path(payload: dict, old_path: str = "") -> dict:
+    target_path = _project_config_path(payload["line_name"], payload["model_name"], old_path)
+    if target_path.exists() and (not old_path or not _same_path(target_path, old_path)):
+        raise ValueError(f"配置 YAML 已存在，不能覆盖: {target_path}")
+    payload = save_project_config(payload, str(target_path))
+    if old_path:
+        old_p = Path(old_path).expanduser()
+        new_path = Path(str(payload.get("config_path") or "")).resolve()
+        if old_p.exists() and old_p.resolve() != new_path:
+            try:
+                old_p.unlink()
+            except OSError:
+                pass
+    return payload
+
+
 class ProjectReq(BaseModel):
     name: str = ""
     line_name: str
     model_name: str
     model_type: str = "xgb"
     config: dict = {}
-    config_path: str = ""   # 可在界面修改配置路径；变化时重命名/迁移 yaml
+    config_path: str = ""
+
+
+class LabelRuleItem(BaseModel):
+    key: str = ""
+    id: int | None = None
+    name: str = ""
+    parent: str = ""
+    alias: list[str] = Field(default_factory=list)
+    note: str = ""
+
+
+class LabelRulesReq(BaseModel):
+    results: list[LabelRuleItem] = Field(default_factory=list)
+    reasons: list[LabelRuleItem] = Field(default_factory=list)
+    meta: dict = Field(default_factory=dict)
+
+
+def _read_label_rules() -> dict:
+    try:
+        data = yaml.safe_load(LABEL_RULES_PATH.read_text(encoding="utf-8")) or {}
+    except FileNotFoundError:
+        data = yaml.safe_load(DEFAULT_LABEL_RULES_TEXT) or {}
+    if not isinstance(data, dict):
+        raise ValueError("label_rules.yaml 顶层必须是对象")
+    return data
+
+
+def _rules_to_rows(items: dict, *, include_parent: bool) -> list[dict]:
+    rows = []
+    for key, value in (items or {}).items():
+        raw = value if isinstance(value, dict) else {}
+        row = {
+            "key": str(key),
+            "id": raw.get("id"),
+            "name": str(raw.get("name") or ""),
+            "alias": [str(x) for x in (raw.get("alias") or [])],
+            "note": str(raw.get("note") or ""),
+        }
+        if include_parent:
+            row["parent"] = str(raw.get("parent") or "")
+        rows.append(row)
+    rows.sort(key=lambda x: (999999 if x.get("id") is None else int(x.get("id")), x["key"]))
+    return rows
+
+
+def _slug_key(text: str, prefix: str, used: set[str]) -> str:
+    import re
+
+    base = re.sub(r"[^0-9A-Za-z_]+", "_", text.strip()).strip("_").lower()
+    if not base:
+        base = prefix
+    if base[0].isdigit():
+        base = f"{prefix}_{base}"
+    key = base
+    index = 2
+    while key in used:
+        key = f"{base}_{index}"
+        index += 1
+    used.add(key)
+    return key
+
+
+def _normalize_rule_rows(rows: list[LabelRuleItem], *, include_parent: bool, key_prefix: str) -> dict:
+    used: set[str] = set()
+    explicit_ids = [int(row.id) for row in rows if row.id is not None]
+    next_id = (max(explicit_ids) + 1) if explicit_ids else 0
+    out: dict[str, dict] = {}
+    for row in rows:
+        name = row.name.strip()
+        if not name:
+            raise ValueError("标签名称不能为空")
+        key = row.key.strip()
+        if key:
+            if key in used:
+                raise ValueError(f"标签 key 重复: {key}")
+            used.add(key)
+        else:
+            key = _slug_key(name, key_prefix, used)
+        item_id = int(row.id) if row.id is not None else next_id
+        if row.id is None:
+            next_id += 1
+        item: dict[str, object] = {
+            "id": item_id,
+            "name": name,
+            "alias": [str(x).strip() for x in row.alias if str(x).strip()],
+        }
+        if include_parent:
+            parent = row.parent.strip()
+            if not parent:
+                raise ValueError(f"原因标签 {name} 缺少 parent")
+            item["parent"] = parent
+        elif row.note.strip():
+            item["note"] = row.note.strip()
+        out[key] = item
+    return out
+
+
+def _label_rules_payload() -> dict:
+    data = _read_label_rules()
+    return {
+        "path": str(LABEL_RULES_PATH),
+        "results": _rules_to_rows(data.get("results") if isinstance(data.get("results"), dict) else {}, include_parent=False),
+        "reasons": _rules_to_rows(data.get("reasons") if isinstance(data.get("reasons"), dict) else {}, include_parent=True),
+        "meta": data.get("meta") if isinstance(data.get("meta"), dict) else {},
+    }
+
+
+def _write_label_rules(payload: dict) -> None:
+    LABEL_RULES_PATH.parent.mkdir(parents=True, exist_ok=True)
+    LABEL_RULES_PATH.write_text(
+        yaml.safe_dump(payload, allow_unicode=True, sort_keys=False),
+        encoding="utf-8",
+    )
+
+
+def _database_paths_from_root(data_root_text: str) -> dict[str, str]:
+    if not str(data_root_text or "").strip():
+        raise ValueError("请先选择数据库根目录 data_root")
+    data_root = Path(str(data_root_text or "")).expanduser()
+    metadata = data_root / "metadata"
+    return {
+        "data_root": str(data_root),
+        "label_records_db_path": str(metadata / "label_records.db"),
+        "manifest_path": str(metadata / "tdms_manifest.csv"),
+        "tdms_root": str(data_root / "factory_raw"),
+    }
+
+
+def _distribution_overview_from_paths(paths: dict[str, str], *, with_models: bool) -> dict:
+    distribution = database_distribution(paths["label_records_db_path"], paths["manifest_path"])
+    if with_models:
+        return {
+            "xlsx_path": str(_model_xlsx_path_from_manifest(Path(paths["manifest_path"]))),
+            "line_rows": [
+                {
+                    "line": row.get("line", ""),
+                    "models": copy.deepcopy(row.get("models", [])),
+                }
+                for row in distribution.get("line_rows", [])
+            ],
+            "total": copy.deepcopy(distribution.get("total", {})),
+            "filter_rule": distribution.get("filter_rule", ""),
+        }
+    line_rows = []
+    for row in distribution.get("line_rows", []):
+        line_rows.append(
+            {
+                key: copy.deepcopy(value)
+                for key, value in row.items()
+                if key != "models"
+            }
+        )
+    return {
+        "line_rows": line_rows,
+        "total": copy.deepcopy(distribution.get("total", {})),
+        "filter_rule": distribution.get("filter_rule", ""),
+    }
 
 
 @app.get("/api/options")
@@ -122,6 +451,46 @@ def api_options():
         for method_id, name in AUGMENTATION_METHODS.items()
     ]
     return options
+
+
+@app.get("/api/label-rules")
+def api_label_rules():
+    try:
+        return _label_rules_payload()
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.put("/api/label-rules")
+def api_save_label_rules(req: LabelRulesReq):
+    try:
+        result_keys = {row.key.strip() for row in req.results if row.key.strip()}
+        payload = {
+            "results": _normalize_rule_rows(req.results, include_parent=False, key_prefix="result"),
+            "reasons": _normalize_rule_rows(req.reasons, include_parent=True, key_prefix="reason"),
+            "meta": req.meta or {},
+        }
+        invalid_parents = [
+            f"{key}:{value.get('parent')}"
+            for key, value in payload["reasons"].items()
+            if str(value.get("parent") or "") not in result_keys and str(value.get("parent") or "") not in payload["results"]
+        ]
+        if invalid_parents:
+            raise ValueError("原因标签 parent 不存在: " + ", ".join(invalid_parents))
+        _write_label_rules(payload)
+        return _label_rules_payload()
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/api/label-rules/restore-default")
+def api_restore_label_rules():
+    try:
+        payload = yaml.safe_load(DEFAULT_LABEL_RULES_TEXT) or {}
+        _write_label_rules(payload)
+        return _label_rules_payload()
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @app.get("/api/projects")
@@ -149,27 +518,10 @@ def api_get_project(project_id: str):
 def api_update_project(project_id: str, req: ProjectReq):
     existing = _require_project(project_id)
     try:
-        old_path = str(existing.get("config_path") or "")
-        desired = str(req.config_path or "").strip()
-        # 用户在界面改了配置路径 → 写到新路径，并删除旧 yaml（迁移/重命名）。
-        if desired and (not old_path or Path(desired).expanduser().resolve() != Path(old_path).expanduser().resolve()):
-            payload = save_project_config(
-                normalize_project_payload(req.model_dump()),
-                str(Path(desired).expanduser()),
-            )
-            new_path = Path(str(payload.get("config_path") or "")).resolve()
-            if old_path:
-                old_p = Path(old_path).expanduser()
-                if old_p.exists() and old_p.resolve() != new_path:
-                    try:
-                        old_p.unlink()
-                    except OSError:
-                        pass
-        else:
-            payload = save_project_config(
-                normalize_project_payload(req.model_dump()),
-                old_path,
-            )
+        payload = _save_project_config_auto_path(
+            normalize_project_payload(req.model_dump()),
+            str(existing.get("config_path") or ""),
+        )
         return {"project": store.update_project(project_id, payload)}
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -232,7 +584,7 @@ def api_update_yaml(project_id: str, req: YamlReq):
                 "config": config,
             }
         )
-        payload = save_project_config(payload, str(project.get("config_path") or ""))
+        payload = _save_project_config_auto_path(payload, str(project.get("config_path") or ""))
         return {"project": store.update_project(project_id, payload), "yaml": dump_yaml(payload["config"])}
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -280,6 +632,8 @@ def api_training_data_options(project_id: str):
 
 class DatabaseActionReq(BaseModel):
     action: str
+    update_kind: str = ""
+    label_source_type: str = "none"
     source_folder: str = ""
     label_csvs: list[str] = Field(default_factory=list)
     source_label_db: str = ""
@@ -290,6 +644,344 @@ class DatabaseActionReq(BaseModel):
     line: str = ""
     file_mode: str = "manual"
     workers: int = 0
+
+
+class DatabasePrecheckReq(BaseModel):
+    action: str = ""
+    update_kind: str = ""
+    label_source_type: str = "none"
+    data_root: str = ""
+    source_folder: str = ""
+    label_csvs: list[str] = Field(default_factory=list)
+    source_label_db: str = ""
+    label_records_db_path: str = ""
+    tdms_root: str = ""
+    storage_root: str = "factory_raw"
+    line: str = ""
+    file_mode: str = "manual"
+
+
+def _format_bytes(num_bytes: int) -> str:
+    value = float(max(0, int(num_bytes)))
+    units = ["B", "KB", "MB", "GB", "TB", "PB"]
+    idx = 0
+    while value >= 1024 and idx < len(units) - 1:
+        value /= 1024
+        idx += 1
+    return f"{value:.1f} {units[idx]}"
+
+
+def _path_inside(child: Path, parent: Path) -> bool:
+    try:
+        child.expanduser().resolve().relative_to(parent.expanduser().resolve())
+        return True
+    except Exception:
+        return False
+
+
+def _read_csv_preview_rows(path: Path, limit: int = 5000) -> tuple[list[dict[str, str]], list[str]]:
+    for encoding in ("utf-8-sig", "utf-8", "gb18030", "gbk"):
+        try:
+            with path.open("r", encoding=encoding, newline="", errors="replace") as stream:
+                reader = csv.DictReader(stream)
+                rows = []
+                for idx, row in enumerate(reader):
+                    if idx >= limit:
+                        break
+                    rows.append(dict(row))
+                return rows, list(reader.fieldnames or [])
+        except UnicodeDecodeError:
+            continue
+    raise UnicodeError(f"无法识别 CSV 编码: {path}")
+
+
+def _scan_source_folder(source_folder: str, *, data_root: Path, storage_root: str) -> dict:
+    source_text = str(source_folder or "").strip()
+    empty = {
+        "path": source_text,
+        "exists": False,
+        "tdms_count": 0,
+        "tdms_zst_count": 0,
+        "raw_tdms_count": 0,
+        "need_compress_count": 0,
+        "total_size_bytes": 0,
+        "total_size_text": "0.0 B",
+        "line_counts": [],
+        "inside_factory_raw": False,
+        "recommended_file_mode": "",
+    }
+    if not source_text:
+        return empty
+    source = Path(source_text).expanduser()
+    if not source.is_dir():
+        return empty
+    factory_root = data_root / storage_root
+    files = sorted(iter_tdms_files(source))
+    line_counter: Counter[str] = Counter()
+    total_size = 0
+    raw_count = 0
+    zst_count = 0
+    for path in files:
+        try:
+            total_size += int(path.stat().st_size)
+        except Exception:
+            pass
+        if is_compressed_tdms_path(path):
+            zst_count += 1
+        if is_uncompressed_tdms_path(path):
+            raw_count += 1
+        try:
+            relative = path.resolve().relative_to(source.resolve())
+            line = relative.parts[0] if relative.parts else ""
+        except Exception:
+            line = ""
+        if line:
+            line_counter[line] += 1
+    inside = _path_inside(source, factory_root)
+    return {
+        **empty,
+        "exists": True,
+        "tdms_count": len(files),
+        "tdms_zst_count": zst_count,
+        "raw_tdms_count": raw_count,
+        "need_compress_count": raw_count,
+        "total_size_bytes": total_size,
+        "total_size_text": _format_bytes(total_size),
+        "line_counts": [{"line": line, "count": int(count)} for line, count in line_counter.most_common()],
+        "inside_factory_raw": inside,
+        "recommended_file_mode": "manual" if inside else "copy",
+    }
+
+
+def _db_label_preview(path: Path) -> dict:
+    if not path.is_file():
+        return {"exists": False, "label_count": 0, "distribution": []}
+    try:
+        with sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro", uri=True) as con:
+            label_count = int(con.execute("SELECT COUNT(*) FROM label_events").fetchone()[0])
+            distribution = [
+                {"label": str(label or "未填写"), "count": int(count)}
+                for label, count in con.execute(
+                    """
+                    SELECT COALESCE(NULLIF(reason_name, ''), NULLIF(reason_key, ''), NULLIF(result_name, ''), '未填写'), COUNT(*)
+                    FROM label_events
+                    WHERE status='confirmed'
+                    GROUP BY 1 ORDER BY COUNT(*) DESC LIMIT 20
+                    """
+                )
+            ]
+        return {"exists": True, "label_count": label_count, "distribution": distribution}
+    except Exception as exc:
+        return {"exists": True, "label_count": 0, "distribution": [], "error": str(exc)}
+
+
+def _csv_label_preview(paths: list[str]) -> dict:
+    distribution: Counter[str] = Counter()
+    total_rows = 0
+    sample_like = 0
+    files = []
+    for item in paths:
+        path = Path(str(item or "").strip()).expanduser()
+        if not str(item or "").strip():
+            continue
+        report = {"path": str(path), "exists": path.is_file(), "rows": 0, "format": "unknown"}
+        if path.is_file():
+            try:
+                rows, headers = _read_csv_preview_rows(path)
+                report["rows"] = len(rows)
+                header_set = set(headers)
+                internal_required = {
+                    "view_name", "line", "sn", "sample_id", "result_key", "result_id",
+                    "result_name", "reason_key", "reason_id", "reason_name",
+                    "reason_confidence", "label_version", "note", "timestamp", "source",
+                }
+                if internal_required.issubset(header_set):
+                    report["format"] = "internal_label_event"
+                    for row in rows:
+                        label = str(
+                            row.get("reason_name")
+                            or row.get("reason_key")
+                            or row.get("result_name")
+                            or row.get("result_key")
+                            or "未填写"
+                        ).strip()
+                        distribution[label] += 1
+                    sample_like += len(rows)
+                elif {"sn", "sample_id"}.issubset(header_set):
+                    report["format"] = "sample_view_like"
+                    for row in rows:
+                        label = str(
+                            row.get("reason_name")
+                            or row.get("reason_key")
+                            or row.get("result_name")
+                            or row.get("result_key")
+                            or "未填写"
+                        ).strip()
+                        distribution[label] += 1
+                    sample_like += len(rows)
+                else:
+                    label_cols = [name for name in headers if name.startswith("label_")]
+                    report["format"] = "employee_operator_wide" if label_cols else "wide"
+                    for row in rows:
+                        for name in label_cols:
+                            label = str(row.get(name) or "").strip()
+                            if label:
+                                distribution[label] += 1
+                                sample_like += 1
+                total_rows += len(rows)
+            except Exception as exc:
+                report["error"] = str(exc)
+        files.append(report)
+    return {
+        "exists": any(item["exists"] for item in files),
+        "label_count": int(sum(distribution.values()) or sample_like or total_rows),
+        "matched_tdms_count": None,
+        "unmatched_count": None,
+        "distribution": [{"label": key, "count": int(value)} for key, value in distribution.most_common(20)],
+        "files": files,
+    }
+
+
+def _database_status(paths: dict[str, str]) -> dict:
+    db_path = Path(paths["label_records_db_path"]).expanduser()
+    manifest_path = Path(paths["manifest_path"]).expanduser()
+    tdms_root = Path(paths["tdms_root"]).expanduser()
+    label_rules_ok = False
+    try:
+        rules = _read_label_rules()
+        label_rules_ok = isinstance(rules.get("results"), dict) and isinstance(rules.get("reasons"), dict)
+    except Exception:
+        label_rules_ok = False
+    sampling_total = 0
+    sampling_missing = 0
+    if db_path.is_file():
+        try:
+            with sqlite3.connect(f"{db_path.resolve().as_uri()}?mode=ro", uri=True) as con:
+                sampling_total = int(con.execute("SELECT COUNT(*) FROM samples WHERE is_active=1").fetchone()[0])
+                sampling_missing = int(
+                    con.execute(
+                        "SELECT COUNT(*) FROM samples WHERE is_active=1 AND (sampling_rate IS NULL OR sampling_rate='')"
+                    ).fetchone()[0]
+                )
+        except Exception:
+            pass
+    sampling_complete = sampling_total > 0 and sampling_missing == 0
+    return {
+        "db_exists": db_path.is_file(),
+        "manifest_exists": manifest_path.is_file(),
+        "factory_raw_exists": tdms_root.is_dir(),
+        "label_rules_ok": label_rules_ok,
+        "sampling_total": sampling_total,
+        "sampling_missing": sampling_missing,
+        "sampling_complete": sampling_complete,
+        "sampling_rate_text": f"{sampling_total - sampling_missing}/{sampling_total}" if sampling_total else "0/0",
+    }
+
+
+def _precheck_database(req: DatabasePrecheckReq) -> dict:
+    data_root_text = str(req.data_root or "").strip()
+    if not data_root_text:
+        raise ValueError("数据库目录 data_root 不能为空")
+    data_root = Path(data_root_text).expanduser()
+    storage_root = str(req.storage_root or "factory_raw").strip().strip("/") or "factory_raw"
+    paths = _database_paths_from_root(str(data_root))
+    source_scan = _scan_source_folder(req.source_folder, data_root=data_root, storage_root=storage_root)
+    label_source = str(req.label_source_type or "none").strip().lower()
+    csv_paths = [str(path).strip() for path in req.label_csvs if str(path).strip()]
+    if label_source == "db":
+        label_preview = _db_label_preview(Path(req.source_label_db).expanduser())
+    elif label_source in {"internal", "forvia"}:
+        label_preview = _csv_label_preview(csv_paths)
+    else:
+        label_preview = {"exists": True, "label_count": 0, "distribution": [], "files": []}
+    status = _database_status(paths)
+    warnings = []
+    errors = []
+    action = str(req.action or "").strip().lower()
+    update_kind = str(req.update_kind or "").strip().lower()
+    if action == "update" and update_kind == "repair":
+        repair_scan_root = data_root / storage_root
+        line = str(req.line or "").strip()
+        if line and (repair_scan_root / line).is_dir():
+            repair_scan_root = repair_scan_root / line
+        source_scan = _scan_source_folder(
+            str(repair_scan_root),
+            data_root=data_root,
+            storage_root=storage_root,
+        )
+    if action == "create":
+        if not source_scan["exists"]:
+            errors.append("源文件夹不存在")
+        elif not source_scan["tdms_count"]:
+            errors.append("源文件夹中没有 TDMS / TDMS.ZST")
+        if status["db_exists"] or status["manifest_exists"]:
+            errors.append("新建数据库目标 metadata 已存在，请改用更新数据库或选择新的 data_root")
+        if source_scan["exists"] and not source_scan["inside_factory_raw"]:
+            warnings.append("源文件夹不在 data_root/factory_raw 下，执行前需要选择复制或移动")
+        if source_scan["need_compress_count"]:
+            warnings.append(f"检测到 {source_scan['need_compress_count']} 个 .tdms，注册流程会升级为 .tdms.zst")
+    elif action == "update":
+        if not status["db_exists"]:
+            errors.append("更新数据库需要已有 label_records.db")
+        if not status["factory_raw_exists"]:
+            errors.append("TDMS 根目录不存在")
+        if update_kind == "repair" and source_scan["need_compress_count"]:
+            warnings.append(f"修复数据库路径会先压缩 {source_scan['need_compress_count']} 个 .tdms 为 .tdms.zst")
+        if update_kind == "append" and not source_scan["tdms_count"] and label_source == "none":
+            errors.append("追加 TDMS / 标签时，需要提供新增 TDMS 文件夹或标签来源")
+    if label_source in {"internal", "forvia"} and not csv_paths:
+        errors.append("选择内部表或 Forvia 表作为标签来源时，需要添加标签 CSV")
+    if label_source == "db" and not str(req.source_label_db or "").strip():
+        errors.append("选择 DB 作为标签来源时，需要选择标签 DB")
+    return {
+        "ok": not errors,
+        "errors": errors,
+        "warnings": warnings,
+        "paths": paths,
+        "source_scan": source_scan,
+        "label_preview": label_preview,
+        "status": status,
+    }
+
+
+@app.post("/api/database/precheck")
+def api_database_precheck(req: DatabasePrecheckReq):
+    try:
+        return _precheck_database(req)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.get("/api/database/paths")
+def api_database_paths(data_root: str):
+    try:
+        return _database_paths_from_root(data_root)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.get("/api/database/line-reference-overview")
+def api_database_line_reference_overview(data_root: str):
+    try:
+        return _distribution_overview_from_paths(_database_paths_from_root(data_root), with_models=False)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.get("/api/database/xlsx-model-overview")
+def api_database_xlsx_model_overview(data_root: str):
+    try:
+        return _distribution_overview_from_paths(_database_paths_from_root(data_root), with_models=True)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/api/database-actions")
+def api_global_database_action(req: DatabaseActionReq):
+    try:
+        return {"job": database_jobs.start_global(req.model_dump())}
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @app.post("/api/projects/{project_id}/database-actions")

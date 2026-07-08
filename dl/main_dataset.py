@@ -2,8 +2,8 @@
 """DL 数据集生成入口（dl/ 包内）。
 
 完整流程（两步，输出均在 DL 专属目录）：
-  Step 1  生成 sample_view.csv  → results/{line}_{model}_{dl.model_type}/dl_dataset_csv/
-  Step 2  提取 mel 窗口特征     → 同一目录下的 dl_mel_spec_batch_*.pkl
+  Step 1  生成 sample_view.csv  → results/{line}_{model}/dl_dataset_csv/
+  Step 2  提取 DL 特征          → 同一目录下的 dl_feature_batch_*.pkl
 
 用法：
   python dl/main_dataset.py --config cfg/epump2_general_tcn.yaml
