@@ -18,6 +18,9 @@ on:
     tags:
       - "v*"
 
+permissions:
+  contents: write                  # 允许工作流创建/更新 Release（发布 exe zip）
+
 jobs:
   build:
     runs-on: windows-latest        # GitHub 托管的 Windows runner，本身就是 x64
