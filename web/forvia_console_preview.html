@@ -5,44 +5,53 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Forvia AI2.0 Console Preview</title>
   <style>
-    :root { --bg:#f5f7fb; --card:#fff; --bd:#dfe4ec; --fg:#172033; --mut:#667085; --acc:#1769e0; --nav:#08111f; --nav2:#0d1b2f; --cyan:#38bdf8; }
+    :root { --bg:#050b14; --card:#0b1728; --bd:#24405c; --fg:#e8f2ff; --mut:#8fa7c0; --acc:#38a8ff; --cyan:#5de4ff; --nav:#06101d; --nav2:#0b1c31; }
     * { box-sizing:border-box; }
     body { margin:0; color:var(--fg); background:var(--bg); font-family:system-ui,-apple-system,"Segoe UI","PingFang SC",sans-serif; }
     .shell { min-height:100vh; display:flex; --side-w:240px; }
-    .sidebar { width:var(--side-w); flex:0 0 var(--side-w); min-height:100vh; padding:22px 16px; color:#e5eefc; background:
-      linear-gradient(180deg, rgba(56,189,248,.12), transparent 30%),
-      radial-gradient(circle at 30% 0%, rgba(37,99,235,.35), transparent 32%),
-      linear-gradient(180deg, var(--nav), var(--nav2)); border-right:1px solid rgba(148,163,184,.24); }
+    .sidebar { width:var(--side-w); flex:0 0 var(--side-w); min-height:100vh; padding:22px 16px; color:#e5eefc; background:var(--nav); border-right:1px solid #18334d; }
     .brand { padding:4px 4px 22px; border-bottom:1px solid rgba(148,163,184,.22); margin-bottom:18px; }
     .brand-title { font-size:22px; font-weight:850; line-height:1.15; }
     .brand-company { margin-top:10px; font-size:15px; color:#bfdbfe; font-weight:700; }
     .brand-en { margin-top:5px; font-size:11px; color:#7dd3fc; text-transform:uppercase; letter-spacing:.08em; line-height:1.35; }
     .nav { display:flex; flex-direction:column; gap:10px; }
-    .nav button { width:100%; display:flex; align-items:center; gap:10px; padding:13px 14px; border:1px solid rgba(148,163,184,.24); border-radius:10px; background:rgba(15,23,42,.42); color:#dbeafe; cursor:pointer; font-size:15px; font-weight:750; text-align:left; }
+    .nav button { width:100%; display:flex; align-items:center; gap:10px; padding:13px 14px; border:1px solid #1d3b58; border-radius:8px; background:#0a192b; color:#dbeafe; cursor:pointer; font-size:15px; font-weight:750; text-align:left; }
     .nav .child { margin-left:18px; width:calc(100% - 18px); padding:9px 12px; font-size:13px; color:#bfdbfe; background:rgba(15,23,42,.28); }
-    .nav button:hover { border-color:rgba(56,189,248,.65); background:rgba(30,41,59,.72); }
-    .nav button.active { background:linear-gradient(90deg,#2563eb,#0891b2); color:#fff; border-color:rgba(125,211,252,.75); box-shadow:0 10px 28px rgba(37,99,235,.28); }
+    .nav button:hover { border-color:var(--cyan); background:#102b45; }
+    .nav button.active { background:#0d5ca5; color:#fff; border-color:var(--cyan); box-shadow:0 0 22px rgba(56,168,255,.25); }
     .content { flex:1; min-width:0; display:flex; flex-direction:column; }
-    .workspace { flex:1; min-height:100vh; padding:22px; }
-    .home { min-height:calc(100vh - 44px); border:1px solid var(--bd); border-radius:12px; background:#fff; box-shadow:0 2px 8px rgba(20,40,80,.035); overflow:hidden; }
-    .home-inner { width:min(1420px,100%); margin:auto; padding:30px; }
-    .home-head { display:flex; align-items:flex-start; justify-content:space-between; gap:24px; padding-bottom:24px; border-bottom:1px solid var(--bd); }
-    .home-kicker { color:var(--acc); font-size:12px; font-weight:850; letter-spacing:.12em; text-transform:uppercase; }
-    .home h2 { margin:7px 0 8px; font-size:34px; letter-spacing:0; }
-    .home p { margin:0; color:var(--mut); line-height:1.65; font-size:15px; }
-    .home-meta { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
-    .home-signal { position:relative; width:76px; height:76px; flex:0 0 76px; border-radius:50%; background:radial-gradient(circle at center,rgba(56,189,248,.18),transparent 58%); }
+    .workspace { flex:1; min-height:100vh; padding:18px; }
+    .home { position:relative; min-height:calc(100vh - 36px); border:1px solid #1e4565; border-radius:6px; background:#071321; overflow:hidden; }
+    .home::before, .home::after { content:""; position:absolute; pointer-events:none; opacity:.45; }
+    .home::before { inset:28px; border:1px solid #10283e; }
+    .home::after { top:0; right:14%; width:1px; height:100%; background:#1b5577; box-shadow:190px 0 #163e59,380px 0 #163e59; }
+    .home-inner { position:relative; z-index:1; width:min(1420px,100%); min-height:calc(100vh - 36px); margin:auto; padding:clamp(34px,7vw,100px) clamp(28px,7vw,120px); display:flex; flex-direction:column; justify-content:center; }
+    .home-head { display:grid; grid-template-columns:minmax(0,1.1fr) minmax(280px,.9fr); align-items:center; gap:clamp(30px,8vw,150px); }
+    .home-kicker { color:var(--cyan); font-size:clamp(12px,1.2vw,16px); font-weight:850; letter-spacing:.2em; text-transform:uppercase; }
+    .home h2 { margin:16px 0 10px; font-size:clamp(42px,6vw,86px); line-height:1; letter-spacing:.02em; text-shadow:0 0 30px rgba(56,168,255,.25); }
+    .home-company { color:#d7ebff; font-size:clamp(19px,2vw,28px); font-weight:800; letter-spacing:.12em; }
+    .home p { max-width:620px; margin:24px 0 0; color:#9fb8d2; line-height:1.8; font-size:clamp(14px,1.3vw,18px); }
+    .home-signal { position:relative; justify-self:center; width:clamp(220px,25vw,360px); height:clamp(220px,25vw,360px); border:1px solid #1b587c; border-radius:50%; box-shadow:0 0 0 18px rgba(18,74,106,.18),0 0 55px rgba(29,155,221,.25); }
+    .home-signal::before, .home-signal::after { content:""; position:absolute; inset:12%; border:1px solid #246c90; border-radius:50%; }
+    .home-signal::after { inset:28%; border-color:#43c8e7; }
     .ai-stage { position:relative; width:100%; height:100%; }
-    .ai-core { position:absolute; inset:25px; display:flex; align-items:center; justify-content:center; border-radius:50%; color:#fff; font-weight:900; font-size:11px; background:linear-gradient(135deg,#1769e0,#0891b2); box-shadow:0 8px 18px rgba(23,105,224,.25); }
-    .ai-orbit { position:absolute; inset:5px; border:1px solid rgba(23,105,224,.2); border-radius:50%; animation:spin 18s linear infinite; }
-    .ai-orbit:nth-child(2) { inset:15px; animation-duration:13s; animation-direction:reverse; border-color:rgba(8,145,178,.28); }
-    .ai-orbit::before { content:""; position:absolute; top:7px; left:11px; width:5px; height:5px; border-radius:50%; background:var(--cyan); box-shadow:0 0 10px rgba(56,189,248,.9); }
-    .ai-scan { position:absolute; left:50%; top:0; bottom:0; width:1px; background:linear-gradient(180deg,transparent,rgba(23,105,224,.45),transparent); animation:sweep 3.5s ease-in-out infinite; transform-origin:bottom center; }
-    .pill { border:1px solid var(--bd); border-radius:999px; padding:6px 11px; background:#f8fbff; color:var(--mut); font-size:12px; }
+    .ai-core { position:absolute; inset:40%; display:flex; align-items:center; justify-content:center; border:1px solid var(--cyan); border-radius:50%; color:#fff; font-weight:900; font-size:clamp(11px,1.3vw,17px); background:#0d5ca5; box-shadow:0 0 28px rgba(56,168,255,.7); }
+    .ai-orbit { position:absolute; inset:5%; border:1px solid #2d9ac2; border-radius:50%; animation:spin 18s linear infinite; }
+    .ai-orbit:nth-child(2) { inset:20%; animation-duration:13s; animation-direction:reverse; border-color:#5de4ff; transform:rotate(55deg) skewX(18deg); }
+    .ai-orbit::before { content:""; position:absolute; top:4%; left:12%; width:8px; height:8px; border:1px solid #fff; border-radius:50%; background:var(--cyan); box-shadow:0 0 16px var(--cyan); }
+    .ai-scan { position:absolute; left:50%; top:4%; bottom:4%; width:1px; background:#62e5ff; animation:sweep 3.5s ease-in-out infinite; transform-origin:bottom center; box-shadow:0 0 10px var(--cyan); }
+    .home-meta { display:flex; gap:10px; flex-wrap:wrap; margin-top:30px; }
+    .pill { border:1px solid #2b5572; border-radius:3px; padding:7px 12px; background:#0b2135; color:#a9c5de; font-size:12px; }
+    .home-modules { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin-top:clamp(46px,9vw,110px); }
+    .home-module { min-height:118px; display:flex; flex-direction:column; justify-content:space-between; padding:18px; border:1px solid #295678; border-radius:4px; background:#0b1d30; color:#e8f2ff; text-align:left; cursor:pointer; transition:transform .2s,border-color .2s,background .2s; }
+    .home-module:hover { transform:translateY(-4px); border-color:var(--cyan); background:#10304a; }
+    .home-module-title { display:flex; align-items:center; gap:10px; font-size:17px; font-weight:850; }
+    .home-module-no { color:var(--cyan); font-family:ui-monospace,monospace; font-size:12px; }
+    .home-module-desc { margin-top:14px; color:#8faec8; font-size:12px; line-height:1.5; }
     @keyframes spin { to { transform:rotate(360deg); } }
     @keyframes sweep { 0%,100% { transform:rotate(-38deg); opacity:.35; } 50% { transform:rotate(38deg); opacity:1; } }
-    @media(max-width:980px){ .home-head { flex-direction:column; } .home-meta { justify-content:flex-start; } }
-    @media(max-width:680px){ .home-inner { padding:20px; } }
+    @media(max-width:980px){ .home-head { grid-template-columns:1fr; } .home-signal { justify-self:start; } }
+    @media(max-width:680px){ .home-inner { padding:32px 22px; } .home-modules { grid-template-columns:repeat(2,minmax(0,1fr)); } }
   </style>
 </head>
 <body>
@@ -69,8 +78,10 @@ function moduleHref(id){
 
 function showHome(){
   workspace.innerHTML = `<section class="home"><div class="home-inner">
-    <div class="home-head"><div><div class="home-kicker">Industrial Acoustic AI Console</div><h2>Forvia AI 2.0</h2><p>按产线管理数据库、标注、训练和模型推理。选择对应模块直接进入工作流程。</p></div><div style="display:flex;align-items:center;gap:16px"><div class="home-signal"><div class="ai-stage" aria-hidden="true"><div class="ai-orbit"></div><div class="ai-orbit"></div><div class="ai-scan"></div><div class="ai-core">AI 2.0</div></div></div><div class="home-meta"><span class="pill">数据库 · 数据来源</span><span class="pill">Label · 标签状态</span><span class="pill">Train · 模型训练</span><span class="pill">Inference · 预测导出</span></div></div></div>
+    <div class="home-head"><div><div class="home-kicker">Industrial Acoustic AI Console</div><h2>Forvia AI 2.0</h2><div class="home-company">上海帆古自动化</div><p>工业声学数据、智能标注、模型训练与推理的一体化工作台。</p><div class="home-meta"><span class="pill">ACOUSTIC SIGNAL</span><span class="pill">AI RECOGNITION</span><span class="pill">MODEL PIPELINE</span></div></div><div class="home-signal"><div class="ai-stage" aria-hidden="true"><div class="ai-orbit"></div><div class="ai-orbit"></div><div class="ai-scan"></div><div class="ai-core">AI 2.0</div></div></div></div>
+    <div class="home-modules">${modules.map((m,index) => `<button class="home-module" data-home-module="${m.id}"><span class="home-module-title"><span class="home-module-no">0${index+1}</span><span>${m.icon} ${m.title}</span></span><span class="home-module-desc">${m.desc}</span></button>`).join('')}</div>
   </div></section>`;
+  workspace.querySelectorAll('[data-home-module]').forEach(btn => btn.addEventListener('click', () => launchUrl(moduleHref(btn.dataset.homeModule))));
 }
 function launchUrl(url){ window.location.href = url; }
 function renderNav(){
