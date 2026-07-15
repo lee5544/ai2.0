@@ -74,7 +74,8 @@ python -m uvicorn forvia_train_v2.backend.main:app --reload --port 8001
 
 - `forvia_label_v2/`：数据库、标注和高级频谱分析
 - `forvia_train_v2/`：数据集、特征、训练和结果分析
-- `forvia_console_preview.html`：统一 Console 首页
+- `web/forvia_console_preview.html`：统一 Console 首页
+- `web/forvia_console_modules.js`：Console 模块入口配置
 - `cfg/`：全局规则和模型配置
 - `install_forvia_dependencies.sh` / `.bat`：本地依赖安装脚本
 

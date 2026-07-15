@@ -29,8 +29,7 @@ general_cfgs = {
     "etilt1_general.yaml": "etilt1_general.yaml",
 }
 for item in (
-    _file(os.path.join(REPO, "forvia_console_preview.html"), "."),
-    _file(os.path.join(REPO, "forvia_console_modules.js"), "."),
+    _dir(os.path.join(REPO, "web"), "web"),
     _dir(os.path.join(REPO, "forvia_label_v2", "backend"), "forvia_label_v2/backend"),
     _dir(os.path.join(REPO, "forvia_train_v2", "backend"), "forvia_train_v2/backend"),
     _dir(os.path.join(REPO, "forvia_label_v2", "frontend"), "forvia_label_v2/frontend"),
