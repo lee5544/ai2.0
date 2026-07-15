@@ -49,11 +49,11 @@ echo $! > "$LOG_DIR/label_v2.pid"
   > "$LOG_DIR/train_v2.log" 2>&1 &
 echo $! > "$LOG_DIR/train_v2.pid"
 
-HTML="$ROOT/forvia_console_preview.html"
+CONSOLE_URL="http://127.0.0.1:8012/console"
 if command -v open >/dev/null 2>&1; then
-  open "$HTML"
+  open "$CONSOLE_URL"
 else
-  echo "打开入口文件: $HTML"
+  echo "打开入口: $CONSOLE_URL"
 fi
 
 echo "Forvia AI2.0 Console 已启动"

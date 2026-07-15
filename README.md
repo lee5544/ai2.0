@@ -49,7 +49,7 @@ conda activate <你的环境名>
 - Label v2：`http://127.0.0.1:8012/`
 - Train v2：`http://127.0.0.1:8001/`
 
-脚本会同时启动 Label v2、Train v2 和 Console 首页，并在 macOS 上自动打开首页。
+脚本会同时启动 Label v2、Train v2 和 Console 首页，并在 macOS 上自动打开首页。首页由 Label 服务提供，避免直接打开本地 HTML 导致模块跳转失效。
 
 ### Windows
 

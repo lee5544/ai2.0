@@ -84,8 +84,7 @@ const moduleById = Object.fromEntries(modules.map(m => [m.id, m]));
 let homeRows = [];
 
 function moduleHref(id){
-  const url = moduleById[id]?.url || '#';
-  return url.replace('127.0.0.1:8012', window.location.host);
+  return moduleById[id]?.url || '#';
 }
 
 function escapeHtml(value){
