@@ -47,6 +47,7 @@ Thumbs.db
 
 # ---- 本地维护脚本（不随项目同步） ----
 scripts/
+**/scripts/
 
 # ---- 本地样例 / 临时分析文件 ----
 different_label_sample_view.csv

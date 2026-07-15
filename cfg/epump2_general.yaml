@@ -3,30 +3,21 @@ model:
   model_name: general
 results_path: ./results/
 database:
-  label_records_db_path: /Volumes/18555440521/fault/data_root/metadata/label_records.db
-  tdms_root: /Volumes/18555440521/fault/data_root/factory_raw
-  manifest_path: /Volumes/18555440521/fault/data_root/metadata/tdms_manifest.csv
-  configured: true
-  last_operation: refresh
-data_root: /Volumes/18555440521/fault/data_root
-label_records_db_path: /Volumes/18555440521/fault/data_root/metadata/label_records.db
+  label_records_db_path: ""
+  tdms_root: ""
+  manifest_path: ""
+  configured: false
+  last_operation: ''
+data_root: ""
+label_records_db_path: ""
 data:
-  key_sns:
-  - path: /Volumes/18555440521/fault/data_root/factory_raw/epump2/prototype/
-    line: epump2
-  - path: /Volumes/18555440521/fault/data_root/factory_raw/epump3/prototype/
-    line: epump3
-  - path: /Volumes/18555440521/fault/data_root/factory_raw/epump4/prototype/
-    line: epump4
-  - path: /Volumes/18555440521/fault/data_root/factory_raw/etilt1/prototype/
-    line: etilt1
   line:
   - epump2
 dataset:
   num_workers: 8
-  data_root: /Volumes/18555440521/fault/data_root
-  label_records_db_path: /Volumes/18555440521/fault/data_root/metadata/label_records.db
-  manifest_path: /Volumes/18555440521/fault/data_root/metadata/tdms_manifest.csv
+  data_root: ""
+  label_records_db_path: ""
+  manifest_path: ""
 train:
   model_type: lgb
   train_mode: normal

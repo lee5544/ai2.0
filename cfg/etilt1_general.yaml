@@ -5,11 +5,6 @@ results_path: ./results/
 feature_version: v10
 data:
   line: etilt1
-  key_sns:
-  - /Volumes/18555440521/fault/data_root/factory_raw/epump2/key_sns/
-  - /Volumes/18555440521/fault/data_root/factory_raw/epump4/key_sns/
-  - /Volumes/18555440521/fault/data_root/factory_raw/etilt1/key_sns/
-  - /Volumes/18555440521/fault/data_root/factory_raw/epump3/key_sns/
 train:
   model_type: xgb
   train_mode: normal
