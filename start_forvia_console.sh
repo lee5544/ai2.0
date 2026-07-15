@@ -35,11 +35,17 @@ done
 
 sleep 1
 
-conda run -n fault uvicorn forvia_label_v2.backend.main:app --reload --port 8012 \
+PYTHON="${FORVIA_PYTHON:-python3}"
+if ! command -v "$PYTHON" >/dev/null 2>&1; then
+  echo "错误：未找到当前 Python 环境: $PYTHON" >&2
+  exit 1
+fi
+
+"$PYTHON" -m uvicorn forvia_label_v2.backend.main:app --reload --port 8012 \
   > "$LOG_DIR/label_v2.log" 2>&1 &
 echo $! > "$LOG_DIR/label_v2.pid"
 
-conda run -n fault uvicorn forvia_train_v2.backend.main:app --reload --port 8001 \
+"$PYTHON" -m uvicorn forvia_train_v2.backend.main:app --reload --port 8001 \
   > "$LOG_DIR/train_v2.log" 2>&1 &
 echo $! > "$LOG_DIR/train_v2.pid"
 
