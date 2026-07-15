@@ -44,3 +44,19 @@ forvia_label_v2/_data.zip
 # ---- 系统 ----
 .DS_Store
 Thumbs.db
+
+# ---- 本地维护脚本（不随项目同步） ----
+scripts/
+
+# ---- 本地样例 / 临时分析文件 ----
+different_label_sample_view.csv
+epump2_v4_improvement.md
+forvia_external_folder_label.spec
+forvia_label_v2_设计方案.md
+forvia_train_v2.zip
+operator_disagreement_sample_view.csv
+run_train_20260420.sh
+sample_view.csv
+sn.csv
+test_v4_features.py
+解决方案-weak_tick识别为秒表.md
