@@ -35,9 +35,20 @@ done
 
 sleep 1
 
-PYTHON="${FORVIA_PYTHON:-python3}"
+if [[ -n "${FORVIA_PYTHON:-}" ]]; then
+  PYTHON="$FORVIA_PYTHON"
+elif [[ -n "${CONDA_PREFIX:-}" && -x "$CONDA_PREFIX/bin/python" ]]; then
+  PYTHON="$CONDA_PREFIX/bin/python"
+else
+  PYTHON="python3"
+fi
 if ! command -v "$PYTHON" >/dev/null 2>&1; then
   echo "错误：未找到当前 Python 环境: $PYTHON" >&2
+  exit 1
+fi
+if ! "$PYTHON" -c 'import uvicorn' >/dev/null 2>&1; then
+  echo "错误：当前 Python 环境没有安装 uvicorn: $($PYTHON -c 'import sys; print(sys.executable)' 2>/dev/null || echo "$PYTHON")" >&2
+  echo "请先激活自己的 Conda 环境，然后执行: ./install_forvia_dependencies.sh" >&2
   exit 1
 fi
 
@@ -49,11 +60,21 @@ echo $! > "$LOG_DIR/label_v2.pid"
   > "$LOG_DIR/train_v2.log" 2>&1 &
 echo $! > "$LOG_DIR/train_v2.pid"
 
-HTML="$ROOT/forvia_console_preview.html"
+sleep 2
+for log in label_v2 train_v2; do
+  pid_file="$LOG_DIR/$log.pid"
+  if [[ ! -s "$pid_file" ]] || ! kill -0 "$(cat "$pid_file")" 2>/dev/null; then
+    echo "错误：$log 服务启动失败，日志如下：" >&2
+    tail -40 "$LOG_DIR/$log.log" >&2 || true
+    exit 1
+  fi
+done
+
+CONSOLE_URL="http://127.0.0.1:8012/console"
 if command -v open >/dev/null 2>&1; then
-  open "$HTML"
+  open "$CONSOLE_URL"
 else
-  echo "打开入口文件: $HTML"
+  echo "打开入口: $CONSOLE_URL"
 fi
 
 echo "Forvia AI2.0 Console 已启动"

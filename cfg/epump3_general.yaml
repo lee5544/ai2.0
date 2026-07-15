@@ -3,15 +3,6 @@ model:
   model_name: general
 results_path: ./results/
 data:
-  key_sns:
-  - path: /Volumes/18555440521/fault/data_root/factory_raw/epump2/prototype
-    line: epump2
-  - path: /Volumes/18555440521/fault/data_root/factory_raw/epump3/prototype
-    line: epump3
-  - path: /Volumes/18555440521/fault/data_root/factory_raw/epump4/prototype
-    line: epump4
-  - path: /Volumes/18555440521/fault/data_root/factory_raw/etilt1/prototype
-    line: etilt1
   line:
   - epump3
 train:
@@ -94,15 +85,15 @@ train:
     random_state: 42
     n_jobs: -1
 database:
-  label_records_db_path: /Volumes/18555440521/fault/data_root/metadata/label_records.db
-  tdms_root: /Volumes/18555440521/fault/data_root/factory_raw
-  manifest_path: /Volumes/18555440521/fault/data_root/metadata/tdms_manifest.csv
-label_records_db_path: /Volumes/18555440521/fault/data_root/metadata/label_records.db
-data_root: /Volumes/18555440521/fault/data_root
+  label_records_db_path: ""
+  tdms_root: ""
+  manifest_path: ""
+label_records_db_path: ""
+data_root: ""
 dataset:
-  label_records_db_path: /Volumes/18555440521/fault/data_root/metadata/label_records.db
-  data_root: /Volumes/18555440521/fault/data_root
-  manifest_path: /Volumes/18555440521/fault/data_root/metadata/tdms_manifest.csv
+  label_records_db_path: ""
+  data_root: ""
+  manifest_path: ""
   num_workers: 8
 augmentation:
   input_folders: []

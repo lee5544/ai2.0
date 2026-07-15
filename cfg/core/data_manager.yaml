@@ -1,4 +1,4 @@
-data_root: /Volumes/18555440521/fault/data_root/
+data_root: ""
 tdms_storage_root: factory_raw
 label_records_db_path: "{data_root}/metadata/label_records.db"
 line_rules_path: "{project_root}/cfg/core/line_rules.yaml"

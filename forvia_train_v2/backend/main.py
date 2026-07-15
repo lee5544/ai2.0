@@ -1234,12 +1234,12 @@ def index():
 
 @app.get("/console")
 def console_index():
-    return FileResponse(PROJECT_ROOT / "forvia_console_preview.html")
+    return FileResponse(PROJECT_ROOT / "web" / "forvia_console_preview.html")
 
 
 @app.get("/forvia_console_modules.js")
 def console_modules():
-    return FileResponse(PROJECT_ROOT / "forvia_console_modules.js", headers={"Cache-Control": "no-store"})
+    return FileResponse(PROJECT_ROOT / "web" / "forvia_console_modules.js", headers={"Cache-Control": "no-store"})
 
 
 if FRONTEND_DIR.exists():

@@ -11,6 +11,8 @@
 
 项目不会强制使用名为 `fault` 的环境。所有命令都使用当前已激活的 Conda 环境。
 
+如果未激活 Conda 环境，启动脚本会停止并提示，不会打开一个无法连接的网页。
+
 ## 安装依赖
 
 在项目根目录执行：
@@ -49,7 +51,7 @@ conda activate <你的环境名>
 - Label v2：`http://127.0.0.1:8012/`
 - Train v2：`http://127.0.0.1:8001/`
 
-脚本会同时启动 Label v2、Train v2 和 Console 首页，并在 macOS 上自动打开首页。
+脚本会同时启动 Label v2、Train v2 和 Console 首页，并在 macOS 上自动打开首页。首页由 Label 服务提供，避免直接打开本地 HTML 导致模块跳转失效。
 
 ### Windows
 
@@ -72,8 +74,13 @@ python -m uvicorn forvia_train_v2.backend.main:app --reload --port 8001
 
 - `forvia_label_v2/`：数据库、标注和高级频谱分析
 - `forvia_train_v2/`：数据集、特征、训练和结果分析
-- `forvia_console_preview.html`：统一 Console 首页
+- `web/forvia_console_preview.html`：统一 Console 首页
+- `web/forvia_console_modules.js`：Console 模块入口配置
 - `cfg/`：全局规则和模型配置
 - `install_forvia_dependencies.sh` / `.bat`：本地依赖安装脚本
 
 数据库、TDMS、训练结果和运行日志应放在项目外部或配置的数据目录中，不提交到 Git。
+
+首次使用时进入 **配置数据库 → 打开数据库**，选择本机的 `data_root`；或者使用 **新建数据库** 创建新的数据目录。数据库路径保存在本机浏览器和本机配置中，不随 Git 同步。
+
+训练页提供四个内置模型配置：`epump2_general`、`epump3_general`、`epump4_general`、`etilt1_general`。它们只包含模型和训练参数，不包含本机数据库路径；打开项目后在“配置项目信息”中选择数据库即可。

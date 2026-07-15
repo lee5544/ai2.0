@@ -3,7 +3,13 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT"
-PYTHON="${FORVIA_PYTHON:-python3}"
+if [[ -n "${FORVIA_PYTHON:-}" ]]; then
+  PYTHON="$FORVIA_PYTHON"
+elif [[ -n "${CONDA_PREFIX:-}" && -x "$CONDA_PREFIX/bin/python" ]]; then
+  PYTHON="$CONDA_PREFIX/bin/python"
+else
+  PYTHON="python3"
+fi
 
 run_python() { "$PYTHON" "$@"; }
 
