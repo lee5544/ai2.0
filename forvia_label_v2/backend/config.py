@@ -48,7 +48,7 @@ def _disable_numba_cache_for_librosa() -> None:
 
 _disable_numba_cache_for_librosa()
 
-TYPICAL_TAG = "[[典型异音]]"
+TYPICAL_TAG = "[[prototype]]"
 
 # 与 data_manager/LabelStore.HEADER 严格一致
 LABEL_HISTORY_COLUMNS = [

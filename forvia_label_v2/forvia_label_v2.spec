@@ -75,7 +75,12 @@ a = Analysis(
     hiddenimports=hiddenimports,
     hooksconfig={},
     runtime_hooks=[],
-    excludes=["tkinter", "matplotlib", "streamlit", "torch", "tensorflow"],
+    excludes=[
+        "tkinter", "matplotlib", "streamlit", "torch", "tensorflow",
+        # Heavy optional deps pulled by pandas/librosa ecosystems; label v2 does not use them.
+        "pyarrow", "pyarrow.*", "cv2", "skimage", "statsmodels", "IPython", "jedi",
+        "azure", "azure.*", "google.cloud", "google.cloud.*", "boto3", "botocore", "s3fs", "gcsfs",
+    ],
     noarchive=False,
     optimize=0,
 )

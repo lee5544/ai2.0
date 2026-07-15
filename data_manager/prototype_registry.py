@@ -1,4 +1,4 @@
-"""原型 TDMS 注册：只归集原始文件，不生成 XLSX/WAV/PNG 副本。"""
+"""原型 TDMS 注册：只移动原始文件，不生成 XLSX/WAV/PNG 副本。"""
 from __future__ import annotations
 
 import shutil
@@ -33,7 +33,14 @@ def register_prototype(
         / source.name
     )
     destination.parent.mkdir(parents=True, exist_ok=True)
-    if destination.exists() and not overwrite:
+    if source == destination:
         return destination
-    shutil.copy2(source, destination)
+    if destination.exists() and not overwrite:
+        if source.stat().st_size == destination.stat().st_size:
+            source.unlink()
+            return destination
+        raise FileExistsError(f"Prototype 目标已存在且大小不同: {destination}")
+    if destination.exists() and overwrite:
+        destination.unlink()
+    shutil.move(str(source), str(destination))
     return destination

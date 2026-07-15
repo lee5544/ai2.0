@@ -6,95 +6,106 @@ database:
   label_records_db_path: /Volumes/18555440521/fault/data_root/metadata/label_records.db
   tdms_root: /Volumes/18555440521/fault/data_root/factory_raw
   manifest_path: /Volumes/18555440521/fault/data_root/metadata/tdms_manifest.csv
-  configured: false
+  configured: true
   last_operation: ''
+  data_root: /Volumes/18555440521/fault/data_root/
 data_root: /Volumes/18555440521/fault/data_root
 label_records_db_path: /Volumes/18555440521/fault/data_root/metadata/label_records.db
 data:
+  key_sns:
+  - path: /Volumes/18555440521/fault/data_root/factory_raw/epump4/prototype/
+    line: epump4
+  - path: /Volumes/18555440521/fault/data_root/factory_raw/epump2/prototype/
+    line: epump2
+  - path: /Volumes/18555440521/fault/data_root/factory_raw/epump3/prototype/
+    line: epump3
+  - path: /Volumes/18555440521/fault/data_root/factory_raw/etilt1/prototype/
+    line: etilt1
   line:
   - epump4
-  folders: []
-  reference: []
-  key_sns: []
 dataset:
-  batch_size: 2000
   num_workers: 8
   data_root: /Volumes/18555440521/fault/data_root
   label_records_db_path: /Volumes/18555440521/fault/data_root/metadata/label_records.db
   manifest_path: /Volumes/18555440521/fault/data_root/metadata/tdms_manifest.csv
+  tdms_root: /Volumes/18555440521/fault/data_root/factory_raw
 train:
-  model_type: xgb
+  model_type: lgb
   train_mode: normal
   split_strategy: reference_in
   seed_runs: 10
   label_mapping:
     enable: true
     auto_mlabel: true
-    extract_all_features: false
+    extract_all_features: true
     groups:
-    - weight: 1.0
-      reasons:
-      - reason: 干扰
-        sample: -1
-    - weight: 1.0
+    - weight: 1
       reasons:
       - reason: 正常
+        sample: 5000
+      - reason: 干扰
         sample: -1
-    - weight: 1.0
-      reasons:
       - reason: 边界
         sample: -1
-    - weight: 1.0
-      reasons:
-      - reason: 传感器错误
-        sample: -1
-    - weight: 1.0
-      reasons:
-      - reason: 秒表
-        sample: -1
-    - weight: 1.0
+    - weight: 1
       reasons:
       - reason: 摩擦
-        sample: -1
-    - weight: 1.0
-      reasons:
-      - reason: 摩擦acc
-        sample: -1
-    - weight: 1.0
-      reasons:
+        sample: 5000
       - reason: 杂音
         sample: -1
-    - weight: 1.0
+    - weight: 1
       reasons:
       - reason: 咬齿
         sample: -1
-    - weight: 1.0
+    - weight: 1
       reasons:
       - reason: 震颤
         sample: -1
-    - weight: 1.0
-      reasons:
       - reason: 马达
         sample: -1
-    - weight: 1.0
-      reasons:
-      - reason: 哒哒_咔咔
-        sample: -1
-    - weight: 1.0
-      reasons:
-      - reason: 其它
-        sample: -1
   class_weights:
-    干扰: 1.0
-    正常: 1.0
-    边界: 1.0
-    传感器错误: 1.0
-    秒表: 1.0
-    摩擦: 1.0
-    摩擦acc: 1.0
-    杂音: 1.0
-    咬齿: 1.0
-    震颤: 1.0
-    马达: 1.0
-    哒哒_咔咔: 1.0
-    其它: 1.0
+    正常_干扰_边界: 1
+    摩擦_杂音: 1
+    咬齿: 1
+    震颤_马达: 1
+  xgb_params:
+    n_estimators: 400
+    max_depth: 6
+    learning_rate: 0.05
+    min_child_weight: 5
+    gamma: 1
+    reg_lambda: 5
+    reg_alpha: 0.5
+    subsample: 0.8
+    colsample_bytree: 0.7
+    eval_metric: mlogloss
+    tree_method: hist
+    random_state: 42
+    n_jobs: -1
+  lgb_params:
+    n_estimators: 200
+    num_leaves: 20
+    max_depth: -1
+    learning_rate: 0.05
+    min_child_samples: 20
+    min_split_gain: 0
+    reg_lambda: 5
+    reg_alpha: 0.5
+    subsample: 0.8
+    subsample_freq: 1
+    feature_fraction: 0.7
+    random_state: 42
+    n_jobs: -1
+augmentation:
+  input_folders: []
+  methods:
+  - white_noise
+  - add_noise
+  - reverberation
+  - time_frequency_mask
+  - speed_perturb
+  - random_crop
+  - random_add_segment
+  - random_amplitude
+  - random_time_stretch
+  output_dir: ./results/epump4_general/dataset_csv

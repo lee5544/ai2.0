@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any, Dict
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-DATA_MANAGER_CONFIG_PATH = PROJECT_ROOT / "cfg" / "core" / "data_manager.yaml"
+CFG_DIR = Path(os.environ.get("FORVIA_CFG_DIR", PROJECT_ROOT / "cfg")).expanduser()
+DATA_MANAGER_CONFIG_PATH = CFG_DIR / "core" / "data_manager.yaml"
 
 try:
     import yaml

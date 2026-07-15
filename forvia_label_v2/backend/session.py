@@ -379,7 +379,7 @@ class LabelSession:
         status = self.status_map.get(sid, "missing")
         tdms = "缺失" if status == "missing" else (STATUS_LABEL.get(status, "未注册") if self.has_db else "—")
         is_input = str(sv.get("is_input", True)) not in ("False", "false", "0", "")
-        return {"index": i, "is_input": is_input, "tdms": tdms,
+        return {"index": i, "sample_index": i, "is_input": is_input, "tdms": tdms,
                 "line": str(sv.get("line", "")), "sn": str(sv.get("sn", "")), "sample_id": sid,
                 "reference": self._reference_of(sv),
                 "group_name": str(sv.get("group_name", "")),
@@ -540,6 +540,7 @@ class LabelSession:
             # 大幅减小 overview 负载，加快大数据集（上万行）的刷新。
             rows.append({
                 "index": int(idx),
+                "sample_index": int(idx),
                 "sn": str(sv.get("sn", "")),
                 "sample_id": sid,
                 "line": str(sv.get("line", "")),

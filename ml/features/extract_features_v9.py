@@ -33,7 +33,7 @@ except ImportError:  # pragma: no cover
 _EPS = 1e-12
 _FMIN_HZ = 100.0
 _FMAX_NYQUIST_RATIO = 0.95
-_TRIM_S = 0.6
+_TRIM_S = 0.5
 _WINDOW_S = 1.0
 _HOP_S = 0.5
 _ENVELOPE_RATE_HZ = 200.0

@@ -61,8 +61,19 @@ class Card:
         p = self._merge_defaults(params)
         fig = self.build(ctx, p)
         figure = json.loads(fig.to_json()) if fig is not None else None
+        error = None
+        if figure is None:
+            try:
+                raw_len = len(ctx.raw) if ctx.raw is not None else 0
+            except Exception:
+                raw_len = 0
+            try:
+                proc_len = len(ctx.proc) if ctx.proc is not None else 0
+            except Exception:
+                proc_len = 0
+            error = f"没有可用信号，raw={raw_len} 点，proc={proc_len} 点"
         return {"id": self.id, "title": self.title, "category": self.category,
-                "params": self.params, "used_params": p, "figure": figure}
+                "params": self.params, "used_params": p, "figure": figure, "error": error}
 
 
 REGISTRY: "dict[str, Card]" = {}

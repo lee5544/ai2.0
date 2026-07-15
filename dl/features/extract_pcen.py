@@ -775,8 +775,8 @@ def _process_one_group(
                 sample_group_name=item["sample_group_name"],
                 sample_id=sample_id,
             )
-            signal = trim_edges(signal)  # 统一预处理：裁剪头尾 8000 点
             sampling_rate = _to_int(sample_meta.get("sampling_rate")) or _to_int(tdms_ret.get("sampling_rate"))
+            signal = trim_edges(signal, sampling_rate)  # 统一预处理：裁剪头尾 0.5 秒
             if not sampling_rate or sampling_rate <= 0:
                 raise ValueError(f"非法 sampling_rate: {sampling_rate}")
             feature_tensor, feature_meta = extract_pcen_spectrogram_features(

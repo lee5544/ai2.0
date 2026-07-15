@@ -59,7 +59,7 @@ _MODEL_REGISTRY: dict[str, ModelSpec] = {
         description="梯度提升树，适合当前默认训练流程。",
         parameter_key="xgb_params",
         parameters=(
-            {"key": "n_estimators",      "label": "最大树数量",             "type": "int",    "default": 400,       "min": 1},
+            {"key": "n_estimators",      "label": "最大树数量",             "type": "int",    "default": 200,       "min": 1},
             {"key": "max_depth",         "label": "单棵树最大深度",         "type": "int",    "default": 6,         "min": 1},
             {"key": "learning_rate",     "label": "学习率",                 "type": "float",  "default": 0.05,      "min": 0.001},
             {"key": "min_child_weight",  "label": "子节点最小权重",         "type": "float",  "default": 5,         "min": 0},
@@ -84,7 +84,7 @@ _MODEL_REGISTRY: dict[str, ModelSpec] = {
         description="LightGBM 梯度提升，训练速度快，适合大特征量场景。",
         parameter_key="lgb_params",
         parameters=(
-            {"key": "n_estimators",      "label": "最大树数量",             "type": "int",    "default": 400,  "min": 1},
+            {"key": "n_estimators",      "label": "最大树数量",             "type": "int",    "default": 200,  "min": 1},
             {"key": "num_leaves",        "label": "叶子数",                 "type": "int",    "default": 20,   "min": 2},
             {"key": "max_depth",         "label": "树最大深度（-1不限）",   "type": "int",    "default": -1},
             {"key": "learning_rate",     "label": "学习率",                 "type": "float",  "default": 0.05, "min": 0.001},

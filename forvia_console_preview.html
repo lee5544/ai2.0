@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Forvia AI2.0 Console Preview</title>
+  <style>
+    :root { --bg:#f5f7fb; --card:#fff; --bd:#dfe4ec; --fg:#172033; --mut:#667085; --acc:#1769e0; --nav:#08111f; --nav2:#0d1b2f; --cyan:#38bdf8; }
+    * { box-sizing:border-box; }
+    body { margin:0; color:var(--fg); background:var(--bg); font-family:system-ui,-apple-system,"Segoe UI","PingFang SC",sans-serif; }
+    .shell { min-height:100vh; display:flex; --side-w:240px; }
+    .sidebar { width:var(--side-w); flex:0 0 var(--side-w); min-height:100vh; padding:22px 16px; color:#e5eefc; background:
+      linear-gradient(180deg, rgba(56,189,248,.12), transparent 30%),
+      radial-gradient(circle at 30% 0%, rgba(37,99,235,.35), transparent 32%),
+      linear-gradient(180deg, var(--nav), var(--nav2)); border-right:1px solid rgba(148,163,184,.24); }
+    .brand { padding:4px 4px 22px; border-bottom:1px solid rgba(148,163,184,.22); margin-bottom:18px; }
+    .brand-title { font-size:22px; font-weight:850; line-height:1.15; }
+    .brand-company { margin-top:10px; font-size:15px; color:#bfdbfe; font-weight:700; }
+    .brand-en { margin-top:5px; font-size:11px; color:#7dd3fc; text-transform:uppercase; letter-spacing:.08em; line-height:1.35; }
+    .nav { display:flex; flex-direction:column; gap:10px; }
+    .nav button { width:100%; display:flex; align-items:center; gap:10px; padding:13px 14px; border:1px solid rgba(148,163,184,.24); border-radius:10px; background:rgba(15,23,42,.42); color:#dbeafe; cursor:pointer; font-size:15px; font-weight:750; text-align:left; }
+    .nav .child { margin-left:18px; width:calc(100% - 18px); padding:9px 12px; font-size:13px; color:#bfdbfe; background:rgba(15,23,42,.28); }
+    .nav button:hover { border-color:rgba(56,189,248,.65); background:rgba(30,41,59,.72); }
+    .nav button.active { background:linear-gradient(90deg,#2563eb,#0891b2); color:#fff; border-color:rgba(125,211,252,.75); box-shadow:0 10px 28px rgba(37,99,235,.28); }
+    .content { flex:1; min-width:0; display:flex; flex-direction:column; }
+    .workspace { flex:1; min-height:100vh; padding:22px; }
+    .home { min-height:calc(100vh - 44px); border:1px solid var(--bd); border-radius:12px; background:#fff; box-shadow:0 2px 8px rgba(20,40,80,.035); overflow:hidden; }
+    .home-inner { width:min(1420px,100%); margin:auto; padding:30px; }
+    .home-head { display:flex; align-items:flex-start; justify-content:space-between; gap:24px; padding-bottom:24px; border-bottom:1px solid var(--bd); }
+    .home-kicker { color:var(--acc); font-size:12px; font-weight:850; letter-spacing:.12em; text-transform:uppercase; }
+    .home h2 { margin:7px 0 8px; font-size:34px; letter-spacing:0; }
+    .home p { margin:0; color:var(--mut); line-height:1.65; font-size:15px; }
+    .home-meta { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+    .home-signal { position:relative; width:76px; height:76px; flex:0 0 76px; border-radius:50%; background:radial-gradient(circle at center,rgba(56,189,248,.18),transparent 58%); }
+    .ai-stage { position:relative; width:100%; height:100%; }
+    .ai-core { position:absolute; inset:25px; display:flex; align-items:center; justify-content:center; border-radius:50%; color:#fff; font-weight:900; font-size:11px; background:linear-gradient(135deg,#1769e0,#0891b2); box-shadow:0 8px 18px rgba(23,105,224,.25); }
+    .ai-orbit { position:absolute; inset:5px; border:1px solid rgba(23,105,224,.2); border-radius:50%; animation:spin 18s linear infinite; }
+    .ai-orbit:nth-child(2) { inset:15px; animation-duration:13s; animation-direction:reverse; border-color:rgba(8,145,178,.28); }
+    .ai-orbit::before { content:""; position:absolute; top:7px; left:11px; width:5px; height:5px; border-radius:50%; background:var(--cyan); box-shadow:0 0 10px rgba(56,189,248,.9); }
+    .ai-scan { position:absolute; left:50%; top:0; bottom:0; width:1px; background:linear-gradient(180deg,transparent,rgba(23,105,224,.45),transparent); animation:sweep 3.5s ease-in-out infinite; transform-origin:bottom center; }
+    .pill { border:1px solid var(--bd); border-radius:999px; padding:6px 11px; background:#f8fbff; color:var(--mut); font-size:12px; }
+    .line-section { margin-top:24px; }
+    .line-section-title { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
+    .line-section-title h3 { margin:0; font-size:18px; }
+    .line-section-title span { color:var(--mut); font-size:12px; }
+    .line-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(520px,1fr)); gap:14px; }
+    .line-card { border:1px solid var(--bd); border-radius:10px; background:#fbfcfe; overflow:hidden; }
+    .line-card-head { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:13px 16px; border-bottom:1px solid var(--bd); background:#f7faff; }
+    .line-name { font-size:17px; font-weight:850; }
+    .line-count { color:var(--mut); font-size:12px; }
+    .module-row { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:8px; padding:10px; }
+    .module-card { min-width:0; padding:11px 12px; border:1px solid var(--bd); border-radius:8px; background:#fff; text-align:left; cursor:pointer; color:var(--fg); }
+    .module-card:hover { border-color:#8ab8f5; box-shadow:0 4px 12px rgba(23,105,224,.10); transform:translateY(-1px); }
+    .module-card .module-title { display:block; font-size:13px; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .module-card .module-stat { display:block; margin-top:8px; font-size:18px; font-weight:850; color:var(--acc); }
+    .module-card .module-note { display:block; margin-top:3px; color:var(--mut); font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .module-card.label .module-stat { color:#059669; }
+    .module-card.predict .module-stat { color:#7c3aed; }
+    .empty-home { padding:18px; color:var(--mut); border:1px dashed var(--bd); border-radius:8px; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    @keyframes sweep { 0%,100% { transform:rotate(-38deg); opacity:.35; } 50% { transform:rotate(38deg); opacity:1; } }
+    @media(max-width:980px){ .home-head { flex-direction:column; } .home-meta { justify-content:flex-start; } .line-grid { grid-template-columns:1fr; } }
+    @media(max-width:680px){ .home-inner { padding:20px; } .module-row { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+  </style>
+</head>
+<body>
+<div class="shell">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-title">Forvia AI2.0 Console</div>
+      <div class="brand-company">上海帆古自动化</div>
+    </div>
+    <div class="nav" id="nav"></div>
+  </aside>
+  <main class="content"><div class="workspace" id="workspace"></div></main>
+</div>
+<script src="./forvia_console_modules.js?v=20260715"></script>
+<script>
+const modules = window.FORVIA_CONSOLE_MODULES || [];
+const workspace = document.getElementById('workspace');
+const nav = document.getElementById('nav');
+const defaultLines = ['epump2','epump3','epump4','etilt1','etilt2'];
+const moduleById = Object.fromEntries(modules.map(m => [m.id, m]));
+let homeRows = [];
+
+function moduleHref(id){
+  const url = moduleById[id]?.url || '#';
+  return url.replace('127.0.0.1:8012', window.location.host);
+}
+
+function escapeHtml(value){
+  return String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function lineStats(line){
+  const rows = homeRows.filter(row => String(row.line || '') === line);
+  const total = rows.length;
+  const labeled = rows.filter(row => row.labeled).length;
+  const expert = rows.filter(row => row.has_expert).length;
+  return { total, unlabeled: Math.max(0, total - labeled), expert };
+}
+
+function renderLineCards(){
+  const lines = [...new Set([...defaultLines, ...homeRows.map(row => String(row.line || '')).filter(Boolean)])];
+  const container = document.getElementById('line-cards');
+  if (!container) return;
+  container.innerHTML = lines.map(line => {
+    const stats = lineStats(line);
+    const countText = stats.total ? `样本 ${stats.total.toLocaleString()}` : '暂无已加载样本';
+    const cards = [
+      ['database','🗄 数据库','已连接','TDMS / 数据源',''],
+      ['label','🎧 标注','待标注 '+stats.unlabeled.toLocaleString(),'专家确认 '+stats.expert.toLocaleString(),'label'],
+      ['train','🧠 训练','进入项目','模型与训练流程',''],
+      ['predict','📤 推理','选择模型','批量预测与导出','predict'],
+    ];
+    return `<article class="line-card">
+      <div class="line-card-head"><span class="line-name">${escapeHtml(line)}</span><span class="line-count">${countText}</span></div>
+      <div class="module-row">${cards.map(([id,title,stat,note,klass]) => `<button class="module-card ${klass}" data-line-module="${id}" data-line="${escapeHtml(line)}"><span class="module-title">${title}</span><span class="module-stat">${stat}</span><span class="module-note">${note}</span></button>`).join('')}</div>
+    </article>`;
+  }).join('');
+  container.querySelectorAll('[data-line-module]').forEach(btn => btn.addEventListener('click', () => launchUrl(moduleHref(btn.dataset.lineModule))));
+}
+
+async function loadHomeOverview(){
+  try {
+    const response = await fetch('/api/overview', {cache:'no-store'});
+    if (response.ok) homeRows = (await response.json()).rows || [];
+  } catch (_) { homeRows = []; }
+  renderLineCards();
+}
+
+function showHome(){
+  workspace.innerHTML = `<section class="home"><div class="home-inner">
+    <div class="home-head"><div><div class="home-kicker">Industrial Acoustic AI Console</div><h2>Forvia AI 2.0</h2><p>按产线管理数据库、标注、训练和模型推理。选择对应模块直接进入工作流程。</p></div><div style="display:flex;align-items:center;gap:16px"><div class="home-signal"><div class="ai-stage" aria-hidden="true"><div class="ai-orbit"></div><div class="ai-orbit"></div><div class="ai-scan"></div><div class="ai-core">AI 2.0</div></div></div><div class="home-meta"><span class="pill">数据库 · 数据来源</span><span class="pill">Label · 标签状态</span><span class="pill">Train · 模型训练</span><span class="pill">Inference · 预测导出</span></div></div></div>
+    <div class="line-section"><div class="line-section-title"><h3>产线工作台</h3><span>标注统计按当前 Label 会话实时刷新</span></div><div id="line-cards"></div></div>
+  </div></section>`;
+  loadHomeOverview();
+}
+function launchUrl(url){ window.location.href = url; }
+function renderNav(){
+  nav.innerHTML = `<button data-home="1" class="active">⌂ 开始</button>` + modules.map(m => {
+    const children = (m.children || []).map(c => `<button class="child" data-url="${c.url}">${c.title}</button>`).join('');
+    return `<button data-url="${m.url}">${m.icon} ${m.title}</button>${children}`;
+  }).join('');
+  nav.querySelector('[data-home]').addEventListener('click', showHome);
+  nav.querySelectorAll('[data-url]').forEach(btn => btn.addEventListener('click', () => launchUrl(btn.dataset.url)));
+}
+renderNav();
+showHome();
+</script>
+</body>
+</html>

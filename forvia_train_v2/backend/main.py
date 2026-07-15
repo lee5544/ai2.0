@@ -18,10 +18,8 @@ from data_manager.tdms_read import (
     is_uncompressed_tdms_path,
     iter_tdms_files,
 )
-from ml.train import list_registered_model_types
 from ml.training.app_api import (
     config_filename,
-    config_path_for_project,
     data_manager_defaults,
     database_distribution,
     dataset_summary,
@@ -39,12 +37,14 @@ from ml.training.app_api import (
 )
 from ml.training.results import collect_results, find_model_dir
 from data_augmentation import AUGMENTATION_METHODS
+from data_manager.line_rules import reload_line_rules
 
 from . import database_jobs, run_manager, store
 from .config import (
     CFG_DIR,
     FRONTEND_DIR,
     PROJECT_ROOT,
+    RESULTS_DIR,
     RUN_DIR,
     ensure_dirs,
 )
@@ -52,137 +52,9 @@ from .config import (
 
 app = FastAPI(title="Forvia Train v2")
 
-LABEL_RULES_PATH = PROJECT_ROOT / "cfg" / "core" / "label_rules.yaml"
-DEFAULT_LABEL_RULES_TEXT = """results:
-  ok:
-    id: 0
-    name: 正常
-    alias:
-    - OK
-    - 正常状态
-    note: 非异常样本
-  nok:
-    id: 1
-    name: 异常
-    alias:
-    - ng
-    - 不良
-    - 故障
-    note: 存在明确异常风险
-  boundary:
-    id: 2
-    name: 边界
-    alias:
-    - 不确定
-    - 待确认
-reasons:
-  clean_normal:
-    id: 0
-    name: 正常
-    alias:
-    - 干净正常
-    - 无异常
-    parent: ok
-  noisy_normal:
-    id: -1
-    name: 干扰
-    alias:
-    - 杂音干扰
-    - 轻微噪声
-    parent: ok
-  boundary:
-    id: 2
-    name: 边界
-    alias:
-    - 不确定
-    - 无法判断
-    parent: boundary
-  sensor_error:
-    id: 101
-    name: 传感器错误
-    alias:
-    - 传感器故障
-    - 传感器异常
-    - 传感器跳变
-    - sensor error
-    parent: nok
-  tick_tock:
-    id: 102
-    name: 秒表
-    alias:
-    - tick-tock
-    - 节拍声
-    parent: nok
-  friction:
-    id: 103
-    name: 摩擦
-    alias:
-    - 摩擦音
-    - 摩擦噪声
-    parent: nok
-  friction_acc:
-    id: 104
-    name: 摩擦acc
-    alias:
-    - 摩擦加速度
-    - 摩擦acc
-    parent: nok
-  noise:
-    id: 105
-    name: 杂音
-    alias:
-    - 噪声
-    - background noise
-    parent: nok
-  gear_chatter:
-    id: 106
-    name: 咬齿
-    alias:
-    - 齿轮咬合
-    - gear chatter
-    parent: nok
-  chatter:
-    id: 107
-    name: 震颤
-    alias:
-    - 抖动
-    - 颤振
-    parent: nok
-  mada:
-    id: 108
-    name: 马达
-    alias: []
-    parent: nok
-  dada:
-    id: 109
-    name: 哒哒_咔咔
-    alias: [咔咔, 哒哒音, 咔咔音]
-    parent: nok
-  other:
-    id: 199
-    name: 其它
-    alias:
-    - 其他
-    - 未知异常
-    parent: nok
-meta:
-  version: v1.1
-  note: Noise label with alias support
-  legacy_label_to_reason:
-    '-1': noisy_normal
-    '0': clean_normal
-    '2': boundary
-    '10': sensor_error
-    '11': tick_tock
-    '12': friction
-    '121': friction_acc
-    '13': noise
-    '14': gear_chatter
-    '15': chatter
-    '16': other
-    '151': mada
-    '142': dada
-"""
+LABEL_RULES_PATH = CFG_DIR / "core" / "label_rules.yaml"
+LINE_RULES_PATH = CFG_DIR / "core" / "line_rules.yaml"
+DEFAULT_LABEL_RULES_PATH = CFG_DIR / "core" / "label_rules.default.yaml"
 
 
 @app.on_event("startup")
@@ -190,51 +62,6 @@ def startup() -> None:
     ensure_dirs()
     store.init_db()
     run_manager.reconcile_active_runs()
-    _sync_cfg_projects()
-
-
-def _sync_cfg_projects() -> None:
-    indexed_paths = {
-        str(Path(project.get("config_path") or "").expanduser().resolve())
-        for project in store.list_projects()
-        if project.get("config_path")
-    }
-    for path in sorted(CFG_DIR.glob("*.yaml")):
-        resolved = str(path.resolve())
-        if resolved in indexed_paths:
-            continue
-        try:
-            config = parse_yaml(path.read_text(encoding="utf-8"))
-            line_name = str(config.get("line_name") or "").strip()
-            model_name = str((config.get("model") or {}).get("model_name") or "").strip()
-            model_type = str((config.get("train") or {}).get("model_type") or "xgb").strip()
-            if not line_name or not model_name or model_type not in list_registered_model_types():
-                continue
-            payload = normalize_project_payload(
-                {
-                    "name": path.stem,
-                    "line_name": line_name,
-                    "model_name": model_name,
-                    "model_type": model_type,
-                    "config": config,
-                }
-            )
-            payload["config_path"] = resolved
-            store.create_project(payload)
-            indexed_paths.add(resolved)
-        except Exception:
-            continue
-    for project in store.list_projects():
-        if project.get("config_path"):
-            continue
-        payload = normalize_project_payload(project)
-        target = config_path_for_project(payload)
-        if target.is_file():
-            payload["config"] = parse_yaml(target.read_text(encoding="utf-8"))
-            payload["config_path"] = str(target.resolve())
-        else:
-            payload = save_project_config(payload)
-        store.update_project(project["id"], payload)
 
 
 def _require_project(project_id: str) -> dict:
@@ -281,6 +108,10 @@ class ProjectReq(BaseModel):
     config_path: str = ""
 
 
+class OpenProjectYamlReq(BaseModel):
+    path: str
+
+
 class LabelRuleItem(BaseModel):
     key: str = ""
     id: int | None = None
@@ -296,11 +127,69 @@ class LabelRulesReq(BaseModel):
     meta: dict = Field(default_factory=dict)
 
 
+class LineRulesReq(BaseModel):
+    yaml_text: str
+
+
+class LineRulesPreviewReq(BaseModel):
+    yaml_text: str
+    line: str = ""
+    filename: str = ""
+
+
+def _default_line_rules_text() -> str:
+    default_path = CFG_DIR / "core" / "line_rules.default.yaml"
+    return default_path.read_text(encoding="utf-8")
+
+
+def _validate_line_rules_text(text: str) -> dict:
+    try:
+        data = yaml.safe_load(text) or {}
+    except yaml.YAMLError as exc:
+        raise ValueError(f"line_rules.yaml YAML 格式错误: {exc}") from exc
+    if not isinstance(data, dict) or not data:
+        raise ValueError("line_rules.yaml 顶层必须是非空对象")
+    for line, rule in data.items():
+        if not isinstance(line, str) or not line.strip():
+            raise ValueError("产线名称不能为空")
+        if not isinstance(rule, dict):
+            raise ValueError(f"产线 {line} 的规则必须是对象")
+        filename = rule.get("filename")
+        if filename is not None:
+            if not isinstance(filename, dict):
+                raise ValueError(f"产线 {line}.filename 必须是对象或 null")
+            for key in ("split", "sn_index", "reference_index", "time_index", "time_order"):
+                if key not in filename:
+                    raise ValueError(f"产线 {line}.filename 缺少 {key}")
+            if not isinstance(filename["time_index"], list) or len(filename["time_index"]) != 2:
+                raise ValueError(f"产线 {line}.filename.time_index 必须是两个元素的列表")
+        channels = rule.get("channels")
+        if channels is not None and not isinstance(channels, dict):
+            raise ValueError(f"产线 {line}.channels 必须是对象或 null")
+        if isinstance(channels, dict) and "conditional" in channels:
+            conditions = channels["conditional"]
+            if not isinstance(conditions, list) or not conditions:
+                raise ValueError(f"产线 {line}.channels.conditional 必须是非空列表")
+            for index, condition in enumerate(conditions, start=1):
+                if not isinstance(condition, dict) or not isinstance(condition.get("when"), dict):
+                    raise ValueError(f"产线 {line}.channels.conditional[{index}] 缺少 when 对象")
+    return data
+
+
+def _line_rules_payload() -> dict:
+    try:
+        text = LINE_RULES_PATH.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        text = _default_line_rules_text()
+    data = _validate_line_rules_text(text)
+    return {"path": str(LINE_RULES_PATH), "yaml_text": text, "lines": list(data)}
+
+
 def _read_label_rules() -> dict:
     try:
         data = yaml.safe_load(LABEL_RULES_PATH.read_text(encoding="utf-8")) or {}
     except FileNotFoundError:
-        data = yaml.safe_load(DEFAULT_LABEL_RULES_TEXT) or {}
+        data = yaml.safe_load(DEFAULT_LABEL_RULES_PATH.read_text(encoding="utf-8")) or {}
     if not isinstance(data, dict):
         raise ValueError("label_rules.yaml 顶层必须是对象")
     return data
@@ -486,16 +375,111 @@ def api_save_label_rules(req: LabelRulesReq):
 @app.post("/api/label-rules/restore-default")
 def api_restore_label_rules():
     try:
-        payload = yaml.safe_load(DEFAULT_LABEL_RULES_TEXT) or {}
+        text = DEFAULT_LABEL_RULES_PATH.read_text(encoding="utf-8")
+        payload = yaml.safe_load(text) or {}
         _write_label_rules(payload)
         return _label_rules_payload()
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
 
+@app.get("/api/line-rules")
+def api_line_rules():
+    try:
+        return _line_rules_payload()
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/api/line-rules/validate")
+def api_validate_line_rules(req: LineRulesReq):
+    try:
+        data = _validate_line_rules_text(req.yaml_text)
+        return {"ok": True, "lines": list(data), "message": "规则格式正确"}
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.put("/api/line-rules")
+def api_save_line_rules(req: LineRulesReq):
+    try:
+        data = _validate_line_rules_text(req.yaml_text)
+        LINE_RULES_PATH.parent.mkdir(parents=True, exist_ok=True)
+        LINE_RULES_PATH.write_text(req.yaml_text.rstrip() + "\n", encoding="utf-8")
+        reload_line_rules()
+        return {"path": str(LINE_RULES_PATH), "yaml_text": req.yaml_text.rstrip() + "\n", "lines": list(data)}
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/api/line-rules/restore-default")
+def api_restore_line_rules():
+    try:
+        text = _default_line_rules_text()
+        _validate_line_rules_text(text)
+        LINE_RULES_PATH.parent.mkdir(parents=True, exist_ok=True)
+        LINE_RULES_PATH.write_text(text, encoding="utf-8")
+        reload_line_rules()
+        default_data = _validate_line_rules_text(text)
+        return {"path": str(LINE_RULES_PATH), "yaml_text": text, "lines": list(default_data)}
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+EXAMPLE_CFG_DIR = CFG_DIR / "examples"
+BUILTIN_EXAMPLES = {
+    "epump2_general.yaml": "epump2_general.yaml",
+    "epump3_general.yaml": "epump3_general.yaml",
+    "epump4_general.yaml": "epump4_general.yaml",
+    "etilt1_general.yaml": "etilt1_general.yaml",
+}
+
+
+def _example_path(filename: str) -> Path | None:
+    source_name = BUILTIN_EXAMPLES.get(filename)
+    if not source_name:
+        return None
+    path = EXAMPLE_CFG_DIR / filename
+    if path.exists():
+        return path
+    path = PROJECT_ROOT / "cfg" / source_name
+    return path if path.exists() else None
+
+
+def _example_payload(path: Path) -> dict:
+    config = parse_yaml(path.read_text(encoding="utf-8"))
+    line_name = str(config.get("line_name") or "").strip()
+    model = config.get("model") if isinstance(config.get("model"), dict) else {}
+    train = config.get("train") if isinstance(config.get("train"), dict) else {}
+    model_name = str(model.get("model_name") or path.stem.replace(f"{line_name}_", "", 1)).strip()
+    model_type = str(train.get("model_type") or "xgb").strip().lower()
+    return normalize_project_payload({
+        "line_name": line_name,
+        "model_name": model_name,
+        "model_type": model_type,
+        "config": config,
+    })
+
+
+def _ensure_builtin_projects() -> None:
+    existing = {model_id(project["config"]) for project in store.list_projects()}
+    for filename in BUILTIN_EXAMPLES:
+        path = _example_path(filename)
+        if not path:
+            continue
+        payload = _example_payload(path)
+        project_id = model_id(payload["config"])
+        if project_id in existing:
+            continue
+        payload["origin"] = "ui"
+        payload["config_path"] = str(path.resolve())
+        store.create_project(payload)
+        existing.add(project_id)
+
+
 @app.get("/api/projects")
 def api_projects():
-    _sync_cfg_projects()
+    _ensure_builtin_projects()
     return {"projects": store.list_projects()}
 
 
@@ -512,6 +496,29 @@ def api_create_project(req: ProjectReq):
 def api_get_project(project_id: str):
     project = _require_project(project_id)
     return {"project": project, "yaml": dump_yaml(project["config"])}
+
+
+@app.post("/api/projects/open-yaml")
+def api_open_project_yaml(req: OpenProjectYamlReq):
+    source = Path(req.path).expanduser()
+    if source.suffix.lower() not in {".yaml", ".yml"} or not source.is_file():
+        raise HTTPException(status_code=400, detail="请选择存在的 YAML 配置文件")
+    try:
+        payload = _example_payload(source)
+        project_id = model_id(payload["config"])
+        existing = next((p for p in store.list_projects() if model_id(p["config"]) == project_id), None)
+        if existing:
+            return {"project": existing, "yaml": dump_yaml(existing["config"])}
+        payload["origin"] = "ui"
+        target = CFG_DIR / config_filename(payload["line_name"], payload["model_name"])
+        if source.resolve() == target.resolve() or target.is_file():
+            payload["config_path"] = str((target if target.is_file() else source).resolve())
+        else:
+            payload = save_project_config(payload)
+        project = store.create_project(payload)
+        return {"project": project, "yaml": dump_yaml(project["config"])}
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"打开模型项目失败: {exc}")
 
 
 @app.put("/api/projects/{project_id}")
@@ -899,7 +906,7 @@ def _precheck_database(req: DatabasePrecheckReq) -> dict:
     errors = []
     action = str(req.action or "").strip().lower()
     update_kind = str(req.update_kind or "").strip().lower()
-    if action == "update" and update_kind == "repair":
+    if action == "update" and not str(req.source_folder or "").strip():
         repair_scan_root = data_root / storage_root
         line = str(req.line or "").strip()
         if line and (repair_scan_root / line).is_dir():
@@ -925,10 +932,8 @@ def _precheck_database(req: DatabasePrecheckReq) -> dict:
             errors.append("更新数据库需要已有 label_records.db")
         if not status["factory_raw_exists"]:
             errors.append("TDMS 根目录不存在")
-        if update_kind == "repair" and source_scan["need_compress_count"]:
-            warnings.append(f"修复数据库路径会先压缩 {source_scan['need_compress_count']} 个 .tdms 为 .tdms.zst")
-        if update_kind == "append" and not source_scan["tdms_count"] and label_source == "none":
-            errors.append("追加 TDMS / 标签时，需要提供新增 TDMS 文件夹或标签来源")
+        if source_scan["need_compress_count"]:
+            warnings.append(f"更新数据库会先压缩 {source_scan['need_compress_count']} 个 .tdms 为 .tdms.zst")
     if label_source in {"internal", "forvia"} and not csv_paths:
         errors.append("选择内部表或 Forvia 表作为标签来源时，需要添加标签 CSV")
     if label_source == "db" and not str(req.source_label_db or "").strip():
@@ -1099,7 +1104,7 @@ def api_results(project_id: str):
 @app.get("/api/artifact")
 def api_artifact(path: str):
     target = Path(path).expanduser().resolve()
-    allowed = [RUN_DIR.resolve(), (PROJECT_ROOT / "results").resolve()]
+    allowed = [RUN_DIR.resolve(), RESULTS_DIR.resolve()]
     if not any(target == root or root in target.parents for root in allowed):
         raise HTTPException(status_code=403, detail="不允许访问该路径")
     if not target.is_file():
@@ -1225,6 +1230,16 @@ def api_browse_roots():
 @app.get("/")
 def index():
     return FileResponse(FRONTEND_DIR / "index.html")
+
+
+@app.get("/console")
+def console_index():
+    return FileResponse(PROJECT_ROOT / "forvia_console_preview.html")
+
+
+@app.get("/forvia_console_modules.js")
+def console_modules():
+    return FileResponse(PROJECT_ROOT / "forvia_console_modules.js", headers={"Cache-Control": "no-store"})
 
 
 if FRONTEND_DIR.exists():

@@ -101,7 +101,7 @@ def butter_filter(data, sr, cutoff, btype="low", order=4):
 def process_data(
     raw_data,
     sr=20000,
-    cut_len=8000,
+    cut_len=None,
     target_length=0,
     cutoff_low=20,
     cutoff_high=None,
@@ -112,6 +112,7 @@ def process_data(
     if cutoff_high is not None:
         raw_data = butter_filter(raw_data, sr=sr, cutoff=cutoff_high, btype="low")
 
+    cut_len = round(float(sr) * 0.5) if cut_len is None else max(0, int(cut_len))
     if len(raw_data) > 2 * cut_len:
         dat_cut = raw_data[cut_len:-cut_len]
     else:
@@ -954,9 +955,9 @@ def extract_features_v4(data, sr, return_timing: bool = False):
 
     x_raw = np.asarray(data, dtype=float, order="C")
 
-    # 预处理：高通去 DC，首尾各裁 8000 点（与 v2 一致）
+    # 预处理：高通去 DC，按采样率裁剪首尾各 0.5 秒
     t0 = time.perf_counter()
-    x = process_data(x_raw, sr=sr, cut_len=8000, cutoff_low=20, cutoff_high=None)
+    x = process_data(x_raw, sr=sr, cutoff_low=20, cutoff_high=None)
     x = np.asarray(x, dtype=float, order="C")
     timing["process_data_sec"] = float(time.perf_counter() - t0)
 

@@ -70,7 +70,7 @@ train:
       - {reason: 马达, sample: -1}
 
 dl:
-  feature_type: raw          # raw z-score（trim 头尾8000 + 降采样 + z-score）
+  feature_type: raw          # raw z-score（按采样率 trim 头尾0.5秒 + 降采样 + z-score）
   extract:
     sample: false
   model:

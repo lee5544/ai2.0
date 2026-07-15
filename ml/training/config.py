@@ -152,7 +152,7 @@ def resolve_feature_columns_by_schema(df: pd.DataFrame) -> List[str]:
     按约定的 CSV 列结构解析训练特征列：
 
     1. 读取 ``num_features`` 列值（要求所有行一致）；
-    2. 从 ``mean`` 列开始取到最后一列作为特征列；
+    2. 从 ``mean`` 列开始，严格读取 ``num_features`` 列作为特征列；
     3. 若切片长度与 ``num_features`` 不一致，抛 ``FeatureSchemaError`` 立即中断训练。
 
     这是训练、特征筛选、可视化等所有使用 features_batch_*.csv 的入口应调用的统一口径，
@@ -186,14 +186,14 @@ def resolve_feature_columns_by_schema(df: pd.DataFrame) -> List[str]:
     nf_expected = int(unique_nf[0])
 
     mean_pos = columns.index("mean")
-    feature_cols = columns[mean_pos:]
+    feature_cols = columns[mean_pos:mean_pos + nf_expected]
 
     if len(feature_cols) != nf_expected:
         raise FeatureSchemaError(
             f"训练特征维度不匹配，训练终止：\n"
-            f"  - 从 'mean' 列切片到最后共 {len(feature_cols)} 列\n"
+            f"  - 从 'mean' 列按 num_features 切片得到 {len(feature_cols)} 列\n"
             f"  - 但 CSV 中 num_features = {nf_expected}\n"
-            f"请检查 dataset_csv/features_batch_*.csv 是否被后处理截断或列顺序被改动。"
+            f"请检查 dataset_csv/features_batch_*.csv 的特征起始位置和列顺序。"
         )
 
     return list(feature_cols)

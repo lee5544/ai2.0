@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import re
-import shutil
 import sqlite3
 import csv
 from contextlib import redirect_stdout
@@ -15,6 +14,7 @@ from pathlib import Path
 
 from .config import LABEL_HISTORY_COLUMNS, TYPICAL_TAG
 from data_manager.label_internal_registry import INTERNAL_LABEL_CSV_COLUMNS
+from data_manager.prototype_registry import register_prototype
 
 
 def _safe(part: str) -> str:
@@ -69,6 +69,10 @@ def _path_from_fields(data_root: Path | None, tdms_path: str, storage_root: str,
         return None
     if data_root is None:
         return Path(relative_path).expanduser()
+    rel = Path(relative_path.replace("\\", "/"))
+    rel_parts = [p for p in rel.parts if p not in ("/", "")]
+    if rel_parts and rel_parts[0].lower() == "factory_raw":
+        return data_root.joinpath(*rel_parts)
     storage_root = str(storage_root or "factory_raw").strip() or "factory_raw"
     return data_root / storage_root / relative_path
 
@@ -128,6 +132,36 @@ def _resolve_candidate_path(
     manifest_paths = manifest_paths if manifest_paths is not None else _load_manifest_paths(session)
     key = (str(line or "").strip().lower(), str(sn or "").strip().lower())
     return manifest_paths.get(key) or manifest_paths.get(("", key[1]))
+
+
+def _manifest_path_for(
+    manifest_paths: dict[tuple[str, str], Path] | None,
+    line: str,
+    sn: str,
+) -> Path | None:
+    if not manifest_paths:
+        return None
+    key = (str(line or "").strip().lower(), str(sn or "").strip().lower())
+    if not key[1]:
+        return None
+    return manifest_paths.get(key) or manifest_paths.get(("", key[1]))
+
+
+def _resolve_existing_candidate_path(
+    session,
+    sample_id: str,
+    line: str,
+    sn: str,
+    sample_paths: dict[str, Path] | None = None,
+    manifest_paths: dict[tuple[str, str], Path] | None = None,
+) -> Path | None:
+    path = _resolve_candidate_path(session, sample_id, line, sn, sample_paths, manifest_paths)
+    if _exists(path):
+        return path
+    fallback = _manifest_path_for(manifest_paths, line, sn)
+    if fallback is not None and fallback != path and _exists(fallback):
+        return fallback
+    return path
 
 
 def _exists(path: Path | None) -> bool:
@@ -196,6 +230,22 @@ def _load_tagged_label_map(session, tag: str) -> dict[str, dict]:
     except Exception:
         return {}
     return {sid: {k: str(row.get(k, "") or "") for k in LABEL_HISTORY_COLUMNS} for sid, (_, _, row) in out.items()}
+
+
+def _current_sample_ids(session) -> set[str]:
+    sample_view = getattr(session, "sample_view", None)
+    if sample_view is None:
+        return set()
+    try:
+        values = sample_view["sample_id"]
+    except Exception:
+        try:
+            values = [row.get("sample_id", "") for _, row in sample_view.iterrows()]
+        except Exception:
+            values = []
+    if hasattr(values, "tolist"):
+        values = values.tolist()
+    return {str(value or "").strip() for value in values if str(value or "").strip()}
 
 
 def update_manifest_paths(manifest_csv, updates: dict[tuple[str, str], str]) -> int:
@@ -281,7 +331,7 @@ def _refresh_database_metadata(session, lines: set[str]) -> dict:
         "errors": errors,
     }
 
-PROTOTYPE_TAG = "[[prototype]]"
+PROTOTYPE_TAG = TYPICAL_TAG
 PROTOTYPE_INTERNAL_LABELS = "prototype_internal_labels.csv"
 
 
@@ -392,7 +442,7 @@ def write_prototype_internal_tables(session, *, lines: set[str] | None = None) -
         sn = str(lab.get("sn", "") or "").strip()
         if not line or (lines and line not in lines):
             continue
-        path = _resolve_candidate_path(session, sid, line, sn, sample_paths, manifest_paths)
+        path = _resolve_existing_candidate_path(session, sid, line, sn, sample_paths, manifest_paths)
         if not _is_under_line_prototype(path, line=line, data_root=data_root):
             continue
         rows_by_line.setdefault(line, {})[sid] = _internal_label_row(lab)
@@ -402,7 +452,7 @@ def write_prototype_internal_tables(session, *, lines: set[str] | None = None) -
         sn = str(lab.get("sn", "") or "").strip()
         if not line or (lines and line not in lines):
             continue
-        path = _resolve_candidate_path(session, sid, line, sn, sample_paths, manifest_paths)
+        path = _resolve_existing_candidate_path(session, sid, line, sn, sample_paths, manifest_paths)
         if not _is_under_line_prototype(path, line=line, data_root=data_root):
             continue
         rows_by_line.setdefault(line, {}).setdefault(sid, _internal_label_row(lab))
@@ -474,28 +524,44 @@ def update_prototypes(session) -> dict:
 
 def candidates(session) -> list[dict]:
     """可入 prototype 的候选：标记了典型异音、且 tdms 已解析到的样本（取最新标签）。"""
-    latest = session.label_table.latest_label_map()
-    typical = _load_tagged_label_map(session, TYPICAL_TAG)
+    open_ids = _current_sample_ids(session)
+    if not open_ids:
+        return []
+    latest = {
+        sid: lab for sid, lab in session.label_table.latest_label_map().items()
+        if sid in open_ids
+    }
+    typical = {
+        sid: lab for sid, lab in _load_tagged_label_map(session, TYPICAL_TAG).items()
+        if sid in open_ids
+    }
     if not typical:
         typical = {
             sid: lab for sid, lab in latest.items()
             if TYPICAL_TAG in str(lab.get("note", "") or "")
         }
-    prototype_ids = set(_load_tagged_label_map(session, PROTOTYPE_TAG))
+    prototype_ids = set(_load_tagged_label_map(session, PROTOTYPE_TAG)) & open_ids
     sample_paths = _load_sample_paths(session)
     manifest_paths = _load_manifest_paths(session)
+    data_root = _data_root(session)
     out = []
     for sid, lab in typical.items():
         latest_note = str((latest.get(sid) or {}).get("note", "") or "")
         line = str(lab.get("line", ""))
         sn = str(lab.get("sn", ""))
-        path = _resolve_candidate_path(session, sid, line, sn, sample_paths, manifest_paths)
+        path = _resolve_existing_candidate_path(session, sid, line, sn, sample_paths, manifest_paths)
+        prototype_marked = sid in prototype_ids or PROTOTYPE_TAG in latest_note
+        in_prototype = (
+            prototype_marked
+            and _exists(path)
+            and _is_under_line_prototype(path, line=line, data_root=data_root)
+        )
         out.append({
             "sample_id": sid, "line": line,
             "sn": sn, "reason_name": str(lab.get("reason_name", "")),
             "source": str(lab.get("source", "")),
             "tdms": str(path) if path else "",
-            "in_prototype": sid in prototype_ids or PROTOTYPE_TAG in latest_note,
+            "in_prototype": in_prototype,
             "resolvable": _exists(path),
         })
     return out
@@ -508,6 +574,7 @@ def import_prototypes(session, sample_ids: list[str], dest_root: str | None = No
     base = Path(dest_root).expanduser() if dest_root else prototype_root(session)
     latest = session.label_table.latest_label_map()
     copied, marked, errors = [], 0, []
+    successful_ids: set[str] = set()
     manifest_updates: dict[tuple[str, str], str] = {}   # (real_line, real_sn) -> 新路径
     refresh_lines: set[str] = set()
     sample_paths = _load_sample_paths(session)
@@ -518,24 +585,30 @@ def import_prototypes(session, sample_ids: list[str], dest_root: str | None = No
         real_sn = str(lab.get("sn", "") or "")
         line = _safe(real_line)
         reason = _safe(lab.get("reason_name", "") or "未标注")
-        src = _resolve_candidate_path(session, sid, real_line, real_sn, sample_paths, manifest_paths)
+        src = _resolve_existing_candidate_path(session, sid, real_line, real_sn, sample_paths, manifest_paths)
         if src is None or not Path(src).exists():
             errors.append(f"{sid}: tdms 未解析/不存在")
             continue
         try:
-            fname = Path(src).name
-            dest_dir = base / line / "prototype" / reason   # <base>/<line>/prototype/<reason>/
-            dest_dir.mkdir(parents=True, exist_ok=True)
-            dest = dest_dir / fname
-            if Path(src).resolve() == dest.resolve():
-                pass                                  # 已在目标位置
-            elif dest.exists():
-                pass                                  # 目标已有同名文件，保留原 src，不覆盖
-            else:
-                shutil.move(str(src), str(dest))      # 移动原始 tdms 到 prototype 目录
+            registry_data_root = base.parent if base.name == "factory_raw" else base
+            dest = register_prototype(
+                src,
+                data_root=registry_data_root,
+                line=line,
+                reason=reason,
+                overwrite=False,
+            )
             copied.append(str(dest))
+            successful_ids.add(sid)
+            sample_paths[sid] = dest
+            try:
+                session.path_map[sid] = dest
+            except Exception:
+                pass
             if real_sn:
                 manifest_updates[(real_line, real_sn)] = str(dest.resolve())
+                manifest_paths[(str(real_line).strip().lower(), str(real_sn).strip().lower())] = dest
+                manifest_paths[("", str(real_sn).strip().lower())] = dest
             if real_line:
                 refresh_lines.add(real_line)
         except Exception as e:
@@ -543,7 +616,7 @@ def import_prototypes(session, sample_ids: list[str], dest_root: str | None = No
             continue
 
     # 更新 db：给这些 sample 的最新标签 note 加 [[prototype]]（单条更新 + 缓存一致，不重写整表）
-    for sid in sample_ids:
+    for sid in successful_ids:
         try:
             if session.label_table.mark_note_tag(sid, PROTOTYPE_TAG):
                 marked += 1

@@ -15,7 +15,7 @@ except ImportError:  # pragma: no cover
 
 
 _TICK_HI_BAND = (7000.0, 9500.0)
-_TICK_TRIM_S = 0.6
+_TICK_TRIM_S = 0.5
 _TICK_WIN_S = 1.0
 _TICK_HOP_S = 0.5
 

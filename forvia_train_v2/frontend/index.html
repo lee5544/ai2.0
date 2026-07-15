@@ -6,9 +6,48 @@
   <title>Forvia Train v2</title>
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
   <style>
-    :root { --bg:#f5f7fb; --card:#fff; --bd:#dfe4ec; --fg:#172033; --mut:#667085; --acc:#1769e0; --good:#16803c; --bad:#c52b2b; }
+    :root { --bg:#f5f7fb; --card:#fff; --bd:#dfe4ec; --fg:#172033; --mut:#667085; --acc:#1769e0; --good:#16803c; --bad:#c52b2b; --nav:#08111f; --nav2:#0d1b2f; --cyan:#38bdf8; }
     * { box-sizing:border-box; }
     body { margin:0; color:var(--fg); background:var(--bg); font-family:system-ui,-apple-system,"Segoe UI","PingFang SC",sans-serif; }
+    .app-shell { min-height:100vh; display:flex; background:var(--bg); --side-w:240px; --ui-scale:1; }
+    .sidebar { width:var(--side-w); flex:0 0 var(--side-w); min-width:220px; max-width:430px; min-height:100vh; padding:22px 16px; color:#e5eefc; resize:horizontal; overflow:auto; background:
+      linear-gradient(180deg, rgba(56,189,248,.12), transparent 30%),
+      radial-gradient(circle at 30% 0%, rgba(37,99,235,.35), transparent 32%),
+      linear-gradient(180deg, var(--nav), var(--nav2)); border-right:1px solid rgba(148,163,184,.24); position:sticky; top:0; }
+    .app-shell.sidebar-collapsed .sidebar { width:0; flex-basis:0; min-width:0; max-width:0; padding:0; border:0; resize:none; overflow:hidden; }
+    .brand { padding:4px 4px 22px; border-bottom:1px solid rgba(148,163,184,.22); margin-bottom:18px; }
+    .brand-title { font-size:22px; font-weight:850; line-height:1.15; }
+    .brand-company { margin-top:10px; font-size:15px; color:#bfdbfe; font-weight:700; }
+    .brand-en { margin-top:5px; font-size:11px; color:#7dd3fc; text-transform:uppercase; letter-spacing:.08em; line-height:1.35; }
+    .side-nav { display:flex; flex-direction:column; gap:10px; }
+    .side-tab { width:100%; display:flex; align-items:center; gap:10px; padding:13px 14px; border:1px solid rgba(148,163,184,.24); border-radius:10px; background:rgba(15,23,42,.42); color:#dbeafe; cursor:pointer; font-size:15px; font-weight:750; text-align:left; }
+    .side-tab:hover { border-color:rgba(56,189,248,.65); background:rgba(30,41,59,.72); }
+    .side-tab.active { background:linear-gradient(90deg, #2563eb, #0891b2); color:#fff; border-color:rgba(125,211,252,.75); box-shadow:0 10px 28px rgba(37,99,235,.28); }
+    .side-tab.disabled { opacity:.35; cursor:not-allowed; pointer-events:none; }
+    .side-tab.sub { margin-left:10px; width:calc(100% - 10px); padding:9px 11px; font-size:13px; font-weight:700; background:rgba(15,23,42,.28); }
+    .side-tab.sub.done { border-color:rgba(34,197,94,.55); color:#bbf7d0; }
+    .side-tab.sub.failed { border-color:rgba(248,113,113,.65); color:#fecaca; }
+    .side-tab small { margin-left:auto; color:inherit; opacity:.78; font-size:11px; font-weight:700; white-space:nowrap; }
+    .side-group-title { margin:18px 4px 8px; color:#93c5fd; font-size:12px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
+    .side-foot { margin-top:18px; padding-top:14px; border-top:1px solid rgba(148,163,184,.2); color:#93a4bd; font-size:12px; line-height:1.6; overflow-wrap:anywhere; }
+    .main-shell { flex:1; min-width:0; zoom:var(--ui-scale); }
+    .topbar { height:56px; display:flex; align-items:center; gap:14px; padding:0 18px; border-bottom:1px solid var(--bd); background:rgba(255,255,255,.94); position:sticky; top:0; z-index:12; }
+    .topbar-title { font-size:14px; font-weight:800; }
+    .topbar-meta { margin-left:auto; display:flex; gap:12px; flex-wrap:wrap; color:var(--mut); font-size:12px; }
+    .shell-controls { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+    .mini-btn { padding:4px 8px; border:1px solid var(--bd); border-radius:7px; background:#fff; cursor:pointer; font-size:12px; }
+    .mini-btn.active { background:var(--acc); border-color:var(--acc); color:#fff; }
+    .scale-label { color:var(--mut); font-size:12px; margin-left:4px; }
+    .welcome-hero { position:relative; overflow:hidden; margin:0 0 16px; padding:28px; border:1px solid #1d4ed8; border-radius:14px; color:#e0f2fe; background:
+      linear-gradient(rgba(8,17,31,.72), rgba(8,17,31,.72)),
+      repeating-linear-gradient(90deg, rgba(56,189,248,.12) 0 1px, transparent 1px 72px),
+      repeating-linear-gradient(0deg, rgba(56,189,248,.10) 0 1px, transparent 1px 52px),
+      linear-gradient(135deg, #07111f, #123a69 56%, #0e7490); }
+    .welcome-hero::after { content:""; position:absolute; inset:auto -20% -45% 35%; height:170px; background:rgba(56,189,248,.18); filter:blur(36px); }
+    .welcome-kicker { font-size:12px; color:#7dd3fc; font-weight:850; letter-spacing:.14em; text-transform:uppercase; }
+    .welcome-title { margin:8px 0 6px; font-size:34px; line-height:1.1; font-weight:850; letter-spacing:0; }
+    .welcome-company { font-size:18px; color:#bfdbfe; font-weight:700; }
+    .welcome-actions { margin-top:18px; display:flex; gap:10px; flex-wrap:wrap; position:relative; z-index:1; }
     header { min-height:82px; background:#fff; border-bottom:1px solid var(--bd); display:flex; flex-direction:column; align-items:stretch; gap:10px; padding:12px 22px; position:sticky; top:0; z-index:10; }
     h1 { font-size:17px; margin:0 24px 0 0; }
     nav { display:flex; flex-direction:column; gap:10px; flex:1; }
@@ -173,6 +212,10 @@
     .inner-tab { flex:1; padding:10px 14px; border-color:transparent; background:transparent; font-weight:700; }
     .inner-tab.active { background:#fff; border-color:#bfd5f2; color:var(--acc); box-shadow:0 2px 7px rgba(20,60,110,.08); }
     .project-database-info { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:9px; }
+    .project-list { display:grid; gap:8px; }
+    .project-row { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:12px 14px; border:1px solid var(--bd); border-radius:8px; background:#fbfdff; }
+    .project-row small { display:block; margin-top:4px; color:var(--mut); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:680px; }
+    .line-rules-editor { min-height:520px; width:100%; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; line-height:1.5; }
     .info-tile { padding:11px 12px; border:1px solid var(--bd); border-radius:9px; background:#fafcff; min-width:0; }
     .info-tile span { display:block; color:var(--mut); font-size:11px; margin-bottom:4px; }
     .info-tile b { display:block; overflow-wrap:anywhere; font-size:13px; }
@@ -187,6 +230,24 @@
     .sub-tab { border:1px solid var(--bd); background:#fff; color:var(--mut); padding:9px 14px; border-radius:8px; font-size:13px; cursor:pointer; }
     .sub-tab.active { border-color:var(--acc); color:var(--acc); background:#eef5ff; font-weight:800; }
     .operation-choice-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+    .database-home { display:flex; flex-direction:column; gap:16px; }
+    .database-registry-panel { padding:18px; border:1px solid var(--bd); border-radius:12px; background:#fff; box-shadow:0 2px 8px rgba(20,40,80,.035); }
+    .database-card-list { display:flex; flex-direction:column; gap:10px; margin-top:12px; }
+    .database-card { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:14px; padding:14px; border:1px solid var(--bd); border-radius:10px; background:#fbfdff; }
+    .database-card-title { font-size:16px; font-weight:850; margin-bottom:6px; }
+    .database-card-time { color:var(--mut); font-size:12px; margin-left:8px; font-weight:600; }
+    .database-path-row { display:grid; grid-template-columns:160px minmax(0,1fr); gap:12px; padding:5px 0; border-top:1px solid #edf1f6; }
+    .database-path-row span { color:var(--mut); font-weight:750; white-space:nowrap; }
+    .database-path-row b { font-weight:600; overflow-wrap:anywhere; }
+    .database-card-actions { display:flex; align-items:center; gap:8px; }
+    .database-distribution-card { padding:18px; border:1px solid var(--bd); border-radius:12px; background:#fff; box-shadow:0 2px 8px rgba(20,40,80,.035); }
+    .database-line-card { border:1px solid var(--bd); border-radius:10px; background:#fbfdff; margin-top:10px; overflow:hidden; }
+    .database-line-head { width:100%; display:flex; align-items:center; justify-content:space-between; gap:12px; padding:13px 14px; border:0; border-bottom:1px solid #edf1f6; background:#f8fbff; color:var(--fg); text-align:left; cursor:pointer; }
+    .database-line-head b { font-size:16px; }
+    .database-line-meta { display:flex; gap:8px; flex-wrap:wrap; color:var(--mut); font-size:12px; }
+    .database-line-body { padding:14px; }
+    .database-reference-summary { border:1px solid #b9d3f6; background:#f4f8ff; border-radius:10px; padding:12px; margin:12px 0; }
+    .database-reference-summary b { margin-right:12px; }
     .operation-choice { display:flex; align-items:flex-start; gap:12px; text-align:left; min-height:116px; border:1px solid #b9c9dc; background:linear-gradient(180deg,#fff,#f6f9fd); border-radius:8px; padding:18px; cursor:pointer; }
     .operation-choice.active { border-color:var(--acc); box-shadow:0 8px 22px rgba(23,105,224,.14); background:#f2f7ff; }
     .operation-choice b { display:block; font-size:18px; margin-bottom:6px; color:var(--txt); }
@@ -208,6 +269,29 @@
     .stage-steps { display:grid; grid-template-columns:repeat(7,minmax(80px,1fr)); gap:8px; margin-top:12px; }
     .stage-step { border:1px solid var(--bd); border-radius:8px; background:#fff; padding:9px; text-align:center; color:var(--mut); font-size:12px; }
     .stage-step.active { border-color:var(--acc); color:var(--acc); background:#eef5ff; font-weight:800; }
+    .train-step-console { position:sticky; top:66px; z-index:9; display:grid; grid-template-columns:repeat(6,minmax(96px,1fr)); gap:8px; margin:0 0 14px; padding:10px; border:1px solid var(--bd); border-radius:12px; background:rgba(255,255,255,.96); box-shadow:0 4px 14px rgba(20,40,80,.06); }
+    .train-step-btn { min-height:54px; border-color:#cfd8e6; background:#f7f9fc; color:var(--mut); font-weight:800; }
+    .train-step-btn.active { border-color:var(--acc); background:#e7f1ff; color:var(--acc); box-shadow:inset 0 0 0 2px rgba(23,105,224,.28),0 8px 18px rgba(23,105,224,.14); transform:translateY(-1px); }
+    .train-step-btn.done { border-color:#8cc99d; background:#eefbf2; color:var(--good); }
+    .train-step-btn.failed { border-color:#efb4b4; background:#fff0f0; color:var(--bad); }
+    .train-step-btn.done.active,.train-step-btn.failed.active { border-color:var(--acc); background:#e7f1ff; color:var(--acc); box-shadow:inset 0 0 0 2px rgba(23,105,224,.28),0 8px 18px rgba(23,105,224,.14); transform:translateY(-1px); }
+    .train-step-btn .step-no { display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; margin-right:7px; border-radius:50%; background:#e5ebf3; color:inherit; font-size:12px; font-weight:900; }
+    .train-step-btn.active .step-no,.train-step-btn.done .step-no { background:currentColor; color:#fff; }
+    .train-step-btn small { display:block; margin-top:4px; font-weight:600; font-size:11px; opacity:.82; }
+    .train-step-workspace { background:transparent; border:0; border-radius:0; box-shadow:none; overflow:visible; }
+    .train-step-body { padding:16px 18px 18px; }
+    .train-step-workspace .step-subsection { padding:16px; margin:0 0 16px; border:1px solid var(--bd); border-radius:12px; background:#fff; box-shadow:0 2px 8px rgba(20,40,80,.035); }
+    .train-step-workspace .step-subsection:last-child { margin-bottom:0; }
+    .train-step-footer { position:sticky; bottom:0; z-index:8; display:flex; justify-content:space-between; gap:10px; align-items:center; padding:12px 18px; border-top:1px solid var(--bd); background:rgba(255,255,255,.96); }
+    .train-step-footer .actions { display:flex; gap:8px; }
+    .run-strip { display:block; }
+    .run-strip .action-step { width:100%; min-height:68px; display:flex; align-items:center; justify-content:space-between; gap:16px; padding:16px 20px; border-radius:11px; border:1px solid #75aaf0; background:#eef5ff; color:var(--acc); text-align:left; box-shadow:none; }
+    .run-strip .action-step::after { content:none; }
+    .run-strip .action-step b { font-size:18px; }
+    .run-strip .action-step small { margin:0; color:var(--mut); font-size:13px; }
+    .run-strip .action-step.active { background:#e7f1ff; }
+    .run-strip .action-step.done { border-color:#8cc99d; background:#eefbf2; color:var(--good); }
+    .augment-toggle { width:100%; min-height:52px; margin:0 0 16px; display:flex; align-items:center; justify-content:space-between; padding:13px 16px; border:1px dashed #9bb8dc; border-radius:12px; background:#f8fbff; color:var(--acc); font-weight:800; text-align:left; }
     .prominent-actions { gap:22px; }
     .prominent-actions .action-step { min-height:108px; padding:20px 42px 20px 24px; border:2px solid #75aaf0; background:linear-gradient(135deg,#1769e0,#0f5fcf); color:#fff; border-radius:13px 0 0 13px; box-shadow:0 9px 22px rgba(23,105,224,.22); }
     .prominent-actions .action-step:nth-child(2) { border-color:#42a568; background:linear-gradient(135deg,#16803c,#116c32); box-shadow:0 9px 22px rgba(22,128,60,.2); }
@@ -217,19 +301,22 @@
     .prominent-actions .action-step.active { filter:saturate(1.15); }
     .prominent-actions .action-step.done { color:var(--good); background:#effbf3; box-shadow:none; }
     .key-data-list { max-height:300px; overflow:auto; border:1px solid var(--bd); border-radius:9px; background:#fff; }
-    .folder-card-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin-top:10px; }
+    .folder-card-grid { display:grid; grid-template-columns:1fr; gap:8px; margin-top:10px; }
     .folder-card { border:1px solid var(--bd); border-radius:9px; padding:9px; background:#fafcff; }
     .folder-card-head { display:flex; align-items:center; justify-content:space-between; gap:6px; margin-bottom:7px; }
     .folder-card .input-row input { font-size:12px; }
+    .augmentation-folder-row { display:grid; grid-template-columns:110px minmax(0,1fr) 190px auto; gap:8px; align-items:end; }
+    .augmentation-folder-row b { align-self:center; }
+    .augmentation-folder-row label { margin:0; }
     .key-data-row { display:grid; grid-template-columns:28px minmax(0,1fr) 150px; align-items:center; gap:8px; padding:7px 9px; border-bottom:1px solid #edf0f4; }
     .key-data-row:last-child { border-bottom:0; }
     .key-data-row input { margin:0; }
     .key-data-path { overflow-wrap:anywhere; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; }
-    .group-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:9px; margin-top:10px; }
-    .compact-group { border:1px solid var(--bd); border-radius:9px; padding:9px; background:#fff; min-width:0; }
+    .group-grid { display:grid; grid-template-columns:1fr; gap:9px; margin-top:10px; }
+    .compact-group { border:1px solid var(--bd); border-radius:9px; padding:11px; background:#fff; min-width:0; }
     .compact-group.selected { border-color:#7fb3f5; background:#f5f9ff; }
     .compact-group-head { display:flex; align-items:center; gap:5px; margin-bottom:7px; }
-    .compact-group-head b { flex:1; font-size:12px; }
+    .compact-group-head b { flex:1; font-size:13px; }
     .compact-group-head button { padding:3px 6px; font-size:11px; }
     .compact-group-counts { display:flex; gap:5px; flex-wrap:wrap; margin-bottom:7px; }
     .compact-group-controls { display:flex; align-items:flex-end; gap:7px; overflow-x:auto; padding-bottom:2px; }
@@ -256,9 +343,17 @@
     .label-bar-track { background:#edf2f7; height:15px; border-radius:4px; overflow:hidden; }
     .label-bar-fill { height:100%; background:linear-gradient(90deg,#1769e0,#46a3ff); min-width:2px; }
     @media(max-width:850px) {
+      .app-shell { display:block; }
+      .sidebar { position:relative; width:100%; max-width:none; min-height:auto; resize:none; }
+      .app-shell.sidebar-collapsed .sidebar { display:none; }
+      .topbar { top:0; flex-wrap:wrap; height:auto; min-height:56px; padding:10px 12px; }
       nav { overflow:auto; } .current { display:none; } main { padding:12px; }
       .workflow-step { min-width:170px; }
-      .grid,.grid3,.metrics,.split,.image-grid,.featured-chart-grid,.chart-card-grid,.model-cards,.table-grid,.reference-grid,.group-grid,.folder-card-grid,.candidate-grid,.project-database-info,.project-info-form,.operation-choice-grid,.flow-grid,.status-strip,.precheck-metrics,.stage-steps { grid-template-columns:1fr; }
+      .grid,.grid3,.metrics,.split,.image-grid,.featured-chart-grid,.chart-card-grid,.model-cards,.table-grid,.reference-grid,.group-grid,.folder-card-grid,.candidate-grid,.project-database-info,.project-info-form,.operation-choice-grid,.flow-grid,.status-strip,.precheck-metrics,.stage-steps,.train-step-console { grid-template-columns:1fr; }
+      .augmentation-folder-row { grid-template-columns:1fr; }
+      .database-card { grid-template-columns:1fr; }
+      .database-path-row { grid-template-columns:1fr; }
+      .database-card-actions { justify-content:flex-start; }
       .key-add-row { grid-template-columns:1fr; }
       .reason-row { grid-template-columns:1fr; }
     }
@@ -266,29 +361,74 @@
 </head>
 <body>
 <div id="app">
-  <header>
-    <nav>
-      <div class="nav-main">
-        <h1>Forvia Train v2</h1>
-        <div class="main-tabs">
-          <button class="tab" :class="{active:view==='database'}" @click="openTab('database')">配置数据库</button>
-          <button class="tab" :class="{active:view==='projects'}" @click="openTab('projects')">项目列表（模型名称）</button>
+  <div class="app-shell" :class="{'sidebar-collapsed': sidebarCollapsed}" :style="{'--side-w': sidebarWidth+'px', '--ui-scale': uiScale}">
+    <aside class="sidebar" @mouseup="rememberSidebarWidth">
+      <div class="brand">
+        <div class="brand-title">Forvia Train v2</div>
+        <div class="brand-company">上海帆古自动化</div>
+        <div class="brand-en">Industrial Model Training Console</div>
+      </div>
+      <nav class="side-nav">
+        <button class="side-tab" onclick="window.location.href='/console'">← 返回开始</button>
+        <button v-if="view!=='database'&&(!current||view==='projects')" class="side-tab" :class="{active:view==='projects'}" @click="openTab('projects')">📋 项目列表</button>
+        <template v-if="view==='database'">
+          <div class="side-group-title">配置数据库</div>
+          <button class="side-tab" :class="{active:databaseUi.tab==='operation'}" @click="openDatabaseSubTab('operation')">数据库操作</button>
+          <button class="side-tab" :class="{active:databaseUi.tab==='labels'}" @click="openDatabaseSubTab('labels')">配置标签</button>
+          <button class="side-tab" :class="{active:databaseUi.tab==='line-rules'}" @click="openDatabaseSubTab('line-rules')">配置产线规则</button>
+        </template>
+        <template v-if="current&&view!=='database'">
+          <div class="side-group-title">项目</div>
+          <button class="side-tab" :class="{active:view==='data'}" @click="openTab('data')">配置项目信息</button>
+          <button class="side-tab" :class="{active:view==='train'}" @click="openTab('train')">训练</button>
+          <template v-if="view==='train'">
+            <button v-for="step in trainSteps" :key="step.id" class="side-tab sub" :class="trainStepClass(step)" @click="openTrainStep(step)">
+              <span>{{step.no}} {{step.label}}</span><small>{{trainStepText(step)}}</small>
+            </button>
+          </template>
+          <button class="side-tab" :class="{active:view==='results'}" @click="openTab('results')">结果分析</button>
+          <button class="side-tab" :class="{active:view==='predict'}" @click="openTab('predict')">📤 模型推理</button>
+        </template>
+        <button v-if="view==='projects'||view==='predict'&&!current" class="side-tab" :class="{active:view==='predict'}" @click="openTab('predict')">📤 模型推理</button>
+      </nav>
+      <div class="side-foot">
+        <div>当前项目：{{ current ? current.name : '未选择模型项目' }}</div>
+        <div v-if="current">模型 ID：{{ currentModelId() }}</div>
+      </div>
+    </aside>
+    <div class="main-shell">
+      <div class="topbar">
+        <button class="mini-btn" @click="toggleSidebar">{{ sidebarCollapsed ? '☰ 显示侧栏' : '☰ 隐藏侧栏' }}</button>
+        <div class="topbar-title">{{ view==='database' ? '配置数据库' : view==='projects' ? '项目列表（模型名称）' : view==='data' ? '配置项目信息' : view==='train' ? '模型与参数配置' : view==='results' ? '结果分析' : view==='predict' ? '模型推理' : 'Forvia Train v2' }}</div>
+        <div class="shell-controls">
+          <span class="scale-label">字体</span>
+          <button class="mini-btn" :class="{active: uiScale===0.9}" @click="setUiScale(0.9)">小</button>
+          <button class="mini-btn" :class="{active: uiScale===1}" @click="setUiScale(1)">中</button>
+          <button class="mini-btn" :class="{active: uiScale===1.1}" @click="setUiScale(1.1)">大</button>
+          <button class="mini-btn" :class="{active: uiScale===1.2}" @click="setUiScale(1.2)">超大</button>
         </div>
-        <div class="current">{{ current ? current.name : '未选择模型项目' }}</div>
+        <div class="topbar-meta">
+          <span>项目 <b>{{ projects.length }}</b></span>
+          <span v-if="current">当前 <b>{{ currentModelId() }}</b></span>
+        </div>
       </div>
-      <div v-if="current" class="workflow">
-        <span class="workflow-title">进度</span>
-        <button v-for="item in workflowTabs" :key="item.id" class="workflow-step" :class="workflowClass(item.id)" @click="openTab(item.id)">{{ item.label }}</button>
-      </div>
-    </nav>
-  </header>
 
   <main>
     <div v-if="message" class="notice" :class="{err:messageError}">{{ message }}</div>
 
     <!-- 项目列表 -->
     <section v-show="view==='projects'">
-      <div class="page-title"><h2>项目列表（模型名称）</h2><div class="actions"><button class="primary" @click="showCreate=!showCreate">＋ 创建模型项目</button></div></div>
+      <section class="welcome-hero">
+        <div class="welcome-kicker">Industrial Model Training Console</div>
+        <div class="welcome-title">Forvia Train v2</div>
+        <div class="welcome-company">上海帆古自动化</div>
+        <div class="welcome-actions">
+          <button class="primary" @click="showCreate=true">＋ 创建模型项目</button>
+          <button @click="showOpenProject=true">打开模型项目</button>
+          <button @click="loadProjects">↻ 刷新项目</button>
+        </div>
+      </section>
+      <div class="page-title"><h2>项目列表（模型名称）</h2><div class="actions"><button class="primary" @click="showCreate=!showCreate">＋ 创建模型项目</button><button @click="showOpenProject=!showOpenProject">打开模型项目</button></div></div>
       <div v-if="showCreate" class="card">
         <h3>创建模型项目</h3>
         <div class="grid3">
@@ -298,6 +438,11 @@
         </div>
         <p class="hint">最终模型 ID：{{ createModelId || '请填写产线和模型名称' }}</p>
         <button class="primary" @click="createProject">创建并打开</button>
+      </div>
+      <div v-if="showOpenProject" class="card">
+        <h3>打开模型项目</h3>
+        <p class="hint">选择已有 YAML。若配置尚未登记为项目，会自动登记；外部 YAML 会复制到 cfg 后再打开。</p>
+        <label>项目 YAML<span class="input-row"><input v-model.trim="openProjectForm.path" placeholder="cfg/epump3_general.yaml"><button @click="openBrowser('openProjectForm.path','file')">选择</button><button class="primary" @click="openProject">打开</button></span></label>
       </div>
       <div class="card">
         <table>
@@ -361,7 +506,7 @@
                         <button class="primary" @click="saveProjectForm(p)">保存上方参数</button>
                         <p class="hint">保存上方参数会写回 YAML；下方 YAML 仍可直接编辑并保存。</p>
                       </div>
-                      <label>YAML 配置<textarea class="project-yaml" v-model="projectDetails[p.id].yaml" spellcheck="false"></textarea></label>
+                      <label :id="`project-yaml-${p.id}`">YAML 配置<textarea class="project-yaml" v-model="projectDetails[p.id].yaml" spellcheck="false"></textarea></label>
                       <ValidationPanel :validation="projectDetails[p.id].validation" />
                     </template>
                   </div>
@@ -377,16 +522,71 @@
     <!-- 配置数据库 -->
     <section v-show="view==='database'">
       <div class="page-title"><h2>配置数据库</h2><div class="actions" v-if="databaseUi.tab==='operation'&&databaseTool.action"><button @click="resetDatabaseAction">返回选择</button></div></div>
-      <div class="sub-tabs">
-        <button class="sub-tab" :class="{active:databaseUi.tab==='operation'}" @click="databaseUi.tab='operation'">数据库操作</button>
-        <button class="sub-tab" :class="{active:databaseUi.tab==='labels'}" @click="databaseUi.tab='labels';loadLabelRules()">配置标签</button>
-        <button class="sub-tab" :class="{active:databaseUi.tab==='distribution'}" @click="databaseUi.tab='distribution'">数据标签分布</button>
-      </div>
-      <div v-if="databaseUi.tab==='operation'&&!databaseTool.action" class="card">
-        <div class="operation-choice-grid">
-          <button v-for="x in databaseActionChoices" class="operation-choice" @click="chooseDatabaseAction(x.id)">
-            <span class="operation-index">{{x.no}}</span><span><b>{{x.name}}</b><span>{{x.desc}}</span></span>
-          </button>
+      <div v-if="databaseUi.tab==='operation'&&!databaseTool.action" class="database-home">
+        <section class="welcome-hero">
+          <div class="welcome-kicker">Industrial Acoustic Database Console</div>
+          <div class="welcome-title">Forvia 数据库 v2</div>
+          <div class="welcome-actions">
+            <button @click="startOpenDatabase">打开数据库</button>
+            <button class="primary" @click="startCreateDatabase">＋ 新建数据库</button>
+            <button @click="refreshDatabaseHome">↻ 刷新</button>
+          </div>
+        </section>
+        <div v-if="showOpenDatabase" class="card">
+          <h3>打开数据库</h3>
+          <label>数据库根目录 data_root
+            <span class="input-row"><input v-model.trim="globalDatabase.data_root" @input="deriveGlobalDatabasePaths" placeholder="例如 /Volumes/.../data_root"><button @click="openBrowser('globalDatabase.data_root','dir')">选择</button><button class="primary" @click="openDatabaseFromPath">打开</button></span>
+          </label>
+          <p class="hint">系统将读取该目录下的 metadata/label_records.db、metadata/tdms_manifest.csv 和 factory_raw。</p>
+        </div>
+        <div class="database-registry-panel">
+          <div class="page-title"><h3>已建立数据库</h3><div class="actions"><span class="hint">当前：{{databaseDisplayName(globalDatabase.data_root)}}</span></div></div>
+          <div v-if="databaseOpening" class="notice">{{databaseOpenProgress||'正在打开数据库...'}}</div>
+          <div class="database-card-list">
+            <div v-for="(db,index) in databaseRegistry" :key="db.data_root" class="database-card">
+              <div>
+                <div class="database-card-title">{{db.name||databaseDisplayName(db.data_root)}}<span class="database-card-time">{{db.updated_at||''}}</span></div>
+                <div class="database-path-row"><span>data_root</span><b>{{db.data_root}}</b></div>
+                <div class="database-path-row"><span>label_records.db</span><b>{{db.label_records_db_path}}</b></div>
+                <div class="database-path-row"><span>manifest</span><b>{{db.manifest_path}}</b></div>
+              </div>
+              <div class="database-card-actions"><button class="primary" :disabled="databaseOpening" @click="openDatabaseProject(db)">{{databaseOpening?'打开中…':'打开'}}</button><button :disabled="databaseOpening" @click="updateDatabaseProject(db)">更新</button><button class="danger" :disabled="databaseOpening" @click="removeRegisteredDatabase(index)">删除</button></div>
+            </div>
+            <p v-if="!databaseRegistry.length" class="hint">暂无已保存数据库。点击“新建数据库”创建第一个数据库。</p>
+          </div>
+        </div>
+        <div v-if="lineOverview" class="database-distribution-card">
+          <div class="page-title"><h3>数据标签分布</h3><div class="actions"><button @click="toggleAllDistributionRefs">{{allDistributionRefsSelected()?'取消勾选全部':'勾选全部'}}</button><button @click="loadLineOverview">刷新分布</button></div></div>
+          <p class="hint">标签统计规则：{{lineOverview.filter_rule}}</p>
+          <div v-if="selectedDistributionStats().count" class="database-reference-summary">
+            <b>已选 reference：{{selectedDistributionStats().count}}</b>
+            <b>TDMS：{{selectedDistributionStats().tdms_count}}</b>
+            <b>有效终标TDMS：{{selectedDistributionStats().labeled_tdms_count}}</b>
+            <div class="dist-row" style="margin-top:8px"><span v-for="x in selectedDistributionStats().labels" class="dist-chip">{{distName(x.label)}}：{{x.count}}</span></div>
+          </div>
+          <div v-if="lineOverview.total" style="overflow:auto;margin:12px 0">
+            <table>
+              <thead><tr><th>范围</th><th>tdms数量</th><th>有效终标TDMS数量</th><th>标签分布(终标,样本级)</th></tr></thead>
+              <tbody><tr><td>全部</td><td>{{lineOverview.total.tdms_count||0}}</td><td>{{lineOverview.total.labeled_tdms_count||0}}</td><td>{{lineOverview.total.label_distribution_text||'—'}}</td></tr></tbody>
+            </table>
+          </div>
+          <div v-for="line in lineOverview.line_rows" class="database-line-card">
+            <button class="database-line-head" @click="toggleDatabaseLine(line.line)">
+              <b>{{line.line}}</b>
+              <span class="database-line-meta"><span>TDMS {{line.tdms_count}}</span><span>reference {{line.reference_count}}</span><span>标签样本 {{line.label_count}}</span><span>{{databaseLineExpanded(line.line)?'收起':'展开'}}</span></span>
+            </button>
+            <div v-if="databaseLineExpanded(line.line)" class="database-line-body">
+              <div class="hint">产线总标签分布</div>
+              <div class="label-chart"><div v-for="x in line.labels" class="label-bar-row"><span>{{distName(x.label)}}</span><div class="label-bar-track"><div class="label-bar-fill" :style="{width:barWidth(line.labels,x.count)}"></div></div><b>{{x.count}}</b></div><span v-if="!line.labels.length" class="hint">暂无过滤后标签</span></div>
+              <div style="overflow:auto;margin:12px 0">
+                <table>
+                  <thead><tr><th>选择</th><th>reference</th><th>tdms数量</th><th>有效终标TDMS数量</th><th>标签分布(终标,样本级)</th></tr></thead>
+                  <tbody><tr v-for="ref in line.references"><td><input type="checkbox" :checked="distributionRefSelected(line.line,ref.reference)" @change="toggleDistributionRef(line.line,ref.reference)"></td><td>{{ref.reference}}</td><td>{{ref.tdms_count}}</td><td>{{ref.labeled_tdms_count||0}}</td><td>{{ref.label_distribution_text||'—'}}</td></tr></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          <p v-if="!lineOverview.line_rows.length" class="hint">没有可显示的产线数据。</p>
         </div>
       </div>
       <div v-if="databaseUi.tab==='operation'&&databaseTool.action" class="card">
@@ -401,34 +601,24 @@
           <div class="info-tile"><span>TDMS 根目录</span><b>{{globalDatabase.tdms_root}}</b></div>
         </div>
       </div>
-        <div v-if="databaseUi.tab==='operation'&&databaseTool.action" class="card">
+        <div v-if="databaseUi.tab==='operation'&&databaseTool.action&&databaseTool.action!=='open'" class="card">
           <h3>数据库操作</h3>
           <div style="margin-top:14px">
-            <div v-if="databaseTool.action==='update'" class="operation-choice-grid" style="margin-bottom:12px">
-              <button class="operation-choice" :class="{active:databaseTool.update_kind==='repair'}" @click="databaseTool.update_kind='repair';databaseTool.file_mode='manual'">
-                <span class="operation-index">A</span><span><b>修复数据库路径</b><span>文件移动后重新扫描 factory_raw，更新 manifest / samples。</span></span>
-              </button>
-              <button class="operation-choice" :class="{active:databaseTool.update_kind==='append'}" @click="databaseTool.update_kind='append'">
-                <span class="operation-index">B</span><span><b>追加 TDMS / 标签</b><span>追加新增文件夹和标签；样本记录覆盖，label events 保留多条。</span></span>
-              </button>
-            </div>
             <div class="step-subsection">
               <h4>数据来源</h4>
               <div class="grid">
-                <label v-if="databaseTool.action==='create'||databaseTool.update_kind==='append'">输入包含 TDMS / TDMS.ZST 的源数据文件夹<span class="input-row"><input v-model="databaseTool.source_folder"><button @click="openBrowser('databaseTool.source_folder','dir')">选择</button><button @click="precheckDatabase">扫描</button></span><span v-if="databaseTool.update_kind==='append'" class="hint">只追加标签时可以留空。</span></label>
-                <label v-if="databaseTool.action==='update'&&databaseTool.update_kind==='repair'">当前 label_records.db<div class="path-display">{{globalDatabase.label_records_db_path||'未配置'}}</div></label>
-                <label v-if="databaseTool.action==='update'&&databaseTool.update_kind==='repair'">当前 TDMS 根目录<div class="path-display">{{globalDatabase.tdms_root||'未配置'}}</div></label>
+                <label v-if="databaseTool.action==='create'||databaseTool.action==='update'">输入包含 TDMS / TDMS.ZST 的源数据文件夹<span class="input-row"><input v-model="databaseTool.source_folder"><button @click="openBrowser('databaseTool.source_folder','dir')">选择</button><button @click="precheckDatabase">扫描</button></span><span v-if="databaseTool.action==='update'" class="hint">可留空；留空时扫描当前 TDMS 根目录，自动处理路径变化、新增 TDMS 和采样率。</span></label>
                 <label>产线 line（可选）
                   <select v-model="databaseTool.line"><option value="">自动推断 / 全部产线</option><option v-for="line in options.line_options" :value="line">{{line}}</option></select>
-                  <span v-if="databaseTool.action==='refresh'" class="hint">选择 line 只更新该产线；不选择则更新全部产线。</span>
+                  <span v-if="databaseTool.action==='update'" class="hint">选择 line 只更新该产线；不选择则更新全部产线。</span>
                 </label>
-                <label v-if="databaseTool.action==='create'||databaseTool.update_kind==='append'">文件处理方式
+                <label v-if="databaseTool.action==='create'||databaseTool.action==='update'">文件处理方式
                   <select v-model="databaseTool.file_mode"><option value="manual">已在数据库目录内</option><option value="copy">复制到数据库目录</option><option value="move">移动到数据库目录</option></select>
                 </label>
                 <label>并行解析线程<input type="number" min="0" v-model.number="databaseTool.workers"><span class="hint">0 表示自动</span></label>
               </div>
             </div>
-            <div v-if="databaseTool.action==='create'||databaseTool.update_kind==='append'" class="step-subsection" style="margin-top:12px">
+            <div v-if="databaseTool.action==='create'||databaseTool.action==='update'" class="step-subsection" style="margin-top:12px">
               <h4>标签来源</h4>
               <div class="grid">
                 <label>来源类型<select v-model="databaseTool.label_source_type"><option value="none">无标签</option><option value="db">DB</option><option value="internal">内部表</option><option value="forvia">Forvia表</option></select></label>
@@ -443,9 +633,9 @@
               </div>
               <p class="hint">内部表使用统一标签事件表；Forvia 表会先转换成内部表再导入。</p>
             </div>
-            <p v-if="databaseTool.file_mode==='manual'&&(databaseTool.action==='create'||databaseTool.update_kind==='append')" class="hint">已在数据库目录内模式不会移动文件；输入文件夹必须位于当前 TDMS 根目录中。</p>
-            <p v-if="databaseTool.action==='update'&&databaseTool.update_kind==='repair'" class="notice">将扫描当前 TDMS 根目录 <b>{{globalDatabase.tdms_root}}</b>，{{databaseTool.line?`只更新 ${databaseTool.line} 产线`:'更新全部产线'}}的 TDMS 路径、sample_id 和采样率。</p>
-            <div class="actions" style="margin-top:12px"><button @click="precheckDatabase" :disabled="databaseTool.scanning">{{databaseTool.scanning?'扫描中…':'预检查'}}</button><button class="primary" :disabled="databaseTool.running||!canExecuteDatabase" @click="runDatabaseAction">{{databaseTool.running?'处理中…':databaseTool.action==='create'?'新建数据库':databaseTool.update_kind==='repair'?'修复数据库路径':'追加 TDMS / 标签'}}</button></div>
+            <p v-if="databaseTool.file_mode==='manual'&&(databaseTool.action==='create'||databaseTool.action==='update')" class="hint">已在数据库目录内模式不会移动文件；输入文件夹必须位于当前 TDMS 根目录中。</p>
+            <p v-if="databaseTool.action==='update'" class="notice">更新数据库会扫描当前 TDMS 根目录 <b>{{globalDatabase.tdms_root}}</b>，自动同步 TDMS 路径、sample_id、采样率和标签。</p>
+            <div class="actions" style="margin-top:12px"><button @click="precheckDatabase" :disabled="databaseTool.scanning">{{databaseTool.scanning?'扫描中…':'预检查'}}</button><button class="primary" :disabled="databaseTool.running||!canExecuteDatabase" @click="runDatabaseAction">{{databaseTool.running?'处理中…':databaseTool.action==='create'?'新建数据库':'更新数据库'}}</button></div>
             <div v-if="databaseTool.precheck" class="precheck-panel">
               <div class="precheck-metrics">
                 <div class="precheck-metric"><span>TDMS 数量</span><b>{{databaseTool.precheck.source_scan.tdms_count}}</b></div>
@@ -560,6 +750,24 @@
             <label>模型名称<input v-model.trim="projectInfoForm.model_name"></label>
           </div>
         </div>
+        <div class="card">
+          <div class="page-title">
+            <h3>项目数据库</h3>
+            <div class="actions"><button class="primary" @click="applyProjectDatabase">应用到项目</button></div>
+          </div>
+          <label>选择数据库
+            <select v-model="projectDatabaseRoot">
+              <option value="">使用当前全局数据库：{{databaseDisplayName(globalDatabase.data_root)}}</option>
+              <option v-for="db in databaseRegistry" :key="db.data_root" :value="db.data_root">{{db.name||databaseDisplayName(db.data_root)}} · {{db.data_root}}</option>
+            </select>
+          </label>
+          <div class="project-database-info" style="margin-top:12px">
+            <div class="info-tile"><span>data_root</span><b>{{selectedProjectDatabase().data_root||'未选择'}}</b></div>
+            <div class="info-tile"><span>label_records.db</span><b>{{selectedProjectDatabase().label_records_db_path||'未配置'}}</b></div>
+            <div class="info-tile"><span>tdms_manifest.csv</span><b>{{selectedProjectDatabase().manifest_path||'未配置'}}</b></div>
+          </div>
+          <p class="hint">这里先记录项目使用哪个数据库；训练数据筛选和特征提取后续按该项目数据库读取。</p>
+        </div>
         <validation-panel :validation="validation"></validation-panel>
         <div v-if="dataset" class="metrics">
           <div class="metric"><div class="label">数据库样本</div><div class="value">{{dataset.sample_rows||0}}</div></div>
@@ -630,145 +838,200 @@
       </div>
     </section>
 
+    <!-- 配置产线规则 -->
+    <section v-show="view==='database'&&databaseUi.tab==='line-rules'">
+      <div class="page-title">
+        <h2>配置产线规则</h2>
+        <div class="actions">
+          <button @click="loadLineRules">重新加载</button>
+          <button @click="validateLineRules">校验规则</button>
+          <button @click="restoreDefaultLineRules">恢复默认版本</button>
+          <button class="primary" :disabled="lineRules.saving" @click="saveLineRules">{{lineRules.saving?'保存中…':'保存产线规则'}}</button>
+        </div>
+      </div>
+      <div class="card">
+        <p class="hint">唯一配置入口：{{lineRules.path || 'cfg/core/line_rules.yaml'}}。修改后供 TDMS 注册、样本生成、特征提取和标注读取；line_rules.py 只负责规则校验与执行。</p>
+        <div v-if="lineRules.loading" class="notice">正在加载产线规则...</div>
+        <template v-else>
+          <label>line_rules.yaml
+            <textarea class="yaml line-rules-editor" v-model="lineRules.yamlText" spellcheck="false"></textarea>
+          </label>
+          <div v-if="lineRules.message" class="notice" :class="{err:lineRules.error}">{{lineRules.message}}</div>
+          <div class="line-rules-preview">
+            <div class="page-title"><h3>解析预览</h3><span class="hint">当前产线：{{lineRules.lines.join('、')||'—'}}</span></div>
+            <div class="grid3">
+              <label>产线<select v-model="lineRules.previewLine"><option value="">请选择</option><option v-for="line in lineRules.lines" :value="line">{{line}}</option></select></label>
+              <label>示例文件名<input v-model="lineRules.previewFilename" placeholder="E-pump_SN_REFERENCE_DATE_TIME.tdms.zst"></label>
+              <div class="info-tile"><span>校验状态</span><b>{{lineRules.validation||'未校验'}}</b></div>
+            </div>
+          </div>
+        </template>
+      </div>
+    </section>
+
     <!-- 训练 -->
     <section v-show="view==='train'">
-      <div class="page-title"><h2>训练（配置参数 + 提取特征 + 训练）</h2><div class="actions"><button @click="validateCurrent(true)">校验配置</button><button class="primary" @click="saveTrain()">保存训练配置</button></div></div>
+      <div class="page-title"><h2>训练</h2><div class="actions"><button @click="validateCurrent(true)">校验配置</button><button class="primary" @click="saveTrain()">保存训练配置</button></div></div>
       <template v-if="requireCurrent">
-        <details class="card step-card">
-          <summary>1. 选择训练数据</summary>
-          <div class="step-card-body">
-            <div class="step-subsection">
-              <h4>1.1 选择主要训练数据</h4>
-              <p class="hint">按照 line、文件夹、reference 三种方式，选择参与训练的数据。</p>
+        <div class="train-step-workspace">
+          <div class="train-step-body">
+            <div id="train-step-dataset" v-show="activeTrainStep==='dataset'">
+              <div class="step-subsection">
+                <h4>1.1 选择主要训练数据</h4>
+                <p class="hint">按照 line、文件夹、reference 三种方式，选择参与训练的数据。</p>
+                <div class="model-cards">
+                  <div v-for="x in [{id:'line',name:'选择线'},{id:'folder',name:'选择文件夹'},{id:'reference',name:'选择 reference'}]" class="model-card data-mode-card" :class="{active:trainForm.data_mode===x.id}" @click="trainForm.data_mode=x.id">
+                    <b>{{x.name}}</b><div class="hint">{{x.id==='line'?'按产线筛选':x.id==='folder'?'按 TDMS 所在目录筛选':'按 line/reference 精确筛选'}}</div>
+                  </div>
+                </div>
+                <div v-if="trainForm.data_mode==='line'" class="candidate-grid">
+                  <label v-for="x in trainingOptions.lines" class="candidate-option"><input type="checkbox" :value="x" v-model="trainForm.selected_lines"><span>{{x}}</span></label>
+                </div>
+                <div v-if="trainForm.data_mode==='folder'" class="candidate-grid">
+                  <label v-for="x in trainingOptions.folders" class="candidate-option"><input type="checkbox" :value="x" v-model="trainForm.selected_folders"><span>{{x}}</span></label>
+                </div>
+                <div v-if="trainForm.data_mode==='reference'" class="candidate-grid">
+                  <label v-for="x in trainingOptions.references" class="candidate-option"><input type="checkbox" :value="x" v-model="trainForm.selected_references"><span>{{x}}</span></label>
+                </div>
+                <p class="hint">候选：line {{trainingOptions.lines.length}} · 文件夹 {{trainingOptions.folders.length}} · reference {{trainingOptions.references.length}}</p>
+              </div>
+
+              <div class="step-subsection">
+                <h4>1.2 选择 key 数据</h4>
+                <p class="hint">选择文件夹和对应 line，点击加号后加入列表。</p>
+                <div class="key-add-row">
+                  <label>key 文件夹<span class="input-row"><input v-model="keyFolderDraft.path" placeholder="key_sns / prototype 文件夹"><button @click="openBrowser('keyFolderDraft.path','dir')">选择</button></span></label>
+                  <label>产线 line<select v-model="keyFolderDraft.line"><option value="">选择 line</option><option v-for="x in availableLines" :value="x">{{x}}</option></select></label>
+                  <button class="primary" @click="addKeyFolder">＋ 添加</button>
+                </div>
+                <div class="key-data-list">
+                  <div v-for="(item,index) in trainForm.key_rows" class="key-data-row" style="grid-template-columns:minmax(0,1fr) 170px auto">
+                    <span class="key-data-path">{{item.path}}</span>
+                    <select v-model="item.line"><option value="">选择 line</option><option v-for="x in availableLines" :value="x">{{x}}</option></select>
+                    <button class="danger" @click="removeKeyFolder(index)">删除</button>
+                  </div>
+                  <p v-if="!trainForm.key_rows.length" class="hint" style="padding:10px">尚未添加 key 数据文件夹。</p>
+                </div>
+              </div>
+
+              <button v-if="!augmentationForm.enabled" class="augment-toggle" @click="enableAugmentation"><span>＋ 启用 1.3 数据增强（可选）</span><small>点击展开</small></button>
+              <div v-else class="step-subsection">
+                <div class="folder-card-head"><h4>1.3 数据增强（可选）</h4><button class="danger" @click="disableAugmentation">关闭</button></div>
+                <p class="hint">读取原始 TDMS 后在内存中增强并立即提取特征，不生成增强 TDMS、manifest 或临时 sample_view。</p>
+                <div class="actions"><button @click="addAugmentationFolder">＋ 添加文件夹</button></div>
+                <div class="folder-card-grid">
+                  <div v-for="(item,index) in augmentationForm.folders" class="folder-card augmentation-folder-row">
+                    <b>文件夹 {{index+1}}</b>
+                    <label>文件夹<span class="input-row"><input v-model="item.path" placeholder="包含 TDMS / TDMS.ZST 的文件夹"><button @click="openBrowser(`augmentationForm.folders.${index}.path`,'dir')">选择</button></span></label>
+                    <label>每个原始 sample 生成数量<input type="number" min="1" v-model.number="item.count"></label>
+                    <button class="danger" @click="removeAugmentationFolder(index)">删除</button>
+                  </div>
+                </div>
+                <label style="margin-top:10px">增强特征保存目录（默认）<input v-model="augmentationForm.output_dir" readonly></label>
+                <div class="method-options"><label v-for="method in options.augmentation_methods" class="method-option" :class="{active:augmentationForm.methods.includes(method.id)}"><input type="checkbox" :value="method.id" v-model="augmentationForm.methods">{{method.name}}</label></div>
+                <div class="actions"><button class="primary" @click="startAugmentation">增强并提取特征</button></div>
+                <p class="notice">根据所选文件夹增强 TDMS 信号并直接提取特征，保存为：{{augmentationForm.output_dir}}/features_batch_augmented.csv</p>
+                <div v-if="augmentationRuns.length" class="database-progress">
+                  <div class="database-progress-head"><b>{{augmentationRuns[0].progress_detail||'准备数据增强'}}</b><span>{{Math.round(augmentationRuns[0].progress||0)}}%</span></div>
+                  <div class="bar"><i :style="{width:(augmentationRuns[0].progress||0)+'%'}"></i></div>
+                  <button style="margin-top:10px" @click="showRun(augmentationRuns[0])">查看日志</button>
+                </div>
+              </div>
+
+              <div class="step-subsection">
+                <h4>1.4 标签分组与样本数量</h4>
+                <p class="hint">默认一个标签一个组。每个类别显示过滤后的可用独立 sample 数量，以及考虑 sample 上限后的训练数量；`-1` 表示全部使用。</p>
+                <p class="hint">推荐 正常和每种异常的比例为5:1</p>
+                <div class="reason-pool"><button v-for="r in options.reasons" class="reason-chip" :class="{used:reasonUsed(r)}" :disabled="reasonUsed(r)" @click="addReason(r)">{{r}} <small>（样本 {{labelCountsReady?reasonCount(r):'加载中'}}）</small></button></div>
+                <button @click="addLabelGroup">＋ 新建类别组</button> <button @click="resetLabelGroups">重置为一个标签一组</button>
+                <div class="group-grid">
+                  <div v-for="(g,gi) in trainForm.label_groups" class="compact-group" :class="{selected:selectedGroup===gi}" @click="selectedGroup=gi">
+                    <div class="compact-group-head"><b :title="g.reasons.map(r=>r.reason).join(' / ')">{{g.reasons.map(r=>r.reason).join(' / ')||`空类别组 ${gi+1}`}}</b><button>{{selectedGroup===gi?'当前':'选中'}}</button><button class="danger" @click.stop="removeLabelGroup(gi)">删除</button></div>
+                    <div class="compact-group-counts"><span class="tag">可用 {{labelCountsReady?groupAvailableCount(g):'加载中'}}</span><span class="tag succeeded">训练 {{labelCountsReady?groupTrainingCount(g):'加载中'}}</span></div>
+                    <div class="compact-group-controls" @click.stop>
+                      <label class="compact-control"><span>类别权重</span><input type="number" min="0.01" step="0.1" v-model.number="g.weight"></label>
+                      <div v-for="(r,ri) in g.reasons" class="compact-sample-control">
+                        <label class="compact-control"><span :title="`${r.reason} · 可用 ${labelCountsReady?reasonCount(r.reason):'加载中'}`">{{r.reason}} 样本数量</span><input type="number" min="-1" v-model.number="r.sample"></label>
+                        <button class="danger" @click="removeReason(gi,ri)">×</button>
+                      </div>
+                    </div>
+                    <p v-if="!g.reasons.length" class="hint">空组，点击上方标签加入。</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div id="train-step-model" v-show="activeTrainStep==='model'">
               <div class="model-cards">
-                <div v-for="x in [{id:'line',name:'选择线'},{id:'folder',name:'选择文件夹'},{id:'reference',name:'选择 reference'}]" class="model-card data-mode-card" :class="{active:trainForm.data_mode===x.id}" @click="trainForm.data_mode=x.id">
-                  <b>{{x.name}}</b><div class="hint">{{x.id==='line'?'按产线筛选':x.id==='folder'?'按 TDMS 所在目录筛选':'按 line/reference 精确筛选'}}</div>
+                <div v-for="x in options.model_types" class="model-card" :class="{active:trainForm.model_type===x}" @click="selectModel(x)">
+                  <b>{{modelTitle(x)}}</b><div class="hint">{{modelSpec(x).description}}</div>
                 </div>
               </div>
-              <div v-if="trainForm.data_mode==='line'" class="candidate-grid">
-                <label v-for="x in trainingOptions.lines" class="candidate-option"><input type="checkbox" :value="x" v-model="trainForm.selected_lines"><span>{{x}}</span></label>
-              </div>
-              <div v-if="trainForm.data_mode==='folder'" class="candidate-grid">
-                <label v-for="x in trainingOptions.folders" class="candidate-option"><input type="checkbox" :value="x" v-model="trainForm.selected_folders"><span>{{x}}</span></label>
-              </div>
-              <div v-if="trainForm.data_mode==='reference'" class="candidate-grid">
-                <label v-for="x in trainingOptions.references" class="candidate-option"><input type="checkbox" :value="x" v-model="trainForm.selected_references"><span>{{x}}</span></label>
-              </div>
-              <p class="hint">候选：line {{trainingOptions.lines.length}} · 文件夹 {{trainingOptions.folders.length}} · reference {{trainingOptions.references.length}}</p>
-            </div>
-
-            <div class="step-subsection">
-              <h4>1.2 选择 key 数据</h4>
-              <p class="hint">选择文件夹和对应 line，点击加号后加入列表。</p>
-              <div class="key-add-row">
-                <label>key 文件夹<span class="input-row"><input v-model="keyFolderDraft.path" placeholder="key_sns / prototype 文件夹"><button @click="openBrowser('keyFolderDraft.path','dir')">选择</button></span></label>
-                <label>产线 line<select v-model="keyFolderDraft.line"><option value="">选择 line</option><option v-for="x in availableLines" :value="x">{{x}}</option></select></label>
-                <button class="primary" @click="addKeyFolder">＋ 添加</button>
-              </div>
-              <div class="key-data-list">
-                <div v-for="(item,index) in trainForm.key_rows" class="key-data-row" style="grid-template-columns:minmax(0,1fr) 170px auto">
-                  <span class="key-data-path">{{item.path}}</span>
-                  <select v-model="item.line"><option value="">选择 line</option><option v-for="x in availableLines" :value="x">{{x}}</option></select>
-                  <button class="danger" @click="removeKeyFolder(index)">删除</button>
-                </div>
-                <p v-if="!trainForm.key_rows.length" class="hint" style="padding:10px">尚未添加 key 数据文件夹。</p>
+              <h4 style="margin:18px 0 10px">{{modelTitle(trainForm.model_type)}} 参数</h4>
+              <div class="grid3">
+                <label>train_mode<select v-model="trainForm.train_mode"><option v-for="x in options.train_modes" :value="x">{{x}}</option></select></label>
+                <label>split_strategy<select v-model="trainForm.split_strategy"><option v-for="x in options.split_strategies" :value="x">{{x}}</option></select></label>
+                <label>seed_runs<input type="number" min="1" v-model.number="trainForm.seed_runs"></label>
+                <label>num_workers<input type="number" min="1" v-model.number="trainForm.num_workers"></label>
+                <label v-if="trainForm.model_type==='xgb'">早停判据
+                  <select v-model="trainForm.early_stopping_metric"><option value="f1_macro">验证集 F1 Macro</option><option value="eval_metric">XGBoost eval_metric</option><option value="disabled">关闭早停</option></select>
+                </label>
+                <label v-if="trainForm.model_type==='xgb'&&trainForm.early_stopping_metric!=='disabled'">早停等待轮数
+                  <input type="number" min="1" v-model.number="trainForm.early_stopping_rounds"><span class="hint">连续该轮数无改善后停止；必须大于 0。</span>
+                </label>
+                <label v-for="p in modelSpec(trainForm.model_type).parameters">{{p.label}}
+                  <select v-if="p.type==='select'" v-model="trainForm.model_params[p.key]"><option v-for="option in p.options" :value="option">{{option}}</option></select>
+                  <input v-else type="number" :step="p.type==='float'?'0.01':'1'" :min="p.min" :max="p.max" v-model.number="trainForm.model_params[p.key]">
+                </label>
               </div>
             </div>
 
-            <button v-if="!augmentationForm.enabled" @click="enableAugmentation">＋ 启用 1.3 数据增强（可选）</button>
-            <div v-else class="step-subsection">
-              <div class="folder-card-head"><h4>1.3 数据增强（可选）</h4><button class="danger" @click="disableAugmentation">关闭</button></div>
-              <p class="hint">读取原始 TDMS 后在内存中增强并立即提取特征，不生成增强 TDMS、manifest 或临时 sample_view。</p>
-              <div class="actions"><button @click="addAugmentationFolder">＋ 添加文件夹</button></div>
-              <div class="folder-card-grid">
-                <div v-for="(item,index) in augmentationForm.folders" class="folder-card">
-                  <div class="folder-card-head"><b>文件夹 {{index+1}}</b><button class="danger" @click="removeAugmentationFolder(index)">删除</button></div>
-                  <span class="input-row"><input v-model="item.path" placeholder="包含 TDMS / TDMS.ZST 的文件夹"><button @click="openBrowser(`augmentationForm.folders.${index}.path`,'dir')">选择</button></span>
-                  <label style="margin-top:7px">每个原始 sample 生成数量<input type="number" min="1" v-model.number="item.count"></label>
-                </div>
-              </div>
-              <label style="margin-top:10px">增强特征保存目录<input v-model="augmentationForm.output_dir" readonly></label>
-              <div class="method-options"><label v-for="method in options.augmentation_methods" class="method-option" :class="{active:augmentationForm.methods.includes(method.id)}"><input type="checkbox" :value="method.id" v-model="augmentationForm.methods">{{method.name}}</label></div>
-              <div class="actions"><button class="primary" @click="startAugmentation">增强并提取特征</button></div>
-              <p class="notice">根据所选文件夹增强 TDMS 信号并直接提取特征，保存为：{{augmentationForm.output_dir}}/features_batch_augmented.csv</p>
-              <div v-if="augmentationRuns.length" class="database-progress">
-                <div class="database-progress-head"><b>{{augmentationRuns[0].progress_detail||'准备数据增强'}}</b><span>{{Math.round(augmentationRuns[0].progress||0)}}%</span></div>
-                <div class="bar"><i :style="{width:(augmentationRuns[0].progress||0)+'%'}"></i></div>
-                <button style="margin-top:10px" @click="showRun(augmentationRuns[0])">查看日志</button>
-              </div>
+            <div id="train-step-validate" v-show="activeTrainStep==='validate'">
+              <validation-panel :validation="validation"></validation-panel>
             </div>
-          </div>
-        </details>
-        <details class="card step-card">
-          <summary>3. 标签分组与样本数量</summary>
-          <div class="step-card-body">
-          <p class="hint">默认一个标签一个组。每个类别显示过滤后的可用独立 sample 数量，以及考虑 sample 上限后的训练数量；`-1` 表示全部使用。</p>
-          <label class="method-option" style="display:inline-flex"><input type="checkbox" v-model="trainForm.extract_all_features">全量提取特征（超出训练样本数量的剩余数据全部加入测试集合）</label>
-          <div class="reason-pool"><button v-for="r in options.reasons" class="reason-chip" :class="{used:reasonUsed(r)}" :disabled="reasonUsed(r)" @click="addReason(r)">{{r}} <small>（样本 {{labelCountsReady?reasonCount(r):'加载中'}}）</small></button></div>
-          <button @click="addLabelGroup">＋ 新建类别组</button> <button @click="resetLabelGroups">重置为一个标签一组</button>
-          <div class="group-grid">
-            <div v-for="(g,gi) in trainForm.label_groups" class="compact-group" :class="{selected:selectedGroup===gi}" @click="selectedGroup=gi">
-              <div class="compact-group-head"><b :title="g.reasons.map(r=>r.reason).join(' / ')">{{g.reasons.map(r=>r.reason).join(' / ')||`空类别组 ${gi+1}`}}</b><button>{{selectedGroup===gi?'当前':'选中'}}</button><button class="danger" @click.stop="removeLabelGroup(gi)">删除</button></div>
-              <div class="compact-group-counts"><span class="tag">可用 {{labelCountsReady?groupAvailableCount(g):'加载中'}}</span><span class="tag succeeded">训练 {{labelCountsReady?groupTrainingCount(g):'加载中'}}</span></div>
-              <div class="compact-group-controls" @click.stop>
-                <label class="compact-control"><span>类别权重</span><input type="number" min="0.01" step="0.1" v-model.number="g.weight"></label>
-                <div v-for="(r,ri) in g.reasons" class="compact-sample-control">
-                  <label class="compact-control"><span :title="`${r.reason} · 可用 ${labelCountsReady?reasonCount(r.reason):'加载中'}`">{{r.reason}} 样本数量</span><input type="number" min="-1" v-model.number="r.sample"></label>
-                  <button class="danger" @click="removeReason(gi,ri)">×</button>
-                </div>
-              </div>
-              <p v-if="!g.reasons.length" class="hint">空组，点击上方标签加入。</p>
-            </div>
-          </div>
-          <div style="display:flex;justify-content:flex-end;margin-top:14px"><button class="primary" @click="saveTrain()">确认参数</button></div>
-          </div>
-        </details>
-        <details class="card step-card">
-          <summary>2. 模型与参数配置</summary>
-          <div class="step-card-body">
-            <div class="model-cards">
-              <div v-for="x in options.model_types" class="model-card" :class="{active:trainForm.model_type===x}" @click="selectModel(x)">
-                <b>{{modelTitle(x)}}</b><div class="hint">{{modelSpec(x).description}}</div>
-              </div>
-            </div>
-            <h4 style="margin:18px 0 10px">{{modelTitle(trainForm.model_type)}} 参数</h4>
-            <div class="grid3">
-              <label>train_mode<select v-model="trainForm.train_mode"><option v-for="x in options.train_modes" :value="x">{{x}}</option></select></label>
-              <label>split_strategy<select v-model="trainForm.split_strategy"><option v-for="x in options.split_strategies" :value="x">{{x}}</option></select></label>
-              <label>seed_runs<input type="number" min="1" v-model.number="trainForm.seed_runs"></label>
-              <label>num_workers<input type="number" min="1" v-model.number="trainForm.num_workers"></label>
-              <label v-if="trainForm.model_type==='xgb'">早停判据
-                <select v-model="trainForm.early_stopping_metric"><option value="f1_macro">验证集 F1 Macro</option><option value="eval_metric">XGBoost eval_metric</option><option value="disabled">关闭早停</option></select>
-              </label>
-              <label v-if="trainForm.model_type==='xgb'&&trainForm.early_stopping_metric!=='disabled'">早停等待轮数
-                <input type="number" min="1" v-model.number="trainForm.early_stopping_rounds"><span class="hint">连续该轮数无改善后停止；必须大于 0。</span>
-              </label>
-              <label v-for="p in modelSpec(trainForm.model_type).parameters">{{p.label}}
-                <select v-if="p.type==='select'" v-model="trainForm.model_params[p.key]"><option v-for="option in p.options" :value="option">{{option}}</option></select>
-                <input v-else type="number" :step="p.type==='float'?'0.01':'1'" :min="p.min" :max="p.max" v-model.number="trainForm.model_params[p.key]">
-              </label>
-            </div>
-          </div>
-        </details>
 
-        <validation-panel :validation="validation"></validation-panel>
-        <div class="card">
-          <h3>4. 提取特征与训练</h3>
-          <p class="hint">先执行“提取特征”生成完整数据，再使用已有特征训练模型。训练启动前会校验 sample_view 与 features 是否一致。</p>
-          <div class="action-flow prominent-actions">
-            <button class="action-step" :class="featureActionClass" @click="startRun('data')"><b>1. 提取特征</b><small>{{featureActionText}}</small></button>
-            <button class="action-step" :class="trainActionClass" @click="startRun('train')"><b>2. 训练模型</b><small>{{trainActionText}}</small></button>
+            <div id="train-step-features" v-show="activeTrainStep==='features'">
+              <h3>提取特征</h3>
+              <p class="hint">先执行“提取特征”生成完整数据。训练启动前会校验 sample_view 与 features 是否一致。</p>
+              <label class="method-option" style="display:inline-flex;margin-bottom:12px"><input type="checkbox" v-model="trainForm.extract_all_features">全量提取特征（超出训练样本数量的剩余数据全部加入测试集合）</label>
+              <div class="action-flow run-strip">
+                <button class="action-step" :class="featureActionClass" @click="startRun('data')"><b>点击开始 提取特征</b><small>{{featureActionText}}</small></button>
+              </div>
+              <run-panel :runs="pipelineRuns" @cancel="cancelRun" @detail="showRun"></run-panel>
+            </div>
+
+            <div id="train-step-train" v-show="activeTrainStep==='train'">
+              <h3>开始训练</h3>
+              <p class="hint">使用已提取的特征训练模型。建议先完成数据校验和特征提取。</p>
+              <div class="action-flow run-strip">
+                <button class="action-step" :class="trainActionClass" @click="startRun('train')"><b>点击开始 训练模型</b><small>{{trainActionText}}</small></button>
+              </div>
+              <run-panel :runs="pipelineRuns" @cancel="cancelRun" @detail="showRun"></run-panel>
+            </div>
+
+            <div id="train-step-results" v-show="activeTrainStep==='results'">
+              <h3>训练结果</h3>
+              <p class="hint">训练完成后可跳转到结果分析页查看模型图表、指标和输出文件。</p>
+              <div class="actions"><button class="primary" @click="openTab('results')">打开训练结果</button><button @click="loadResults">刷新结果</button></div>
+              <run-panel :runs="pipelineRuns" @cancel="cancelRun" @detail="showRun"></run-panel>
+            </div>
+
+            <details class="step-subsection" style="margin-top:14px">
+              <summary>高级 YAML 配置</summary>
+              <p class="hint">项目配置文件：{{current.config_path||'保存后生成到 cfg/'}}。标签定义读取 cfg/core/label_rules.yaml，训练结果保存到 results/。</p>
+              <textarea class="yaml" v-model="yamlText"></textarea>
+              <button class="primary" @click="saveYaml">保存 YAML</button>
+            </details>
+          </div>
+          <div class="train-step-footer">
+            <span class="hint">当前步骤：{{currentTrainStep?.no}} / {{trainSteps.length}}</span>
+            <div class="actions">
+              <button @click="prevTrainStep" :disabled="trainStepIndex<=0">上一步</button>
+              <button @click="saveCurrentTrainStep">保存</button>
+              <button class="primary" @click="nextTrainStep" :disabled="trainStepIndex>=trainSteps.length-1">下一步</button>
+            </div>
           </div>
         </div>
-        <details class="card step-card">
-          <summary>高级 YAML 配置</summary>
-          <div class="step-card-body">
-            <p class="hint">项目配置文件：{{current.config_path||'保存后生成到 cfg/'}}。标签定义读取 cfg/core/label_rules.yaml，训练结果保存到 results/。</p>
-            <textarea class="yaml" v-model="yamlText"></textarea>
-            <button class="primary" @click="saveYaml">保存 YAML</button>
-          </div>
-        </details>
-        <run-panel :runs="pipelineRuns" @cancel="cancelRun" @detail="showRun"></run-panel>
       </template>
     </section>
 
@@ -811,12 +1074,23 @@
       </template>
     </section>
 
-    <!-- 推理 -->
+    <!-- 模型推理 -->
     <section v-show="view==='predict'">
-      <div class="page-title"><h2>模型推理</h2></div>
-      <template v-if="requireCurrent">
+      <div class="page-title"><h2>模型推理</h2><div class="actions"><button @click="loadProjects">刷新项目</button><button v-if="current" @click="clearPredictProject">重新选择项目</button></div></div>
+      <div v-if="!current" class="card">
+        <h3>选择已训练项目</h3>
+        <p class="hint">请选择一个已经完成训练的项目，再使用其最新模型执行推理。</p>
+        <div class="project-list">
+          <div v-for="p in projects" :key="p.id" class="project-row">
+            <div><b>{{projectModelId(p)}}</b><small>{{p.config_path||'—'}}</small></div>
+            <button class="primary" @click="selectPredictProject(p)">选择</button>
+          </div>
+          <div v-if="!projects.length" class="hint">暂无已建立的模型项目。</div>
+        </div>
+      </div>
+      <template v-else>
         <div class="card">
-          <h3>使用当前项目最新成功模型</h3>
+          <h3>使用项目：{{currentModelId()}}</h3>
           <div class="grid">
             <label>推理模式<select v-model="predictForm.mode"><option value="single">单个 TDMS / TDMS.ZST</option><option value="folder">多个 TDMS（文件夹）</option></select></label>
             <label>统一阈值（可选）<input type="number" step="0.01" v-model="predictForm.threshold"></label>
@@ -852,6 +1126,8 @@
       </div>
     </div>
   </main>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -879,18 +1155,34 @@ const ValidationPanel = {
 createApp({
   components:{RunPanel,ValidationPanel},
   setup(){
+    const uiPrefs=(()=>{try{return JSON.parse(localStorage.getItem('forvia_train_v2_ui_shell')||'{}')||{}}catch(e){return {}}})();
+    function initialHashParts(){return String(location.hash||'').replace(/^#/,'').split(':')}
+    function initialViewFromHash(){
+      const id=initialHashParts()[0];
+      return ['database','projects','predict'].includes(id)?id:'projects';
+    }
+    function initialDatabaseTabFromHash(){
+      const [id,sub]=initialHashParts();
+      return id==='database'&&['operation','labels','line-rules','distribution'].includes(sub)?sub:'operation';
+    }
     const s=reactive({
-      tabs:[{id:'data',label:'配置项目信息'},{id:'train',label:'训练（配置参数 + 提取特征 + 训练）'},{id:'results',label:'结果分析'},{id:'predict',label:'模型推理'}],
-      view:'database', projects:[], projectDetails:{}, current:null, options:{model_types:['xgb','rf'],train_modes:['normal','grid','cross'],split_strategies:[],reasons:[],line_options:[],augmentation_methods:[],run_stages:{},model_specs:{},database_catalog:{lines:[]}},
-      showCreate:false, createForm:{line_name:'',model_name:'',model_type:'xgb'}, message:'',messageError:false,
-      projectInfoForm:{line_name:'',model_name:'',model_type:'xgb'},dataForm:{},trainForm:{label_groups:[],model_params:{}},trainingOptions:{lines:[],folders:[],references:[],key_sns:[],key_sns_by_line:{}},lineOverview:null,modelOverview:null,selectedGroup:0,keyFolderDraft:{path:'',line:''},yamlText:'',dataset:null,results:null,runs:[],runDetail:null,validation:null,
-      databaseUi:{tab:'operation'},
+      tabs:[{id:'data',label:'配置项目信息'},{id:'train',label:'训练（配置参数 + 提取特征 + 训练）'},{id:'results',label:'结果分析'}],
+      view:initialViewFromHash(), sidebarCollapsed:!!uiPrefs.sidebarCollapsed, sidebarWidth:Number(uiPrefs.sidebarWidth)||240, uiScale:Number(uiPrefs.uiScale)||1,
+      projects:[], projectDetails:{}, current:null, options:{model_types:['xgb','rf'],train_modes:['normal','grid','cross'],split_strategies:[],reasons:[],line_options:[],augmentation_methods:[],run_stages:{},model_specs:{},database_catalog:{lines:[]}},
+      showCreate:false, showOpenProject:false, openProjectForm:{path:''}, showOpenDatabase:false, createForm:{line_name:'',model_name:'',model_type:'xgb'}, message:'',messageError:false,
+      projectInfoForm:{line_name:'',model_name:'',model_type:'xgb'},projectDatabaseRoot:'',dataForm:{},trainForm:{label_groups:[],model_params:{}},trainingOptions:{lines:[],folders:[],references:[],key_sns:[],key_sns_by_line:{}},lineOverview:null,modelOverview:null,selectedGroup:0,keyFolderDraft:{path:'',line:''},yamlText:'',dataset:null,results:null,runs:[],runDetail:null,validation:null,
+      activeTrainStep:'dataset',
+      databaseUi:{tab:initialDatabaseTabFromHash()},databaseLineOpen:{},selectedDistributionRefs:{},databaseOpening:false,databaseOpenProgress:'',
       globalDatabase:{data_root:'/Volumes/18555440521/fault/data_root',label_records_db_path:'/Volumes/18555440521/fault/data_root/metadata/label_records.db',manifest_path:'/Volumes/18555440521/fault/data_root/metadata/tdms_manifest.csv',tdms_root:'/Volumes/18555440521/fault/data_root/factory_raw'},
+      databaseRegistry:(()=>{try{return JSON.parse(localStorage.getItem('forvia_train_v2_databases')||'[]')||[]}catch(e){return []}})(),
+      databaseDraftRoot:'',
       labelRules:{loading:false,saving:false,path:'',results:[],reasons:[],meta:{},metaText:''},
-      databaseTool:{action:'',update_kind:'repair',label_source_type:'none',last_operation:'',configured:false,source_folder:'',source_label_db:'',label_csvs:[],label_csv_draft:'',output_data_root:'',storage_root:'factory_raw',line:'',file_mode:'manual',workers:0,running:false,scanning:false,precheck:null,result:null,job:null},
+      lineRules:{loading:false,saving:false,path:'',yamlText:'',lines:[],validation:'',message:'',error:false,previewLine:'',previewFilename:''},
+      databaseTool:{action:'',update_kind:'all',label_source_type:'none',last_operation:'',configured:false,source_folder:'',source_label_db:'',label_csvs:[],label_csv_draft:'',output_data_root:'',storage_root:'factory_raw',line:'',file_mode:'manual',workers:0,running:false,scanning:false,precheck:null,result:null,job:null},
       augmentationForm:{enabled:false,folders:[],methods:['white_noise'],output_dir:''},
       predictForm:{mode:'single',input_path:'',output_path:'',threshold:''},
       browser:{open:false,path:'',parent:'',dirs:[],files:[],roots:[],target:'',mode:'file',writeMode:'replace',selected:''},
+      trainStepCompletion:{dataset:false,model:false},
     });
     const createModelId=computed(()=>s.createForm.line_name&&s.createForm.model_name?`${s.createForm.line_name}_${s.createForm.model_name}`:'');
     const editableModelId=computed(()=>s.projectInfoForm.line_name&&s.projectInfoForm.model_name?`${s.projectInfoForm.line_name}_${s.projectInfoForm.model_name}`:'');
@@ -906,8 +1198,85 @@ createApp({
     const trainActionClass=computed(()=>trainIsCurrent.value?'done':latestTrainRun.value&&['queued','running'].includes(latestTrainRun.value.status)?'active':'');
     const trainActionText=computed(()=>trainIsCurrent.value?'已完成':latestTrainRun.value&&['queued','running'].includes(latestTrainRun.value.status)?'正在训练':'等待最新特征');
     const availableLines=computed(()=>[...new Set([s.current?.line_name,...(s.options.line_options||[]),...(s.dataset?.lines||[]),...(s.options.database_catalog?.lines||[])].filter(Boolean))]);
+    function saveUiShell(){localStorage.setItem('forvia_train_v2_ui_shell',JSON.stringify({sidebarCollapsed:s.sidebarCollapsed,sidebarWidth:s.sidebarWidth,uiScale:s.uiScale}))}
+    function toggleSidebar(){s.sidebarCollapsed=!s.sidebarCollapsed;saveUiShell()}
+    function setUiScale(v){s.uiScale=v;saveUiShell()}
+    function rememberSidebarWidth(e){const w=Math.round(e.currentTarget.getBoundingClientRect().width);if(w>=220&&w<=430){s.sidebarWidth=w;saveUiShell()}}
     const labelCountsReady=computed(()=>!!s.lineOverview);
-    const databaseActionChoices=[{no:1,id:'create',name:'新建数据库',desc:'选择 data_root、源 TDMS 文件夹和标签来源，从零生成数据库。'},{no:2,id:'update',name:'更新数据库',desc:'修复已有数据库路径，或追加新增 TDMS 与标签。'}];
+    const trainSteps=[
+      {no:1,id:'dataset',label:'配置数据集',target:'train-step-dataset'},
+      {no:2,id:'model',label:'配置模型',target:'train-step-model'},
+      {no:3,id:'validate',label:'数据校验',target:'train-step-validate'},
+      {no:4,id:'features',label:'提取特征',target:'train-step-features'},
+      {no:5,id:'train',label:'开始训练',target:'train-step-train'},
+      {no:6,id:'results',label:'训练结果',target:'train-step-results'},
+    ];
+    const trainStepIndex=computed(()=>Math.max(0,trainSteps.findIndex(x=>x.id===s.activeTrainStep)));
+    const currentTrainStep=computed(()=>trainSteps[trainStepIndex.value]||trainSteps[0]);
+    function datasetConfigured(){
+      const dataMode=s.trainForm.data_mode;
+      return Boolean(
+        (dataMode==='line'&&s.trainForm.selected_lines?.length)||
+        (dataMode==='folder'&&s.trainForm.selected_folders?.length)||
+        (dataMode==='reference'&&s.trainForm.selected_references?.length)||
+        s.trainForm.key_rows?.some(x=>x.selected&&x.path&&x.line)
+      );
+    }
+    function modelConfigured(){
+      return Boolean(s.trainForm.model_type&&s.trainForm.train_mode&&s.trainForm.split_strategy&&Number(s.trainForm.seed_runs)>0);
+    }
+    function markConfigStepsSaved(){
+      s.trainStepCompletion.dataset=datasetConfigured();
+      s.trainStepCompletion.model=modelConfigured();
+    }
+    const trainStepStatus=computed(()=>{
+      const datasetDone=s.trainStepCompletion.dataset&&datasetConfigured();
+      const modelDone=s.trainStepCompletion.model&&modelConfigured();
+      const featureRun=latestFeatureRun.value;
+      const trainRun=latestTrainRun.value;
+      const featureRunning=featureRun&&['queued','running'].includes(featureRun.status);
+      const trainRunning=trainRun&&['queued','running'].includes(trainRun.status);
+      const featureDone=featureRun?.status==='succeeded';
+      const trainDone=trainIsCurrent.value;
+      const out={
+        dataset:datasetDone?'done':'active',
+        model:modelDone?'done':(datasetDone?'active':'idle'),
+        validate:s.validation?(s.validation.ok?'done':'failed'):(modelDone?'active':'idle'),
+        features:featureDone?'done':(featureRun?.status==='failed'?'failed':(featureRunning||s.validation?.ok?'active':'idle')),
+        train:trainDone?'done':(trainRun?.status==='failed'?'failed':(trainRunning||featureDone?'active':'idle')),
+        results:trainDone?'done':'idle',
+      };
+      return out;
+    });
+    function trainStepClass(step){const status=trainStepStatus.value[step.id]||'idle';return {active:step.id===s.activeTrainStep,done:status==='done',failed:status==='failed'}}
+    function trainStepText(step){
+      const status=trainStepStatus.value[step.id]||'idle';
+      if(step.id===s.activeTrainStep)return '当前步骤';
+      if(status==='done')return '已完成';
+      if(status==='failed')return '失败';
+      if(status==='active')return '可执行';
+      return '未开始';
+    }
+    function openTrainStep(step){
+      s.activeTrainStep=step.id;
+      if(step.id==='validate')validateCurrent(true);
+      if(step.id==='results')loadResults();
+      setTimeout(()=>document.querySelector('.train-step-workspace')?.scrollIntoView({behavior:'smooth',block:'start'}),0);
+    }
+    async function saveCurrentTrainStep(){
+      if(s.activeTrainStep==='validate'){await validateCurrent(true);return}
+      if(s.activeTrainStep==='results'){await loadResults();return}
+      await saveTrain();
+    }
+    async function nextTrainStep(){
+      await saveCurrentTrainStep();
+      const next=trainSteps[trainStepIndex.value+1];
+      if(next)openTrainStep(next);
+    }
+    function prevTrainStep(){
+      const prev=trainSteps[trainStepIndex.value-1];
+      if(prev)openTrainStep(prev);
+    }
     const databaseStages=[{id:'scan',name:'扫描文件'},{id:'compress',name:'压缩 TDMS'},{id:'transfer',name:'复制/移动'},{id:'manifest',name:'注册 TDMS'},{id:'samples',name:'生成样本'},{id:'labels',name:'导入标签'},{id:'done',name:'完成'}];
     const canExecuteDatabase=computed(()=>Boolean(s.databaseTool.precheck?.ok&&!s.databaseTool.scanning));
     const databaseStatusItems=computed(()=>{
@@ -930,33 +1299,166 @@ createApp({
       s.globalDatabase.tdms_root=root?`${root}/factory_raw`:'';
       if(s.databaseTool.action==='create'&&!s.databaseTool.output_data_root)s.databaseTool.output_data_root=root;
     }
+    function databaseDisplayName(path){return String(path||'').replace(/\/$/,'').split('/').pop()||String(path||'未命名数据库')}
+    function saveDatabaseRegistry(){localStorage.setItem('forvia_train_v2_databases',JSON.stringify(s.databaseRegistry))}
+    function rememberCurrentDatabase(){
+      deriveGlobalDatabasePaths();
+      const root=String(s.globalDatabase.data_root||'').trim();
+      if(!root)return;
+      const item={name:databaseDisplayName(root),data_root:root,label_records_db_path:s.globalDatabase.label_records_db_path,manifest_path:s.globalDatabase.manifest_path,tdms_root:s.globalDatabase.tdms_root,updated_at:new Date().toISOString()};
+      const index=s.databaseRegistry.findIndex(x=>x.data_root===root);
+      if(index>=0)s.databaseRegistry.splice(index,1,item);else s.databaseRegistry.unshift(item);
+      saveDatabaseRegistry();
+    }
+    async function openRegisteredDatabase(item){
+      s.databaseOpening=true;
+      s.databaseOpenProgress='正在打开数据库...';
+      try{
+        s.globalDatabase.data_root=item.data_root;
+        deriveGlobalDatabasePaths();
+        rememberCurrentDatabase();
+        s.databaseOpenProgress='正在预检查数据库...';
+        await precheckDatabase();
+        s.databaseOpenProgress='正在加载标签分布...';
+        s.selectedDistributionRefs={};
+        await loadLineOverview();
+        notify(`已打开数据库：${item.name||databaseDisplayName(item.data_root)}`);
+      }finally{
+        s.databaseOpening=false;
+        s.databaseOpenProgress='';
+      }
+    }
+    function startOpenDatabase(){s.showOpenDatabase=true;s.databaseTool.action=''}
+    async function openDatabaseFromPath(){
+      const root=String(s.globalDatabase.data_root||'').trim();
+      if(!root){notify('请选择数据库根目录',true);return}
+      const item=s.databaseRegistry.find(x=>x.data_root===root)||{name:databaseDisplayName(root),data_root:root};
+      try{await openRegisteredDatabase(item);s.showOpenDatabase=false}catch(e){notify(e.message,true)}
+    }
+    function startCreateDatabase(){
+      resetDatabaseAction();
+      s.showOpenDatabase=false;
+      chooseDatabaseAction('create');
+    }
+    async function refreshDatabaseHome(){
+      rememberCurrentDatabase();
+      await precheckDatabase();
+      await loadLineOverview();
+      notify('数据库列表已刷新');
+    }
+    async function openDatabaseProject(item){
+      s.databaseTool.action='';
+      await openRegisteredDatabase(item);
+    }
+    async function updateDatabaseProject(item){
+      await openRegisteredDatabase(item);
+      chooseDatabaseAction('update');
+    }
+    function removeRegisteredDatabase(index){
+      s.databaseRegistry.splice(index,1);
+      saveDatabaseRegistry();
+    }
+    function databaseLineExpanded(line){return !!s.databaseLineOpen[line]}
+    function toggleDatabaseLine(line){s.databaseLineOpen[line]=!s.databaseLineOpen[line]}
+    function distributionRefKey(line,reference){return `${line}::${reference}`}
+    function distributionRefSelected(line,reference){return !!s.selectedDistributionRefs[distributionRefKey(line,reference)]}
+    function allDistributionRefKeys(){
+      return (s.lineOverview?.line_rows||[]).flatMap(line=>(line.references||[]).map(ref=>distributionRefKey(line.line,ref.reference)));
+    }
+    function allDistributionRefsSelected(){
+      const keys=allDistributionRefKeys();
+      return keys.length>0&&keys.every(key=>s.selectedDistributionRefs[key]);
+    }
+    function toggleAllDistributionRefs(){
+      const keys=allDistributionRefKeys();
+      if(allDistributionRefsSelected())keys.forEach(key=>delete s.selectedDistributionRefs[key]);
+      else keys.forEach(key=>{s.selectedDistributionRefs[key]=true});
+    }
+    function toggleDistributionRef(line,reference){
+      const key=distributionRefKey(line,reference);
+      if(s.selectedDistributionRefs[key])delete s.selectedDistributionRefs[key];
+      else s.selectedDistributionRefs[key]=true;
+    }
+    function selectedDistributionStats(){
+      const stats={count:0,tdms_count:0,labeled_tdms_count:0,labels:[]};
+      const labelCounts=new Map();
+      for(const line of s.lineOverview?.line_rows||[]){
+        for(const ref of line.references||[]){
+          if(!distributionRefSelected(line.line,ref.reference))continue;
+          stats.count+=1;
+          stats.tdms_count+=Number(ref.tdms_count)||0;
+          stats.labeled_tdms_count+=Number(ref.labeled_tdms_count)||0;
+          for(const item of ref.labels||[]){
+            const key=item.label||'';
+            labelCounts.set(key,(labelCounts.get(key)||0)+(Number(item.count)||0));
+          }
+        }
+      }
+      stats.labels=[...labelCounts.entries()].map(([label,count])=>({label,count})).sort((a,b)=>b.count-a.count);
+      return stats;
+    }
+    function databaseRecordFromRoot(root){
+      const value=String(root||'').trim();
+      if(!value)return null;
+      const saved=s.databaseRegistry.find(x=>x.data_root===value);
+      if(saved)return saved;
+      if(value===s.globalDatabase.data_root){
+        return {...s.globalDatabase,name:databaseDisplayName(value)};
+      }
+      const clean=value.replace(/\/$/,'');
+      return {name:databaseDisplayName(clean),data_root:clean,label_records_db_path:`${clean}/metadata/label_records.db`,manifest_path:`${clean}/metadata/tdms_manifest.csv`,tdms_root:`${clean}/factory_raw`};
+    }
+    function selectedProjectDatabase(){
+      return databaseRecordFromRoot(s.projectDatabaseRoot||s.globalDatabase.data_root)||{data_root:'',label_records_db_path:'',manifest_path:'',tdms_root:''};
+    }
+    async function applyProjectDatabase(){
+      try{
+        const db=selectedProjectDatabase();
+        if(!db.data_root)throw new Error('请先选择数据库');
+        s.globalDatabase.data_root=db.data_root;
+        deriveGlobalDatabasePaths();
+        rememberCurrentDatabase();
+        const c=s.current.config;
+        c.data_root=db.data_root;
+        c.label_records_db_path=db.label_records_db_path;
+        c.database={...(c.database||{}),configured:true,data_root:db.data_root,label_records_db_path:db.label_records_db_path,manifest_path:db.manifest_path,tdms_root:db.tdms_root};
+        c.dataset={...(c.dataset||{}),data_root:db.data_root,label_records_db_path:db.label_records_db_path,manifest_path:db.manifest_path,tdms_root:db.tdms_root};
+        await saveCurrent();
+        notify(`项目数据库已设置为：${db.name||databaseDisplayName(db.data_root)}`);
+      }catch(e){notify(e.message,true)}
+    }
     function applyDatabaseDefaults(){
       const defaults=s.options.database_defaults||{};
       const root=String(defaults.data_root||s.globalDatabase.data_root||'').trim();
       if(root)s.globalDatabase.data_root=root;
       s.databaseTool.storage_root=String(defaults.tdms_storage_root||s.databaseTool.storage_root||'factory_raw');
       deriveGlobalDatabasePaths();
+      if(!s.databaseRegistry.length)rememberCurrentDatabase();
     }
     function chooseDatabaseAction(action){
       s.databaseTool.action=action;
       s.databaseTool.precheck=null;
       s.databaseTool.result=null;
       s.databaseTool.job=null;
-      if(action==='create'){
+      if(action==='open'){
+        s.databaseTool.update_kind='';
+        s.databaseTool.file_mode='manual';
+        rememberCurrentDatabase();
+      }else if(action==='create'){
         s.databaseTool.update_kind='';
         s.databaseTool.file_mode='copy';
       }else{
-        s.databaseTool.update_kind='repair';
+        s.databaseTool.update_kind='all';
         s.databaseTool.file_mode='manual';
       }
       deriveGlobalDatabasePaths();
     }
     function resetDatabaseAction(){
-      Object.assign(s.databaseTool,{action:'',update_kind:'repair',precheck:null,result:null,job:null,running:false,scanning:false});
+      Object.assign(s.databaseTool,{action:'',update_kind:'all',precheck:null,result:null,job:null,running:false,scanning:false});
     }
     function databaseExecutionAction(){
       if(s.databaseTool.action==='create')return 'create';
-      return s.databaseTool.update_kind==='append'?'append':'refresh';
+      return s.databaseTool.action==='update'?'update':'create';
     }
     function databasePayload(){
       deriveGlobalDatabasePaths();
@@ -1014,6 +1516,39 @@ createApp({
           loading:false,saving:false,path:d.path||'',results:(d.results||[]).map(withAliasText),reasons:(d.reasons||[]).map(withAliasText),meta:d.meta||{},metaText:JSON.stringify(d.meta||{},null,2)
         });
       }catch(e){s.labelRules.loading=false;notify(e.message,true)}
+    }
+    async function loadLineRules(){
+      s.lineRules.loading=true;
+      try{
+        const d=await api('/api/line-rules');
+        Object.assign(s.lineRules,{loading:false,saving:false,path:d.path||'',yamlText:d.yaml_text||'',lines:d.lines||[],validation:'已加载',message:'',error:false});
+        if(!s.lineRules.previewLine)s.lineRules.previewLine=(d.lines||[])[0]||'';
+      }catch(e){s.lineRules.loading=false;s.lineRules.error=true;s.lineRules.message=e.message;notify(e.message,true)}
+    }
+    async function validateLineRules(){
+      try{
+        const d=await api('/api/line-rules/validate',{method:'POST',body:JSON.stringify({yaml_text:s.lineRules.yamlText})});
+        Object.assign(s.lineRules,{lines:d.lines||[],validation:'校验通过',message:d.message||'规则格式正确',error:false});
+        if(!s.lineRules.previewLine)s.lineRules.previewLine=(d.lines||[])[0]||'';
+        notify('产线规则校验通过');
+      }catch(e){s.lineRules.validation='校验失败';s.lineRules.message=e.message;s.lineRules.error=true;notify(e.message,true)}
+    }
+    async function saveLineRules(){
+      s.lineRules.saving=true;
+      try{
+        const d=await api('/api/line-rules',{method:'PUT',body:JSON.stringify({yaml_text:s.lineRules.yamlText})});
+        Object.assign(s.lineRules,{saving:false,path:d.path||'',yamlText:d.yaml_text||s.lineRules.yamlText,lines:d.lines||[],validation:'已保存',message:'产线规则已保存',error:false});
+        notify('产线规则已保存');
+      }catch(e){s.lineRules.saving=false;s.lineRules.validation='保存失败';s.lineRules.message=e.message;s.lineRules.error=true;notify(e.message,true)}
+    }
+    async function restoreDefaultLineRules(){
+      if(!confirm('恢复默认产线规则会覆盖 cfg/core/line_rules.yaml，确认继续？'))return;
+      s.lineRules.saving=true;
+      try{
+        const d=await api('/api/line-rules/restore-default',{method:'POST'});
+        Object.assign(s.lineRules,{saving:false,path:d.path||'',yamlText:d.yaml_text||'',lines:d.lines||[],validation:'已恢复默认',message:'已恢复默认产线规则',error:false});
+        notify('已恢复默认产线规则');
+      }catch(e){s.lineRules.saving=false;s.lineRules.validation='恢复失败';s.lineRules.message=e.message;s.lineRules.error=true;notify(e.message,true)}
     }
     function labelRulePayload(){
       let meta={};
@@ -1116,8 +1651,11 @@ createApp({
     async function saveProjectForm(p){try{await ensureProjectDetails(p);const detail=s.projectDetails[p.id];const payload=projectFromForm(detail);const d=await api(`/api/projects/${p.id}`,{method:'PUT',body:JSON.stringify(payload)});const detailYaml=await api(`/api/projects/${p.id}`);Object.assign(detail,{project:d.project,yaml:detailYaml.yaml,form:projectFormFromProject(d.project),validation:null,open:true});if(s.current&&s.current.id===p.id){s.current=d.project;s.yamlText=detailYaml.yaml;syncForms()}await loadProjects();notify('项目参数已保存，并已同步 YAML')}catch(e){notify(e.message,true)}}
     async function validateProjectYaml(p){try{await ensureProjectDetails(p);const d=await api(`/api/projects/${p.id}/validate-yaml`,{method:'POST',body:JSON.stringify({yaml:s.projectDetails[p.id].yaml})});s.projectDetails[p.id].validation=d;notify(d.ok?'当前编辑内容校验通过':'当前编辑内容校验失败',!d.ok)}catch(e){notify(e.message,true)}}
     async function createProject(){try{const d=await api('/api/projects',{method:'POST',body:JSON.stringify(s.createForm)});s.showCreate=false;await loadProjects();await selectProject(d.project)}catch(e){notify(e.message,true)}}
+    async function openProject(){try{if(!s.openProjectForm.path)throw new Error('请选择项目 YAML');const d=await api('/api/projects/open-yaml',{method:'POST',body:JSON.stringify({path:s.openProjectForm.path})});s.showOpenProject=false;s.openProjectForm.path='';await loadProjects();const p=s.projects.find(x=>x.id===d.project.id)||d.project;s.projectDetails[p.id]={open:true,loading:false,project:d.project,yaml:d.yaml,validation:null,form:projectFormFromProject(d.project)};requestAnimationFrame(()=>document.getElementById(`project-yaml-${p.id}`)?.scrollIntoView({behavior:'smooth',block:'center'}));notify(`已打开模型项目 ${projectModelId(p)}`)}catch(e){notify(e.message,true)}}
     async function duplicateProject(p){try{const d=await api(`/api/projects/${p.id}/duplicate`,{method:'POST',body:'{}'});await loadProjects();notify(`已复制为 ${d.project.name}`)}catch(e){notify(e.message,true)}}
     async function selectProject(p){try{const d=await api(`/api/projects/${p.id}`);s.current=d.project;s.yamlText=d.yaml;syncForms();await loadRuns();s.view='data';await Promise.all([loadDatasetSummary(),loadTrainingOptions()]);notify(`已打开 ${p.name}`)}catch(e){notify(e.message,true)}}
+    async function selectPredictProject(p){try{const d=await api(`/api/projects/${p.id}`);s.current=d.project;s.yamlText=d.yaml;syncForms();s.view='predict';await loadRuns();notify(`已选择 ${p.name}`)}catch(e){notify(e.message,true)}}
+    function clearPredictProject(){s.current=null;s.runs=[];s.runDetail=null}
     async function removeProject(p){if(!confirm(`删除项目 ${p.name}、配置 YAML 及运行记录？results 中的模型结果会保留。`))return;await api(`/api/projects/${p.id}`,{method:'DELETE'});if(s.current&&s.current.id===p.id){s.current=null;s.view='projects';s.runs=[];s.runDetail=null;s.results=null}s.projects=s.projects.filter(x=>x.id!==p.id);loadProjects()}
     function lines(text){return String(text||'').split(/\n/).map(x=>x.trim()).filter(Boolean)}
     function arrayValue(value){return Array.isArray(value)?value:(value?[value]:[])}
@@ -1125,6 +1663,7 @@ createApp({
       const c=s.current.config, data=c.data||{}, train=c.train||{}, ds=c.dataset||{};s.validation=null;s.dataset=null;s.lineOverview=null;s.modelOverview=null;
       Object.assign(s.projectInfoForm,{line_name:s.current.line_name||'',model_name:s.current.model_name||'',model_type:s.current.model_type||train.model_type||'xgb'});
       const database=c.database||{};
+      s.projectDatabaseRoot=database.data_root||c.data_root||ds.data_root||'';
       s.dataForm={label_records_db_path:database.label_records_db_path||c.label_records_db_path||'',tdms_root:database.tdms_root||'',manifest_path:database.manifest_path||''};
       Object.assign(s.databaseTool,{configured:database.configured===true,last_operation:database.last_operation||''});
       const modelType=train.model_type||s.current.model_type, spec=modelSpec(modelType), params={};
@@ -1134,6 +1673,7 @@ createApp({
       const dataMode=selectedReferences.length?'reference':selectedFolders.length?'folder':'line';
       const keyRows=arrayValue(data.key_sns).map(item=>typeof item==='object'&&item!==null?{path:item.path||item.folder||item.dir||'',line:item.line||data.key_line||s.current.line_name,selected:true}:{path:String(item),line:data.key_line||s.current.line_name,selected:true}).filter(x=>x.path);
       s.trainForm={model_type:modelType,train_mode:train.train_mode||'normal',split_strategy:train.split_strategy||'reference_in',seed_runs:train.seed_runs||10,num_workers:ds.num_workers||8,early_stopping_metric:train.early_stopping_rounds?train.early_stopping_metric||'eval_metric':'disabled',early_stopping_rounds:Number(train.early_stopping_rounds||30),data_mode:dataMode,selected_lines:selectedLines.length?selectedLines:[s.current.line_name],selected_folders:[...selectedFolders],selected_references:[...selectedReferences],key_rows:keyRows,model_params:params,extract_all_features:Boolean((train.label_mapping||{}).extract_all_features),label_groups:groups.length?groups:(s.options.reasons||[]).map(reason=>({weight:1,reasons:[{reason,sample:-1}]}))};s.selectedGroup=0;
+      markConfigStepsSaved();
       const augmentation=c.augmentation||{};
       const augmentationFolders=arrayValue(augmentation.input_folders||augmentation.input_folder).map(item=>typeof item==='object'&&item!==null?{path:String(item.path||''),count:Number(item.count||1)}:{path:String(item),count:Number(augmentation.count||1)}).filter(x=>x.path);
       Object.assign(s.augmentationForm,{enabled:augmentationFolders.length>0,folders:augmentationFolders,methods:arrayValue(augmentation.methods).length?arrayValue(augmentation.methods):['white_noise'],output_dir:currentProjectDatasetDir()});
@@ -1159,9 +1699,9 @@ createApp({
     }
     function addDatabaseCsv(){const path=s.databaseTool.label_csv_draft.trim();if(!path){notify('请选择标签 CSV',true);return}if(!s.databaseTool.label_csvs.includes(path))s.databaseTool.label_csvs.push(path);s.databaseTool.label_csv_draft=''}
     function removeDatabaseCsv(index){s.databaseTool.label_csvs.splice(index,1)}
-    async function runDatabaseAction(){if(!s.databaseTool.precheck?.ok){await precheckDatabase();if(!s.databaseTool.precheck?.ok)return}if(s.databaseTool.file_mode==='move'&&(s.databaseTool.action==='create'||s.databaseTool.update_kind==='append')&&!confirm('移动模式会从原文件夹移走 TDMS 文件，确认继续？'))return;s.databaseTool.running=true;s.databaseTool.last_operation=s.databaseTool.action;s.databaseTool.result=null;s.databaseTool.job=null;try{const d=await api('/api/database-actions',{method:'POST',body:JSON.stringify(databasePayload())});s.databaseTool.job=d.job;notify('数据库任务已启动')}catch(e){s.databaseTool.running=false;notify(e.message,true)}}
+    async function runDatabaseAction(){if(!s.databaseTool.precheck?.ok){await precheckDatabase();if(!s.databaseTool.precheck?.ok)return}if(s.databaseTool.file_mode==='move'&&(s.databaseTool.action==='create'||s.databaseTool.action==='update')&&!confirm('移动模式会从原文件夹移走 TDMS 文件，确认继续？'))return;s.databaseTool.running=true;s.databaseTool.last_operation=s.databaseTool.action;s.databaseTool.result=null;s.databaseTool.job=null;try{const d=await api('/api/database-actions',{method:'POST',body:JSON.stringify(databasePayload())});s.databaseTool.job=d.job;notify('数据库任务已启动')}catch(e){s.databaseTool.running=false;notify(e.message,true)}}
     async function loadDatabaseJob(){if(!s.databaseTool.job||!['queued','running'].includes(s.databaseTool.job.status))return;try{const d=await api(`/api/database-actions/${s.databaseTool.job.id}`);s.databaseTool.job=d.job;s.databaseTool.running=['queued','running'].includes(d.job.status);if(d.job.status==='succeeded'){s.databaseTool.result=d.job.result;if(d.job.project){s.current=d.job.project;s.yamlText=(await api(`/api/projects/${s.current.id}`)).yaml;syncForms();await Promise.all([loadDatasetSummary(),loadTrainingOptions()])}deriveGlobalDatabasePaths();s.databaseTool.job=d.job;s.databaseTool.result=d.job.result;s.options=await api('/api/options');await precheckDatabase();s.databaseUi.tab='distribution';await loadLineOverview();notify('数据库操作完成')}else if(d.job.status==='failed'){notify(d.job.error||'数据库操作失败',true)}}catch(e){s.databaseTool.running=false;s.databaseTool.job=null;if(!String(e.message||'').includes('数据库任务不存在'))notify(e.message,true)}}
-    async function saveTrain(quiet=false){try{syncAugmentationOutputDir();const c=s.current.config;c.train=c.train||{};Object.assign(c.train,{model_type:s.trainForm.model_type,train_mode:s.trainForm.train_mode,split_strategy:s.trainForm.split_strategy,seed_runs:Number(s.trainForm.seed_runs)});if(s.trainForm.model_type==='xgb'&&s.trainForm.early_stopping_metric!=='disabled'){const rounds=Number(s.trainForm.early_stopping_rounds);if(!Number.isFinite(rounds)||rounds<1)throw new Error('早停等待轮数必须大于 0');c.train.early_stopping_metric=s.trainForm.early_stopping_metric;c.train.early_stopping_rounds=Math.floor(rounds)}else{delete c.train.early_stopping_metric;delete c.train.early_stopping_rounds}const spec=modelSpec(s.trainForm.model_type);c.train[spec.parameter_key]={...s.trainForm.model_params};const groups=s.trainForm.label_groups.filter(g=>g.reasons.length).map(g=>({weight:Number(g.weight)||1,reasons:g.reasons.map(r=>({reason:r.reason,sample:Number(r.sample)}))}));c.train.label_mapping={enable:true,auto_mlabel:true,extract_all_features:Boolean(s.trainForm.extract_all_features),groups};c.train.class_weights=Object.fromEntries(groups.map(g=>[g.reasons.map(r=>r.reason).join('_'),g.weight]));const data={key_sns:s.trainForm.key_rows.filter(x=>x.selected).map(x=>({path:x.path,line:x.line}))};if(s.trainForm.data_mode==='line')data.line=[...s.trainForm.selected_lines];if(s.trainForm.data_mode==='folder')data.folders=[...s.trainForm.selected_folders];if(s.trainForm.data_mode==='reference')data.reference=[...s.trainForm.selected_references];c.data=data;c.augmentation={input_folders:s.augmentationForm.folders.map(x=>({path:x.path.trim(),count:Math.max(1,Number(x.count)||1)})).filter(x=>x.path),methods:[...s.augmentationForm.methods],output_dir:s.augmentationForm.output_dir.trim()};c.dataset={...(c.dataset||{}),num_workers:Number(s.trainForm.num_workers)};delete c.dataset.batch_size;s.current.model_type=s.trainForm.model_type;await saveCurrent();if(!quiet)notify('训练配置已保存')}catch(e){notify(e.message,true);throw e}}
+    async function saveTrain(quiet=false){try{syncAugmentationOutputDir();const c=s.current.config;c.train=c.train||{};Object.assign(c.train,{model_type:s.trainForm.model_type,train_mode:s.trainForm.train_mode,split_strategy:s.trainForm.split_strategy,seed_runs:Number(s.trainForm.seed_runs)});if(s.trainForm.model_type==='xgb'&&s.trainForm.early_stopping_metric!=='disabled'){const rounds=Number(s.trainForm.early_stopping_rounds);if(!Number.isFinite(rounds)||rounds<1)throw new Error('早停等待轮数必须大于 0');c.train.early_stopping_metric=s.trainForm.early_stopping_metric;c.train.early_stopping_rounds=Math.floor(rounds)}else{delete c.train.early_stopping_metric;delete c.train.early_stopping_rounds}const spec=modelSpec(s.trainForm.model_type);c.train[spec.parameter_key]={...s.trainForm.model_params};const groups=s.trainForm.label_groups.filter(g=>g.reasons.length).map(g=>({weight:Number(g.weight)||1,reasons:g.reasons.map(r=>({reason:r.reason,sample:Number(r.sample)}))}));c.train.label_mapping={enable:true,auto_mlabel:true,extract_all_features:Boolean(s.trainForm.extract_all_features),groups};c.train.class_weights=Object.fromEntries(groups.map(g=>[g.reasons.map(r=>r.reason).join('_'),g.weight]));const data={key_sns:s.trainForm.key_rows.filter(x=>x.selected).map(x=>({path:x.path,line:x.line}))};if(s.trainForm.data_mode==='line')data.line=[...s.trainForm.selected_lines];if(s.trainForm.data_mode==='folder')data.folders=[...s.trainForm.selected_folders];if(s.trainForm.data_mode==='reference')data.reference=[...s.trainForm.selected_references];c.data=data;c.augmentation={input_folders:s.augmentationForm.folders.map(x=>({path:x.path.trim(),count:Math.max(1,Number(x.count)||1)})).filter(x=>x.path),methods:[...s.augmentationForm.methods],output_dir:s.augmentationForm.output_dir.trim()};c.dataset={...(c.dataset||{}),num_workers:Number(s.trainForm.num_workers)};delete c.dataset.batch_size;s.current.model_type=s.trainForm.model_type;await saveCurrent();markConfigStepsSaved();if(!quiet)notify('训练配置已保存')}catch(e){notify(e.message,true);throw e}}
     async function saveYaml(){try{const d=await api(`/api/projects/${s.current.id}/yaml`,{method:'PUT',body:JSON.stringify({yaml:s.yamlText})});s.current=d.project;s.yamlText=d.yaml;syncForms();notify('YAML 已保存')}catch(e){notify(e.message,true)}}
     async function loadDatasetSummary(){try{s.dataset=await api(`/api/projects/${s.current.id}/dataset-summary`)}catch(e){notify(e.message,true)}}
     async function loadLineOverview(){try{deriveGlobalDatabasePaths();s.lineOverview=await api(`/api/database/line-reference-overview?data_root=${encodeURIComponent(s.globalDatabase.data_root)}`);notify('已刷新产线与 reference 数据情况')}catch(e){notify(e.message,true)}}
@@ -1229,19 +1769,36 @@ createApp({
     function removeLabelGroup(index){s.trainForm.label_groups.splice(index,1);if(!s.trainForm.label_groups.length)s.trainForm.label_groups.push({weight:1,reasons:[]});s.selectedGroup=Math.max(0,Math.min(s.selectedGroup,s.trainForm.label_groups.length-1))}
     function addReason(reason){if(reasonUsed(reason))return;if(!s.trainForm.label_groups.length)addLabelGroup();s.trainForm.label_groups[s.selectedGroup].reasons.push({reason,sample:-1})}
     function removeReason(groupIndex,reasonIndex){s.trainForm.label_groups[groupIndex].reasons.splice(reasonIndex,1)}
-    function stagesFor(kind){return (s.options.run_stages||{})[kind]||(kind==='predict'?[{id:'predict',title:'模型推理'}]:[])}
+    function stagesFor(kind){return (s.options.run_stages||{})[kind]||[]}
     function stageClass(run,id){const stages=stagesFor(run.kind),current=stages.findIndex(x=>x.id===run.current_stage),index=stages.findIndex(x=>x.id===id);return {active:run.current_stage===id,done:run.status==='succeeded'||(current>=0&&index<current)}}
     function artifactUrl(p){return '/api/artifact?path='+encodeURIComponent(p)}
     function fmt(v){const n=Number(v);return Number.isFinite(n)?n.toFixed(4):'—'}
     function distName(v){const text=String(v||'');const i=text.indexOf(':');return i>=0?`${text.slice(i+1)} (${text.slice(0,i)})`:text}
     function barWidth(items,count){const max=Math.max(1,...(items||[]).map(x=>Number(x.count)||0));return `${Math.max(1,Number(count)/max*100)}%`}
-    function tabDisabled(id){return ['train','results','predict'].includes(id)&&!s.current}
+    function tabDisabled(id){return ['train','results'].includes(id)&&!s.current}
     const workflowTabs=computed(()=>s.tabs.map(x=>({...x,label:x.label.replace(/（.*）/,'' )})));
     const projectComplete=computed(()=>s.runs.some(x=>['train','full'].includes(x.kind)&&x.status==='succeeded'));
     function workflowClass(id){return {active:s.view===id,done:projectComplete.value}}
     async function openTab(id){if(tabDisabled(id))return;s.view=id;if(id==='database'){deriveGlobalDatabasePaths();precheckDatabase(true)}if(s.current&&['data','train'].includes(id))loadDatasetSummary();if(id==='train'){loadTrainingOptions();loadLabelCounts()}if(id==='results')loadResults();if(s.current&&id!=='projects'&&id!=='database')loadRuns()}
-    onMounted(async()=>{try{deriveGlobalDatabasePaths();s.options=await api('/api/options');applyDatabaseDefaults();s.createForm.line_name=s.options.line_options?.[0]||'';await Promise.all([loadProjects(),loadLabelRules(),precheckDatabase(true)]);setInterval(loadRuns,2000);setInterval(loadDatabaseJob,1000)}catch(e){notify(e.message,true)}});
-    return {...Vue.toRefs(s),createModelId,editableModelId,currentModelId,requireCurrent,pipelineRuns,augmentationRuns,predictRuns,featureActionClass,featureActionText,trainActionClass,trainActionText,availableLines,labelCountsReady,databaseActionChoices,databaseStages,canExecuteDatabase,databaseStatusItems,workflowTabs,projectComplete,workflowClass,tabDisabled,openTab,createProject,projectModelId,toggleProjectDetails,reloadProjectDetails,saveProjectYaml,validateProjectYaml,saveProjectForm,saveProjectInfo,duplicateProject,selectProject,removeProject,deriveGlobalDatabasePaths,chooseDatabaseAction,resetDatabaseAction,precheckDatabase,databaseStageActive,loadLabelRules,saveLabelRules,restoreDefaultLabelRules,addResultRule,removeResultRule,addReasonRule,removeReasonRule,addDatabaseCsv,removeDatabaseCsv,runDatabaseAction,saveTrain,saveYaml,loadDatasetSummary,loadLineOverview,loadModelOverview,loadTrainingOptions,validateCurrent,startRun,startAugmentation,enableAugmentation,disableAugmentation,addAugmentationFolder,removeAugmentationFolder,addKeyFolder,removeKeyFolder,cancelRun,showRun,loadResults,startPredict,openBrowser,browse,joinPath,chooseBrowserPath,pathBasename,modelSpec,modelTitle,selectModel,reasonUsed,reasonCount,groupAvailableCount,groupTrainingCount,addLabelGroup,resetLabelGroups,removeLabelGroup,addReason,removeReason,stagesFor,stageClass,artifactUrl,fmt,distName,barWidth};
+    function openDatabaseSubTab(tab){
+      s.databaseUi.tab=tab;
+      if(s.view!=='database')s.view='database';
+      if(tab==='labels')loadLabelRules();
+      if(tab==='line-rules')loadLineRules();
+      if(tab==='distribution')loadLineOverview();
+      if(location.hash!==`#database:${tab}`)location.hash=`database:${tab}`;
+    }
+    function openHashView(){
+      const raw=String(location.hash||'').replace(/^#/,'');
+      const [id,sub]=raw.split(':');
+      if(id==='database'&&['operation','labels','line-rules','distribution'].includes(sub))s.databaseUi.tab=sub;
+      if(['database','projects','results','train','data','predict'].includes(id))openTab(id);
+      if(id==='database'&&sub==='labels')loadLabelRules();
+      if(id==='database'&&sub==='line-rules')loadLineRules();
+      if(id==='database'&&sub==='distribution')loadLineOverview();
+    }
+    onMounted(async()=>{try{deriveGlobalDatabasePaths();s.options=await api('/api/options');applyDatabaseDefaults();s.createForm.line_name=s.options.line_options?.[0]||'';await Promise.all([loadProjects(),loadLabelRules(),precheckDatabase(true)]);openHashView();window.addEventListener('hashchange',openHashView);setInterval(loadRuns,2000);setInterval(loadDatabaseJob,1000)}catch(e){notify(e.message,true)}});
+    return {...Vue.toRefs(s),createModelId,editableModelId,currentModelId,requireCurrent,pipelineRuns,augmentationRuns,predictRuns,featureActionClass,featureActionText,trainActionClass,trainActionText,availableLines,labelCountsReady,trainSteps,trainStepStatus,trainStepIndex,currentTrainStep,trainStepClass,trainStepText,openTrainStep,saveCurrentTrainStep,nextTrainStep,prevTrainStep,databaseStages,canExecuteDatabase,databaseStatusItems,workflowTabs,projectComplete,workflowClass,tabDisabled,openTab,openDatabaseSubTab,createProject,openProject,projectModelId,toggleProjectDetails,reloadProjectDetails,saveProjectYaml,validateProjectYaml,saveProjectForm,saveProjectInfo,duplicateProject,selectProject,selectPredictProject,clearPredictProject,removeProject,deriveGlobalDatabasePaths,databaseDisplayName,selectedProjectDatabase,applyProjectDatabase,chooseDatabaseAction,resetDatabaseAction,precheckDatabase,databaseStageActive,openRegisteredDatabase,startOpenDatabase,openDatabaseFromPath,startCreateDatabase,refreshDatabaseHome,openDatabaseProject,updateDatabaseProject,removeRegisteredDatabase,databaseLineExpanded,toggleDatabaseLine,distributionRefSelected,toggleDistributionRef,allDistributionRefsSelected,toggleAllDistributionRefs,selectedDistributionStats,loadLabelRules,saveLabelRules,restoreDefaultLabelRules,loadLineRules,validateLineRules,saveLineRules,restoreDefaultLineRules,addResultRule,removeResultRule,addReasonRule,removeReasonRule,addDatabaseCsv,removeDatabaseCsv,runDatabaseAction,saveTrain,saveYaml,loadDatasetSummary,loadLineOverview,loadModelOverview,loadTrainingOptions,validateCurrent,startRun,startAugmentation,enableAugmentation,disableAugmentation,addAugmentationFolder,removeAugmentationFolder,addKeyFolder,removeKeyFolder,cancelRun,showRun,loadResults,startPredict,openBrowser,browse,joinPath,chooseBrowserPath,pathBasename,modelSpec,modelTitle,selectModel,reasonUsed,reasonCount,groupAvailableCount,groupTrainingCount,addLabelGroup,resetLabelGroups,removeLabelGroup,addReason,removeReason,stagesFor,stageClass,artifactUrl,fmt,distName,barWidth,rememberSidebarWidth,toggleSidebar,setUiScale};
   }
 }).mount('#app');
 </script>

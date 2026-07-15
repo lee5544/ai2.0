@@ -1,6 +1,6 @@
 """DL 原始信号特征提取器（raw）。
 
-- 统一预处理：裁剪信号头尾各 8000 点（与 mel/pcen 共用 ``preprocess.trim_edges``）。
+- 统一预处理：按采样率裁剪信号头尾各 0.5 秒（与 mel/pcen 共用 ``preprocess.trim_edges``）。
 - raw 特有：每条信号 z-score 内部标准化。
 - 保留 trim 后的**原始长度（不定长）**，不固定到定长——定长裁剪留到训练阶段做。
 - 输出 ``[1, L]`` 单通道序列，仅支持 pickle 紧凑列（不定长无法落 CSV 固定列）。
@@ -144,8 +144,8 @@ def _process_one_group(
                 sample_group_name=item["sample_group_name"],
                 sample_id=sample_id,
             )
-            signal = trim_edges(signal)  # 统一预处理：裁剪头尾 8000 点
             sampling_rate = _to_int(sample_meta.get("sampling_rate")) or _to_int(tdms_ret.get("sampling_rate"))
+            signal = trim_edges(signal, sampling_rate)  # 统一预处理：裁剪头尾 0.5 秒
             feature_tensor, feature_meta = extract_raw_features(signal)
 
             record: Dict[str, Any] = {}
@@ -206,8 +206,7 @@ def _write_feature_schema(*, output_folder: Path, output_file_prefix: str) -> No
         "sequence_length": -1,  # 不定长：训练阶段再裁剪到固定长度
         "feature_columns": {"raw": []},
         "feature_channels": 1,
-        "trim_head": 8000,
-        "trim_tail": 8000,
+        "trim_seconds": 0.5,
         "downsample_step": DEFAULT_DOWNSAMPLE_STEP,
         "standardize": "zscore",
     }
@@ -261,7 +260,7 @@ def run(args: argparse.Namespace) -> None:
 
     print(f"输出目录: {output_feature_folder}")
     print(f"sample_view 文件数: {len(sample_view_paths)}")
-    print(f"raw 配置: 裁剪头尾 8000 点 + 每隔 {DEFAULT_DOWNSAMPLE_STEP} 点降采样 + z-score 标准化，保留不定长（训练时裁剪）")
+    print(f"raw 配置: 按采样率裁剪头尾 0.5 秒 + 每隔 {DEFAULT_DOWNSAMPLE_STEP} 点降采样 + z-score 标准化，保留不定长（训练时裁剪）")
     print(f"输出前缀: {output_file_prefix}")
     print(f"输出格式: {output_format}")
     print(f"批次大小: {batch_size}")

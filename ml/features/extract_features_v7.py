@@ -320,7 +320,7 @@ def butter_filter(data, sr, cutoff, btype="low", order=4):
 def process_data(
     raw_data,
     sr=20000,
-    cut_len=8000,
+    cut_len=None,
     target_length=0,
     cutoff_low=20,
     cutoff_high=None,
@@ -331,6 +331,7 @@ def process_data(
     if cutoff_high is not None:
         raw_data = butter_filter(raw_data, sr=sr, cutoff=cutoff_high, btype="low")
 
+    cut_len = round(float(sr) * 0.5) if cut_len is None else max(0, int(cut_len))
     if len(raw_data) > 2 * cut_len:
         dat_cut = raw_data[cut_len:-cut_len]
     else:
@@ -2316,7 +2317,7 @@ def extract_features_v6(data, sr, return_timing: bool = False):
     x_raw = np.asarray(data, dtype=float, order="C")
 
     t0 = time.perf_counter()
-    x = process_data(x_raw, sr=sr, cut_len=8000, cutoff_low=20, cutoff_high=None)
+    x = process_data(x_raw, sr=sr, cutoff_low=20, cutoff_high=None)
     x = np.asarray(x, dtype=float, order="C")
     # 全信号 Hilbert 包络只算一次，供包络谱/包络主峰/秒表周期等多处共享
     base_env = _analytic_envelope(x)
@@ -2400,7 +2401,7 @@ V7_TICK_FEATURES: tuple[str, ...] = (
 # 弱秒表预处理/分窗参数(实测最优, 见解决方案文档第五节)
 _TICK_HI_BAND = (7000.0, 9500.0)     # 弱秒表所在高频带
 _TICK_LOMID_BAND = (500.0, 5000.0)   # 强秒表所在低/中带
-_TICK_TRIM_S = 0.6                   # 裁掉首尾启停瞬态
+_TICK_TRIM_S = 0.5                   # 裁掉首尾启停瞬态
 _TICK_WIN_S = 1.0                    # 分窗长度
 _TICK_HOP_S = 0.5                    # 分窗步长
 
