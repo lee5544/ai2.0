@@ -227,7 +227,7 @@ def main() -> None:
     workers = max(1, int(args.workers))
 
     model_id = model_dir.name
-    trim_edge_samples = 8000
+    trim_edge_samples = round(target_sr * 0.5)
 
     wav_paths = [
         path

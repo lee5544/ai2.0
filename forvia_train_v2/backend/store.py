@@ -41,6 +41,7 @@ def init_db() -> None:
                 model_type TEXT NOT NULL,
                 config_path TEXT NOT NULL DEFAULT '',
                 config_json TEXT NOT NULL,
+                origin TEXT NOT NULL DEFAULT 'ui',
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
@@ -71,6 +72,15 @@ def init_db() -> None:
         columns = {row[1] for row in con.execute("PRAGMA table_info(projects)")}
         if "config_path" not in columns:
             con.execute("ALTER TABLE projects ADD COLUMN config_path TEXT NOT NULL DEFAULT ''")
+        if "origin" not in columns:
+            con.execute("ALTER TABLE projects ADD COLUMN origin TEXT NOT NULL DEFAULT ''")
+            con.execute(
+                """
+                UPDATE projects
+                SET origin='ui'
+                WHERE id IN (SELECT DISTINCT project_id FROM runs)
+                """
+            )
         run_columns = {row[1] for row in con.execute("PRAGMA table_info(runs)")}
         if "progress_detail" not in run_columns:
             con.execute("ALTER TABLE runs ADD COLUMN progress_detail TEXT NOT NULL DEFAULT ''")
@@ -112,6 +122,7 @@ def list_projects() -> list[dict]:
             LEFT JOIN runs r ON r.id = (
                 SELECT id FROM runs WHERE project_id=p.id ORDER BY created_at DESC LIMIT 1
             )
+            WHERE p.origin='ui'
             ORDER BY p.updated_at DESC
             """
         ).fetchall()
@@ -132,8 +143,8 @@ def create_project(data: dict) -> dict:
             """
             INSERT INTO projects (
                 id, name, line_name, model_name, model_type, config_path,
-                config_json, created_at, updated_at
-            ) VALUES (?,?,?,?,?,?,?,?,?)
+                config_json, origin, created_at, updated_at
+            ) VALUES (?,?,?,?,?,?,?,?,?,?)
             """,
             (
                 project_id,
@@ -143,6 +154,7 @@ def create_project(data: dict) -> dict:
                 data["model_type"],
                 data.get("config_path", ""),
                 _json(data["config"]),
+                data.get("origin", "ui") or "ui",
                 ts,
                 ts,
             ),
@@ -155,7 +167,8 @@ def update_project(project_id: str, data: dict) -> dict | None:
         cur = con.execute(
             """
             UPDATE projects
-            SET name=?, line_name=?, model_name=?, model_type=?, config_path=?, config_json=?, updated_at=?
+            SET name=?, line_name=?, model_name=?, model_type=?, config_path=?, config_json=?,
+                origin=COALESCE(NULLIF(?, ''), origin), updated_at=?
             WHERE id=?
             """,
             (
@@ -165,6 +178,7 @@ def update_project(project_id: str, data: dict) -> dict | None:
                 data["model_type"],
                 data.get("config_path", ""),
                 _json(data["config"]),
+                data.get("origin", ""),
                 now(),
                 project_id,
             ),

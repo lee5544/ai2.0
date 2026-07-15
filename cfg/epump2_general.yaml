@@ -30,7 +30,7 @@ dataset:
 train:
   model_type: lgb
   train_mode: normal
-  split_strategy: stratified
+  split_strategy: reference_in
   seed_runs: 10
   label_mapping:
     enable: true
@@ -78,7 +78,7 @@ train:
     摩擦_摩擦acc_杂音_咬齿_哒哒_咔咔: 1
     震颤_马达: 1
   lgb_params:
-    n_estimators: 400
+    n_estimators: 100
     num_leaves: 20
     max_depth: -1
     learning_rate: 0.05

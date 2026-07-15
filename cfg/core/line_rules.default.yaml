@@ -1,0 +1,72 @@
+epump2:
+  filename:
+    split: "_"
+    sn_index: 1
+    reference_index: 2
+    time_index: [3, 4]
+    time_order: "dmy"
+  channels:
+    up_group: "Vib Up_0"
+    down_group: "Vib Down_0"
+    acc_channel: "ACC"
+  note: "固定规则"
+
+epump3:
+  filename:
+    split: "_"
+    sn_index: 1
+    reference_index: 2
+    time_index: [3, 4]
+    time_order: "dmy"
+  channels:
+    up_group: "Vib Up_0"
+    down_group: "Vib Down_0"
+    acc_channel: "ACC"
+  note: "固定规则"
+
+epump4:
+  filename:
+    split: "_"
+    sn_index: 0
+    reference_index: 1
+    time_index: [3, 4]
+    time_order: "ymd"
+  channels:
+    up_group: "Vib Up_0"
+    down_group: "Vib Down_0"
+    acc_channel: "ACC"
+  note: "固定规则"
+
+etilt1:
+  filename:
+    split: "_"
+    sn_index: 4
+    reference_index: 1
+    time_index: [2, 3]
+    time_order: "ymd"
+  channels:
+    conditional:
+      - when:
+          reference: "4031033"
+        up_group: "Measure_9"
+        down_group: "Measure_10"
+        acc_channel: "ACC1"
+      - when:
+          reference: "*"
+        up_group: "Measure_1"
+        down_group: "Measure_2"
+        acc_channel: "ACC1"
+  note: 'reference == "4031033" -> Measure_9 / 10; else -> Measure_1 / 2'
+
+etilt2:
+  filename:
+    split: "_"
+    sn_index: 0
+    reference_index: 1
+    time_index: [3, 4]
+    time_order: "ymd"
+  channels:
+    up_group: "Vib Up_0"
+    down_group: "Vib Down_0"
+    acc_channel: "ACC"
+  note: "固定规则"

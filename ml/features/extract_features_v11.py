@@ -16,7 +16,7 @@ v11 additions:
   7. 震颤调制结构 (9): env_mod_chatter_*, mel_mod_*, dwt_3/4 SK burst
      来源 v5 实测（dwt_3_sk_burst_frac importance #4；跨带调制同步）
 
-预处理改动：裁瞬态统一为 trim_s=0.6 s（v10 为 cut_len=8000 点 ≈ 0.4 s @20 kHz）。
+预处理：按采样率裁剪信号头尾各 0.5 s。
 
 入口: extract_features_v11(data, sr, return_timing=False)
 """
@@ -176,7 +176,7 @@ def butter_filter(
 def process_data(
     raw_data: np.ndarray,
     sr: float = 20000,
-    cut_len: int = 8000,
+    cut_len: int | None = None,
     target_length: int = 0,
     cutoff_low: float | None = 20,
     cutoff_high: float | None = None,
@@ -187,6 +187,7 @@ def process_data(
     if x.size == 0:
         return np.zeros(0, dtype=np.float32)
 
+    cut_len = round(float(sr) * 0.5) if cut_len is None else max(0, int(cut_len))
     # 20 Hz high-pass before Mel and DWT features.
     if cutoff_low is not None:
         x = butter_filter(x, sr, cutoff_low, btype="high")
@@ -942,7 +943,7 @@ def _extract_base_features(
     n_mels: int = _DEFAULT_N_MELS,
     n_fft: int = _DEFAULT_N_FFT,
     hop_length: int | None = None,
-    cut_len: int = 8000,
+    cut_len: int | None = None,
 ) -> dict[str, float] | tuple[dict[str, float], dict[str, float]]:
     timing: dict[str, float] = {}
     t_total = time.perf_counter()
@@ -1056,8 +1057,8 @@ V11_CHATTER_FEATURES: tuple[str, ...] = (
     "dwt_4_sk_max_run_len",          # cD1(5–10 kHz) SK 滑窗最长连续超阈段（z=+2.72）
 )
 
-# 统一裁瞬态（秒）：v10 的 cut_len=8000(0.4s@20k) 偏短，启停瞬态残留会劫持峭度。
-_TRIM_S = 0.6
+# 统一裁瞬态（秒）。
+_TRIM_S = 0.5
 
 # 弱秒表参数（实测最优，见解决方案文档）
 _TICK_HI_BAND = (7000.0, 9500.0)
@@ -1363,7 +1364,7 @@ def extract_features_v11(
     """v11 = v10 骨架(165) + 弱秒表 8 + 震颤调制 9 = 182 维。
 
     与 v10 的差异：
-      1. 裁瞬态统一为时间制 trim_s=0.6s（v10 为 cut_len=8000 点 ≈ 0.4s@20k）。
+      1. 按采样率裁瞬态，默认每侧 0.5s。
       2. 回挂 v7/v8 实测有效的 weak_tick 双带分窗特征（8 维）。
       3. 回挂 v5 实测有效的震颤调制结构特征（9 维）。
     """

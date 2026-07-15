@@ -52,7 +52,7 @@ def butter_filter(data, sr, cutoff, btype='low', order=4):
     b, a = _butter_coeffs(float(sr), float(cutoff), str(btype), int(order))
     return signal.filtfilt(b, a, data).astype(np.float32)
 
-def process_data(raw_data, sr=20000, cut_len=8000, target_length=0, cutoff_low=20, cutoff_high=8000):
+def process_data(raw_data, sr=20000, cut_len=None, target_length=0, cutoff_low=20, cutoff_high=8000):
     # 对原始数据使用高通滤波，滤除20Hz以下
     if cutoff_low != None:
         raw_data = butter_filter(raw_data, sr=sr, cutoff=cutoff_low, btype='high')
@@ -61,7 +61,8 @@ def process_data(raw_data, sr=20000, cut_len=8000, target_length=0, cutoff_low=2
 
     filtered_data = raw_data
     
-    # 裁剪：如果数据长度足够，则去除首尾各 cut_len；否则直接使用原始数据
+    cut_len = round(float(sr) * 0.5) if cut_len is None else max(0, int(cut_len))
+    # 裁剪：如果数据长度足够，则去除首尾各 0.5 秒；否则直接使用原始数据
     if len(filtered_data) > 2 * cut_len:
         dat_cut = filtered_data[cut_len:-cut_len]
     else:
@@ -685,7 +686,7 @@ def extract_features_v2(data, sr, return_timing=False):
     timing["global_sec"] = float(time.perf_counter() - t0)
 
     t0 = time.perf_counter()
-    data_processed = process_data(x, sr=sr, cut_len=8000, cutoff_low=20, cutoff_high=None)
+    data_processed = process_data(x, sr=sr, cutoff_low=20, cutoff_high=None)
     timing["process_data_sec"] = float(time.perf_counter() - t0)
 
     # 频域特征

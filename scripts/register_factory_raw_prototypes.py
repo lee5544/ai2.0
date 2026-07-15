@@ -287,17 +287,21 @@ def _sync_database(
     con = sqlite3.connect(db_path)
     try:
         con.execute("PRAGMA foreign_keys = ON")
-        con.execute(
-            """
-            UPDATE samples
-            SET is_active=0, updated_at=?
-            WHERE origin='prototype'
-              AND (tdms_storage_root IS NULL OR tdms_storage_root='')
-              AND (relative_path IS NULL OR relative_path='')
-            """,
-            (now,),
-        )
-        stats["stale_prototype_samples_deactivated"] = int(con.execute("SELECT changes()").fetchone()[0])
+        sample_columns = {row[1] for row in con.execute("PRAGMA table_info(samples)").fetchall()}
+        if {"tdms_storage_root", "relative_path"}.issubset(sample_columns):
+            con.execute(
+                """
+                UPDATE samples
+                SET is_active=0, updated_at=?
+                WHERE origin='prototype'
+                  AND (tdms_storage_root IS NULL OR tdms_storage_root='')
+                  AND (relative_path IS NULL OR relative_path='')
+                """,
+                (now,),
+            )
+            stats["stale_prototype_samples_deactivated"] = int(con.execute("SELECT changes()").fetchone()[0])
+        else:
+            stats["stale_prototype_samples_deactivated"] = 0
 
         con.execute(
             """
@@ -310,33 +314,28 @@ def _sync_database(
         )
         stats["hash_prototype_samples_deactivated"] = int(con.execute("SELECT changes()").fetchone()[0])
 
+        desired_columns = [
+            "line", "sn", "sample_id", "group_name", "channel_name", "sampling_rate",
+            "reference", "time", "tdms_storage_root", "relative_path", "tdms_path",
+            "sample_type", "sample_config", "origin", "is_active", "created_at", "updated_at",
+        ]
+        insert_columns = [col for col in desired_columns if col in sample_columns]
+        update_columns = [
+            col for col in insert_columns
+            if col not in {"line", "sn", "sample_id", "created_at"}
+        ]
+        insert_sql = (
+            f"INSERT INTO samples({', '.join(insert_columns)}) "
+            f"VALUES ({', '.join(':' + col for col in insert_columns)}) "
+            "ON CONFLICT(line, sn, sample_id) DO UPDATE SET "
+            + ", ".join(f"{col}=excluded.{col}" for col in update_columns)
+        )
         con.executemany(
-            """
-            INSERT INTO samples(
-                line, sn, sample_id, group_name, channel_name, sampling_rate,
-                reference, time, tdms_storage_root, relative_path, tdms_path,
-                sample_type, sample_config, origin, is_active, created_at, updated_at
-            ) VALUES (
-                :line, :sn, :sample_id, :group_name, :channel_name, :sampling_rate,
-                :reference, :time, :tdms_storage_root, :relative_path, :tdms_path,
-                :sample_type, :sample_config, :origin, :is_active, :created_at, :updated_at
-            )
-            ON CONFLICT(line, sn, sample_id) DO UPDATE SET
-                group_name=excluded.group_name,
-                channel_name=excluded.channel_name,
-                sampling_rate=excluded.sampling_rate,
-                reference=excluded.reference,
-                time=excluded.time,
-                tdms_storage_root=excluded.tdms_storage_root,
-                relative_path=excluded.relative_path,
-                tdms_path=excluded.tdms_path,
-                sample_type=excluded.sample_type,
-                sample_config=excluded.sample_config,
-                origin=excluded.origin,
-                is_active=excluded.is_active,
-                updated_at=excluded.updated_at
-            """,
-            [{**row, "created_at": now, "updated_at": now} for row in sample_rows],
+            insert_sql,
+            [
+                {col: {**row, "created_at": now, "updated_at": now}.get(col) for col in insert_columns}
+                for row in sample_rows
+            ],
         )
         stats["samples_upserted"] = len(sample_rows)
 

@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import csv
+import os
 from pathlib import Path
 
 from .app_api import model_id
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-RESULTS_DIR = PROJECT_ROOT / "results"
+PROJECT_ROOT = Path(os.environ.get("FORVIA_REPO_ROOT", Path(__file__).resolve().parents[2])).expanduser()
+RESULTS_DIR = Path(os.environ.get("FORVIA_RESULTS_DIR", PROJECT_ROOT / "results")).expanduser()
 
 
 def _read_csv(path: Path, limit: int = 500) -> list[dict]:

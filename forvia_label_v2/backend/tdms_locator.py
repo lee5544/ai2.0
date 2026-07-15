@@ -27,7 +27,8 @@ class ManifestAdapter:
     """登记适配器。
 
     - 注册集合 reg_keys：样本是否已登记。来源 tdms_manifest.csv（按 line/sn）。
-    - 路径表 path_map：(line, sn) -> tdms 绝对路径，仅来自 tdms_manifest.csv。
+    - 路径表 path_map：(line, sn) -> manifest 原始路径，仅来自 tdms_manifest.csv。
+      绝对路径统一由 TdmsLocator 解析，避免在这里重复拼接根目录。
     """
 
     def __init__(self, db_folder: str | Path | None):
@@ -37,6 +38,8 @@ class ManifestAdapter:
         self.sn_keys: set[str] = set()                        # 仅按 sn 的登记集合（sample_view 无 line 时兜底）
         self.path_map: dict[tuple[str, str], str] = {}
         self.path_by_sn: dict[str, str] = {}                  # sn -> tdms 路径（兜底）
+        self.path_candidates: dict[tuple[str, str], list[str]] = {}
+        self.path_candidates_by_sn: dict[str, list[str]] = {}
         self.reference_map: dict[tuple[str, str], str] = {}   # (line,sn) -> reference（来自 tdms_manifest.csv）
         self.reference_by_sn: dict[str, str] = {}             # sn -> reference（兜底）
         self.line_by_sn: dict[str, str] = {}                  # sn -> line（用于回填 sample_view 缺失的 line）
@@ -70,19 +73,23 @@ class ManifestAdapter:
                         if line:
                             self.reg_keys.add((line, sn))
                             self.line_by_sn.setdefault(sn, line)
-                        sr = str(row.get("tdms_storage_root") or row.get("storage_root") or "").strip()
                         rp = str(row.get("relative_path", "") or "").strip()
                         tp = str(row.get("tdms_path", "") or "").strip()
-                        full = tp or (str(Path(sr) / rp) if (sr and rp) else rp)
+                        # 保留 manifest 原始值。tdms_storage_root 只是登记元数据，
+                        # 不能在这里与 relative_path 直接拼接，否则当 relative_path
+                        # 已包含 factory_raw/line 时会生成重复目录。
+                        full = tp or rp
                         if full:
                             if line:
-                                self.path_map.setdefault((line, sn), full)
-                            self.path_by_sn.setdefault(sn, full)
+                                self.path_candidates.setdefault((line, sn), []).append(full)
+                                self.path_map[(line, sn)] = full
+                            self.path_candidates_by_sn.setdefault(sn, []).append(full)
+                            self.path_by_sn[sn] = full
                         ref = str(row.get("reference", "") or "").strip()
                         if ref:
                             if line:
-                                self.reference_map.setdefault((line, sn), ref)
-                            self.reference_by_sn.setdefault(sn, ref)
+                                self.reference_map[(line, sn)] = ref
+                            self.reference_by_sn[sn] = ref
             except Exception:
                 continue
 
@@ -102,6 +109,11 @@ class ManifestAdapter:
         self._load()
         s = _norm(sn)
         return self.path_map.get((_norm(line), s)) or self.path_by_sn.get(s)
+
+    def candidates_for(self, line: str, sn: str) -> list[str]:
+        self._load()
+        s = _norm(sn)
+        return self.path_candidates.get((_norm(line), s)) or self.path_candidates_by_sn.get(s, [])
 
     def reference_for(self, line: str, sn: str) -> str:
         self._load()
@@ -185,6 +197,10 @@ class TdmsLocator:
         自动消除 root 末尾与 rel 开头的重叠部分，使其对“root=数据根/根=factory_raw/
         根=factory_raw/epump2 子目录”三种情况都能正确拼出绝对路径。"""
         rel_parts = [p for p in Path(rel.replace("\\", "/")).parts if p not in ("/", "")]
+        if rel_parts and rel_parts[0].lower() == "factory_raw":
+            for base in (root, *root.parents):
+                if base.name.lower() == "factory_raw":
+                    return base.parent.joinpath(*rel_parts)
         root_parts = root.parts
         maxk = min(len(rel_parts), len(root_parts))
         best_k = 0
@@ -228,7 +244,12 @@ class TdmsLocator:
         # manifest 是页面路径/缺失状态的唯一口径，信任登记路径，不逐样本校验存在。
         if self.manifest is None or not manifest_available:
             return None, "missing"
-        reg = self.manifest.get(line, sn)
+        regs = self.manifest.candidates_for(line, sn)
+        for reg in reversed(regs):
+            for cand in self._manifest_abs_candidates(reg):
+                if _safe_exists(cand):
+                    return cand, "registered"
+        reg = regs[-1] if regs else self.manifest.get(line, sn)
         if reg:
             p = Path(reg).expanduser()
             if not p.is_absolute() and self.root is not None:

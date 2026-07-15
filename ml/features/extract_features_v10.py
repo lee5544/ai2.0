@@ -184,7 +184,7 @@ def butter_filter(
 def process_data(
     raw_data: np.ndarray,
     sr: float = 20000,
-    cut_len: int = 8000,
+    cut_len: int | None = None,
     target_length: int = 0,
     cutoff_low: float | None = 20,
     cutoff_high: float | None = None,
@@ -202,7 +202,8 @@ def process_data(
     if cutoff_high is not None:
         x = butter_filter(x, sr, cutoff_high, btype="low")
 
-    # Remove start/end transient if signal is long enough.
+    cut_len = round(float(sr) * 0.5) if cut_len is None else max(0, int(cut_len))
+    # Remove 0.5 seconds from both edges if signal is long enough.
     if x.size > 2 * int(cut_len):
         x = x[int(cut_len): -int(cut_len)]
 
@@ -950,7 +951,7 @@ def extract_features_v10(
     n_mels: int = _DEFAULT_N_MELS,
     n_fft: int = _DEFAULT_N_FFT,
     hop_length: int | None = None,
-    cut_len: int = 8000,
+    cut_len: int | None = None,
 ) -> dict[str, float] | tuple[dict[str, float], dict[str, float]]:
     timing: dict[str, float] = {}
     t_total = time.perf_counter()

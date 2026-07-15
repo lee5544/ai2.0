@@ -77,6 +77,12 @@ def _subprocess_env() -> dict[str, str]:
     return env
 
 
+def _python_command(args: list[str]) -> list[str]:
+    if getattr(sys, "frozen", False) or os.environ.get("FORVIA_CONSOLE_FROZEN") == "1":
+        return [sys.executable, "--forvia-python", *args]
+    return [sys.executable, *args]
+
+
 def _run_paths(project_id: str, run_id: str) -> tuple[Path, Path, Path]:
     run_dir = RUN_DIR / project_id / run_id
     artifact_root = RESULTS_DIR
@@ -184,14 +190,16 @@ def reconcile_active_runs() -> None:
 
 
 def _launch_worker(run_id: str) -> int:
+    creationflags = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
     proc = subprocess.Popen(
-        [sys.executable, "-m", "forvia_train_v2.backend.run_worker", "--run-id", run_id],
+        _python_command(["-m", "forvia_train_v2.backend.run_worker", "--run-id", run_id]),
         cwd=str(PROJECT_ROOT),
         env=_subprocess_env(),
         stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
-        start_new_session=True,
+        start_new_session=(os.name != "nt"),
+        creationflags=creationflags,
         close_fds=True,
     )
     return proc.pid
@@ -272,17 +280,20 @@ def _execute(run_id: str, config: dict, command: list[str] | None) -> None:
                 if stage_id == "extract_features":
                     detail = "准备提取特征"
                 update_run(run_id, current_stage=stage_id, progress=stage_progress, progress_detail=detail)
-                log.write(f"\n===== {title} =====\n$ {sys.executable} {' '.join(args)}\n")
+                cmd = _python_command(args)
+                log.write(f"\n===== {title} =====\n$ {' '.join(cmd)}\n")
                 log.flush()
+                creationflags = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
                 proc = subprocess.Popen(
-                    [sys.executable, *args],
+                    cmd,
                     cwd=str(PROJECT_ROOT),
                     env=_subprocess_env(),
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
                     text=True,
                     bufsize=1,
-                    start_new_session=True,
+                    start_new_session=(os.name != "nt"),
+                    creationflags=creationflags,
                 )
                 with LOCK:
                     PROCESSES[run_id] = proc
@@ -364,17 +375,26 @@ def cancel(run_id: str) -> dict | None:
         proc = PROCESSES.get(run_id)
     if proc and proc.poll() is None:
         try:
-            os.killpg(proc.pid, signal.SIGTERM)
+            if os.name == "nt":
+                proc.terminate()
+            else:
+                os.killpg(proc.pid, signal.SIGTERM)
         except Exception:
             proc.terminate()
     elif _pid_alive(run.get("pid")):
         try:
-            os.killpg(int(run["pid"]), signal.SIGTERM)
+            if os.name == "nt":
+                os.kill(int(run["pid"]), signal.SIGTERM)
+            else:
+                os.killpg(int(run["pid"]), signal.SIGTERM)
         except OSError:
             pass
     elif _pid_alive(run.get("supervisor_pid")):
         try:
-            os.killpg(int(run["supervisor_pid"]), signal.SIGTERM)
+            if os.name == "nt":
+                os.kill(int(run["supervisor_pid"]), signal.SIGTERM)
+            else:
+                os.killpg(int(run["supervisor_pid"]), signal.SIGTERM)
         except OSError:
             pass
     return get_run(run_id)

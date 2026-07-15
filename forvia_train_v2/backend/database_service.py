@@ -20,7 +20,7 @@ from data_manager.tdms_read import (
 
 
 FILE_MODES = {"manual", "copy", "move"}
-ACTIONS = {"create", "append", "refresh"}
+ACTIONS = {"create", "update", "append", "refresh"}
 ProgressCallback = Callable[..., None]
 
 
@@ -273,7 +273,7 @@ def execute_database_action(
             raise ValueError("数据库文件名必须为 label_records.db")
         configured_tdms_root = _require_dir(tdms_root, "TDMS 根目录")
         storage_root, scan_root = _storage_root_for_path(data_root, configured_tdms_root)
-        if action == "append":
+        if action in {"update", "append"}:
             if str(source_folder or "").strip():
                 source = _require_dir(source_folder, "TDMS 输入文件夹")
                 if file_mode == "manual":
@@ -295,14 +295,12 @@ def execute_database_action(
                             f"{'复制' if file_mode == 'copy' else '移动'} TDMS：{detail}",
                         ),
                     )
-            elif not csv_paths:
-                raise ValueError("追加数据库时，TDMS 输入文件夹和标签 CSV 至少提供一项")
 
     _progress(progress, 38, "正在扫描 TDMS 文件")
     if not list(iter_tdms_files(scan_root)):
         raise ValueError(f"TDMS 根目录中没有 .tdms 或 .tdms.zst: {scan_root}")
     compressed_existing = 0
-    if action == "refresh":
+    if action in {"update", "refresh"}:
         compressed_existing = _compress_uncompressed_tdms_files(
             scan_root,
             line=line,
@@ -320,7 +318,7 @@ def execute_database_action(
         progress,
         45,
         (f"正在重新注册产线 {line} 的 TDMS 路径与 sample_id" if line else "正在重新注册全部 TDMS 路径与 sample_id")
-        if action == "refresh"
+        if action in {"update", "refresh"}
         else "正在重建 tdms_manifest.csv 与样本索引",
     )
     summary = _rebuild_database_metadata(

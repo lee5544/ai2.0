@@ -1,7 +1,7 @@
 """标签层：薄封装 SQLite LabelStore。
 
 - add(): 人工标注 -> Label.build_result() -> LabelStore.add_result()（即时落盘）。
-- set_typical(): 在最新标注行 note 写/去 [[典型异音]] 标记（方案 A，零 schema 改动）。
+- set_typical(): 在最新标注行 note 写/去 [[prototype]] 标记（方案 A，零 schema 改动）。
 - export(): 按范围/典型筛选导出同格式 CSV。
 """
 from __future__ import annotations

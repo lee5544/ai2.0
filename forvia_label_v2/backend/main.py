@@ -27,11 +27,12 @@ from .card_api import (CardContext, default_card_ids, discover, list_cards,
                        render_card)
 from . import task_api, task_runner
 from .config import (DEFAULT_LABEL_RECORDS_DB_PATH, DEFAULT_SAMPLE_VIEW_PATH,
-                     DEFAULT_TDMS_ROOT)
+                     DEFAULT_TDMS_ROOT, TYPICAL_TAG)
 from .session import get_session, init_session
 from .tdms_loader import downsample, load_sample
 
 app = FastAPI(title="Forvia 标注 v2")
+PROJECT_ROOT = Path(os.environ.get("FORVIA_REPO_ROOT", "")).expanduser() if os.environ.get("FORVIA_REPO_ROOT") else Path(__file__).resolve().parents[2]
 
 _INIT_PROGRESS_LOCK = threading.Lock()
 _INIT_PROGRESS = {"running": False, "percent": 0, "message": "未开始", "error": ""}
@@ -140,6 +141,7 @@ def api_init(req: InitReq):
                          source=req.source or "expert",
                          workspace_id=req.workspace_id or None,
                          progress=_init_progress_callback)
+        _card_cache_clear()
     except Exception as e:
         _set_init_progress(100, "初始化失败", running=False, error=str(e))
         raise HTTPException(status_code=400, detail=f"初始化失败: {e}")
@@ -216,6 +218,7 @@ def api_projects_open(pid: str):
                      source=p.get("source") or "operator",
                      workspace_id=p.get("workspace_id") or None,
                      progress=_init_progress_callback)
+        _card_cache_clear()
     except Exception as e:
         _set_init_progress(100, "打开任务失败", running=False, error=str(e))
         raise HTTPException(status_code=400, detail=f"打开任务失败: {e}")
@@ -416,13 +419,13 @@ _NOTE_JUNK_KEYS = {
     "factory_source_kind", "factory_source_path", "factory_source_row",
     "dedup_same_sample_source_label_count", "group", "reference",
 }
-_NOTE_MARKERS = ("[[典型异音]]", "[[prototype]]")
+_NOTE_MARKERS = (TYPICAL_TAG,)
 
 
 def clean_note(note: str) -> str:
     """清理 note：去掉 result=... 等导入残留键值段，保留人工备注与标记。不影响所在行。"""
     s = str(note or "")
-    markers = [m for m in _NOTE_MARKERS if m in s]
+    markers = [TYPICAL_TAG] if any(m in s for m in _NOTE_MARKERS) else []
     for m in _NOTE_MARKERS:
         s = s.replace(m, "")
     kept = []
@@ -568,6 +571,7 @@ def api_db_prune_missing():
     init_session(s.sample_view_path or None, s.tdms_root or None,
                  s.label_records_db_path or None, source=s.default_source,
                  workspace_id=getattr(s, "workspace_id", "") or None)
+    _card_cache_clear()
     return {"ok": True, "deleted_samples": ds, "deleted_events": de}
 
 
@@ -649,12 +653,24 @@ def api_sample(index: int):
             "note": "标注视图占位：后续加载 tdms、渲染播放器/曲线/频谱卡片。"}
 
 
+def _resolve_sample_index(session, index: int, sample_id: str = "") -> int:
+    """前端列表可能带旧 index；sample_id 匹配时按 sample_id 兜底定位。"""
+    if 0 <= index < len(session.sample_view):
+        if not sample_id or str(session.row(index).get("sample_id", "")) == str(sample_id):
+            return index
+    if sample_id:
+        sid = str(sample_id)
+        matches = session.sample_view.index[session.sample_view["sample_id"].astype(str) == sid].tolist()
+        if matches:
+            return int(matches[0])
+    raise HTTPException(status_code=404, detail="sample index out of range")
+
+
 @app.get("/api/sample/{index}/signal")
-def api_sample_signal(index: int, max_points: int = 2000):
+def api_sample_signal(index: int, max_points: int = 2000, sample_id: str = ""):
     """加载 tdms 并返回信号元信息 + 下采样预览（用于验证 / 轻量前端绘图）。"""
     s = get_session()
-    if index < 0 or index >= len(s.sample_view):
-        raise HTTPException(status_code=404, detail="sample index out of range")
+    index = _resolve_sample_index(s, index, sample_id)
     try:
         sig = load_sample(s, index)
     except FileNotFoundError as e:
@@ -678,14 +694,32 @@ def api_cards():
     return {"cards": list_cards(), "default": default_card_ids()}
 
 
-# 卡片图缓存：键=(index, card_id, params)。同一样本/参数重复访问直接命中，免再读 tdms + 重算
+# 卡片图缓存：键=(session_scope, sample_id, index, card_id, params)。同一样本/参数重复访问直接命中，免再读 tdms + 重算
 from collections import OrderedDict as _OD
 _CARD_CACHE: "_OD[tuple, dict]" = _OD()
 _CARD_CACHE_MAX = 12          # 缩小：每张图几百 KB，12 张约十几 MB
 
 
-def _card_cache_key(index, card_id, params):
-    return (index, card_id, json.dumps(params or {}, sort_keys=True, ensure_ascii=False))
+def _card_cache_scope(session) -> str:
+    return "|".join([
+        str(getattr(session, "workspace_id", "") or ""),
+        str(getattr(session, "sample_view_path", "") or ""),
+        str(getattr(session, "tdms_root", "") or ""),
+        str(getattr(session, "label_records_db_path", "") or ""),
+    ])
+
+
+def _card_cache_key(session, index, card_id, params):
+    try:
+        sid = str(session.row(index).get("sample_id", ""))
+    except Exception:
+        sid = ""
+    return (_card_cache_scope(session), sid, index, card_id,
+            json.dumps(params or {}, sort_keys=True, ensure_ascii=False))
+
+
+def _card_cache_clear():
+    _CARD_CACHE.clear()
 
 
 def _card_cache_get(key):
@@ -741,15 +775,14 @@ def _maybe_trim_memory(min_interval: float = 2.0) -> None:
 
 
 @app.get("/api/sample/{index}/cards")
-def api_sample_cards(index: int, ids: str = ""):
+def api_sample_cards(index: int, ids: str = "", sample_id: str = ""):
     """渲染指定卡片（逗号分隔；缺省=默认卡片）-> Plotly figure JSON 列表。带缓存。"""
     s = get_session()
-    if index < 0 or index >= len(s.sample_view):
-        raise HTTPException(status_code=404, detail="sample index out of range")
+    index = _resolve_sample_index(s, index, sample_id)
     import time as _t
     card_ids = [x for x in ids.split(",") if x.strip()] or default_card_ids()
     # 先查缓存，全部命中则无需加载 tdms
-    results = {cid: _card_cache_get(_card_cache_key(index, cid, {})) for cid in card_ids}
+    results = {cid: _card_cache_get(_card_cache_key(s, index, cid, {})) for cid in card_ids}
     sid = str(s.row(index).get("sample_id", ""))
     timings = {"cache_hit": all(v is not None for v in results.values()),
                "load_ms": 0.0, "cards_ms": {}}
@@ -771,7 +804,7 @@ def api_sample_cards(index: int, ids: str = ""):
             tc = _t.perf_counter()
             try:
                 r = render_card(cid, ctx)
-                _card_cache_put(_card_cache_key(index, cid, {}), r)
+                _card_cache_put(_card_cache_key(s, index, cid, {}), r)
                 results[cid] = r
             except KeyError:
                 continue
@@ -815,12 +848,12 @@ def api_prefetch(req: PrefetchReq):
                     return
             for i in todo:
                 try:
-                    if all(_card_cache_get(_card_cache_key(i, cid, {})) is not None
+                    if all(_card_cache_get(_card_cache_key(s, i, cid, {})) is not None
                            for cid in default_card_ids()):
                         continue
                     ctx = CardContext.from_signals(load_sample(s, i))
                     for cid in default_card_ids():
-                        k = _card_cache_key(i, cid, {})
+                        k = _card_cache_key(s, i, cid, {})
                         if _card_cache_get(k) is None:
                             try:
                                 _card_cache_put(k, render_card(cid, ctx))
@@ -842,15 +875,15 @@ def api_prefetch(req: PrefetchReq):
 class CardReq(BaseModel):
     card_id: str
     params: dict = {}
+    sample_id: str = ""
 
 
 @app.post("/api/sample/{index}/card")
 def api_sample_card(index: int, req: CardReq):
     """带参数渲染单张卡片（高级频谱的分辨率等参数）。"""
     s = get_session()
-    if index < 0 or index >= len(s.sample_view):
-        raise HTTPException(status_code=404, detail="sample index out of range")
-    key = _card_cache_key(index, req.card_id, req.params)
+    index = _resolve_sample_index(s, index, req.sample_id)
+    key = _card_cache_key(s, index, req.card_id, req.params)
     cached = _card_cache_get(key)
     if cached is not None:
         return {"index": index, "card": cached}
@@ -867,11 +900,10 @@ def api_sample_card(index: int, req: CardReq):
 
 
 @app.get("/api/sample/{index}/audio.wav")
-def api_sample_audio(index: int):
+def api_sample_audio(index: int, sample_id: str = "", download: bool = False):
     from .audio import generate_wav_stream
     s = get_session()
-    if index < 0 or index >= len(s.sample_view):
-        raise HTTPException(status_code=404, detail="sample index out of range")
+    index = _resolve_sample_index(s, index, sample_id)
     try:
         sig = load_sample(s, index)
     except FileNotFoundError as e:
@@ -880,7 +912,11 @@ def api_sample_audio(index: int):
         raise HTTPException(status_code=404, detail="无信号")
     obj = generate_wav_stream(sig.proc, sample_rate=sig.sampling_rate)
     data = obj.getvalue() if hasattr(obj, "getvalue") else obj
-    return Response(content=data, media_type="audio/wav")
+    headers = {}
+    if download:
+        filename = f"{sig.sn}_{sig.direction}.wav".replace("/", "_").replace("\\", "_")
+        headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return Response(content=data, media_type="audio/wav", headers=headers)
 
 
 @app.get("/api/reasons")
@@ -998,20 +1034,18 @@ def api_typical(req: TypicalReq):
 
 
 @app.get("/api/sample/{index}/history")
-def api_sample_history(index: int):
+def api_sample_history(index: int, sample_id: str = ""):
     s = get_session()
-    if index < 0 or index >= len(s.sample_view):
-        raise HTTPException(status_code=404, detail="sample index out of range")
+    index = _resolve_sample_index(s, index, sample_id)
     sid = str(s.row(index).get("sample_id", ""))
     return {"sample_id": sid, "history": s.label_table.history_for(sid)}
 
 
 @app.get("/api/sample/{index}/sv_label")
-def api_sample_sv_label(index: int):
+def api_sample_sv_label(index: int, sample_id: str = ""):
     """输入 sample_view 自带的标签（若有）。供"来自 sample_view"面板展示。"""
     s = get_session()
-    if index < 0 or index >= len(s.sample_view):
-        raise HTTPException(status_code=404, detail="sample index out of range")
+    index = _resolve_sample_index(s, index, sample_id)
     return {"sample_id": str(s.row(index).get("sample_id", "")),
             "label": s.sample_view_label(index)}
 
@@ -1180,11 +1214,10 @@ def api_tasks_run_export(run_id: str, req: RunExportReq):
 
 
 @app.get("/api/sample/{index}/tasks")
-def api_sample_tasks(index: int):
+def api_sample_tasks(index: int, sample_id: str = ""):
     """该样本的任务结果 + 建议（用于通道内展示/采纳）。"""
     s = get_session()
-    if index < 0 or index >= len(s.sample_view):
-        raise HTTPException(status_code=404, detail="sample index out of range")
+    index = _resolve_sample_index(s, index, sample_id)
     sid = str(s.row(index).get("sample_id", ""))
     results = []
     for r in task_runner.RUNS.values():
@@ -1312,6 +1345,16 @@ def api_prototype_update():
 @app.get("/")
 def index():
     return FileResponse(FRONTEND_DIR / "index.html")
+
+
+@app.get("/console")
+def console_index():
+    return FileResponse(PROJECT_ROOT / "forvia_console_preview.html")
+
+
+@app.get("/forvia_console_modules.js")
+def console_modules():
+    return FileResponse(PROJECT_ROOT / "forvia_console_modules.js", headers={"Cache-Control": "no-store"})
 
 
 if FRONTEND_DIR.exists():

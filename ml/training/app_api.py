@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import csv
+import os
 import sqlite3
 from collections import Counter
 from pathlib import Path
@@ -23,8 +24,8 @@ from ml.train import (
     model_catalog,
 )
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-CFG_DIR = PROJECT_ROOT / "cfg"
+PROJECT_ROOT = Path(os.environ.get("FORVIA_REPO_ROOT", Path(__file__).resolve().parents[2])).expanduser()
+CFG_DIR = Path(os.environ.get("FORVIA_CFG_DIR", PROJECT_ROOT / "cfg")).expanduser()
 CORE_DATA_MANAGER_CONFIG = CFG_DIR / "core" / "data_manager.yaml"
 CORE_LABEL_RULES_CONFIG = CFG_DIR / "core" / "label_rules.yaml"
 SPLIT_STRATEGIES = ("reference_out", "line_out", "reference_in", "stratified")

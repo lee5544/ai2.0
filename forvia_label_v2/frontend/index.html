@@ -11,11 +11,34 @@
   <link rel="stylesheet" href="/static/lib/ag-grid.css" />
   <link rel="stylesheet" href="/static/lib/ag-theme-quartz.css" />
   <style>
-    :root { --bd:#e3e6ea; --fg:#1f2329; --mut:#6b7280; --acc:#2563eb; }
+    :root { --bg:#f5f7fb; --card:#fff; --bd:#dfe4ec; --fg:#172033; --mut:#667085; --acc:#1769e0; --good:#16803c; --bad:#c52b2b; --nav:#08111f; --nav2:#0d1b2f; --cyan:#38bdf8; }
     * { box-sizing: border-box; }
-    body { margin:0; font-family: system-ui,-apple-system,"Segoe UI","PingFang SC",sans-serif; color:var(--fg); }
-    header { padding:12px 18px; border-bottom:1px solid var(--bd); display:flex; align-items:center; gap:16px; }
-    header h1 { font-size:16px; margin:0; }
+    body { margin:0; font-family: system-ui,-apple-system,"Segoe UI","PingFang SC",sans-serif; color:var(--fg); background:var(--bg); }
+    .app-shell { min-height:100vh; display:flex; background:var(--bg); --side-w:240px; --ui-scale:1; }
+    .sidebar { width:var(--side-w); flex:0 0 var(--side-w); min-width:220px; max-width:430px; min-height:100vh; padding:22px 16px; color:#e5eefc; resize:horizontal; overflow:auto; background:
+      linear-gradient(180deg, rgba(56,189,248,.12), transparent 30%),
+      radial-gradient(circle at 30% 0%, rgba(37,99,235,.35), transparent 32%),
+      linear-gradient(180deg, var(--nav), var(--nav2)); border-right:1px solid rgba(148,163,184,.24); position:sticky; top:0; }
+    .app-shell.sidebar-collapsed .sidebar { width:0; flex-basis:0; min-width:0; max-width:0; padding:0; border:0; resize:none; overflow:hidden; }
+    .brand { padding:4px 4px 22px; border-bottom:1px solid rgba(148,163,184,.22); margin-bottom:18px; }
+    .brand-title { font-size:22px; font-weight:850; letter-spacing:0; line-height:1.15; }
+    .brand-company { margin-top:10px; font-size:15px; color:#bfdbfe; font-weight:700; }
+    .brand-en { margin-top:5px; font-size:11px; color:#7dd3fc; text-transform:uppercase; letter-spacing:.08em; }
+    .side-nav { display:flex; flex-direction:column; gap:10px; }
+    .side-tab { width:100%; display:flex; align-items:center; gap:10px; padding:13px 14px; border:1px solid rgba(148,163,184,.24);
+      border-radius:10px; background:rgba(15,23,42,.42); color:#dbeafe; cursor:pointer; font-size:15px; font-weight:750; text-align:left; }
+    .side-tab:hover { border-color:rgba(56,189,248,.65); background:rgba(30,41,59,.72); }
+    .side-tab.active { background:linear-gradient(90deg, #2563eb, #0891b2); color:#fff; border-color:rgba(125,211,252,.75); box-shadow:0 10px 28px rgba(37,99,235,.28); }
+    .side-tab.disabled { opacity:.35; cursor:not-allowed; pointer-events:none; }
+    .side-foot { position:absolute; left:16px; right:16px; bottom:18px; color:#93a4bd; font-size:12px; line-height:1.6; }
+    .main-shell { flex:1; min-width:0; background:var(--bg); zoom:var(--ui-scale); }
+    .topbar { height:56px; display:flex; align-items:center; gap:14px; padding:0 18px; border-bottom:1px solid var(--bd); background:rgba(255,255,255,.92); position:sticky; top:0; z-index:10; }
+    .topbar-title { font-size:14px; font-weight:800; }
+    .topbar-meta { margin-left:auto; display:flex; gap:12px; flex-wrap:wrap; color:var(--mut); font-size:12px; }
+    .shell-controls { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+    .mini-btn { padding:4px 8px; border:1px solid var(--bd); border-radius:7px; background:#fff; cursor:pointer; font-size:12px; }
+    .mini-btn.active { background:var(--acc); border-color:var(--acc); color:#fff; }
+    .scale-label { color:var(--mut); font-size:12px; margin-left:4px; }
     .tabs { display:flex; gap:6px; margin-left:auto; }
     .tab { padding:6px 14px; border:1px solid var(--bd); border-radius:8px; cursor:pointer; background:#fff; font-size:13px; }
     .tab.active { background:var(--acc); color:#fff; border-color:var(--acc); }
@@ -46,15 +69,26 @@
     .taskpage .btn, .taskpage select { padding:9px 18px; font-size:15px; border-radius:8px; }
     .taskpage h3 { font-size:17px !important; }
     .taskpage .proj-row { padding:12px 0; gap:10px; }
+    .welcome-hero { position:relative; overflow:hidden; margin:0 0 16px; padding:28px; border:1px solid #1d4ed8; border-radius:14px; color:#e0f2fe;
+      background:
+        linear-gradient(rgba(8,17,31,.72), rgba(8,17,31,.72)),
+        repeating-linear-gradient(90deg, rgba(56,189,248,.12) 0 1px, transparent 1px 72px),
+        repeating-linear-gradient(0deg, rgba(56,189,248,.10) 0 1px, transparent 1px 52px),
+        linear-gradient(135deg, #07111f, #123a69 56%, #0e7490); }
+    .welcome-hero::after { content:""; position:absolute; inset:auto -20% -45% 35%; height:170px; background:rgba(56,189,248,.18); filter:blur(36px); }
+    .welcome-kicker { font-size:12px; color:#7dd3fc; font-weight:800; letter-spacing:.14em; text-transform:uppercase; }
+    .welcome-title { margin:8px 0 6px; font-size:34px; line-height:1.1; font-weight:850; letter-spacing:0; }
+    .welcome-company { font-size:18px; color:#bfdbfe; font-weight:700; }
+    .welcome-actions { margin-top:18px; display:flex; gap:10px; flex-wrap:wrap; position:relative; z-index:1; }
     .wrap { padding:14px 18px; }
     .toolbar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:10px; }
     .toolbar label { font-size:13px; color:var(--mut); display:flex; gap:5px; align-items:center; }
-    select, button.btn { padding:5px 9px; border:1px solid var(--bd); border-radius:7px; font-size:13px; background:#fff; cursor:pointer; }
+    select, button.btn { padding:7px 12px; border:1px solid var(--bd); border-radius:8px; font-size:13px; background:#fff; color:var(--fg); cursor:pointer; }
     button.btn[disabled] { opacity:.4; cursor:default; }
     .btn.primary { background:var(--acc); color:#fff; border-color:var(--acc); }
     .stats { margin-left:auto; font-size:13px; color:var(--mut); }
     .stats b { color:var(--fg); }
-    .stat-card { border:1px solid var(--bd); border-radius:10px; margin:8px 0 12px; overflow:visible; background:#fff; }
+    .stat-card { border:1px solid var(--bd); border-radius:12px; margin:8px 0 12px; overflow:visible; background:var(--card); box-shadow:0 2px 8px rgba(20,40,80,.035); }
     .stat-card .body { padding:10px 12px; }
     .stat-form { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; }
     .stat-form label { display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--mut); }
@@ -82,7 +116,7 @@
     #grid { width:100%; height: calc(100vh - 170px); }
     .hint { font-size:12px; color:var(--mut); margin-top:6px; }
     /* 标注视图 */
-    .navbar { display:flex; align-items:center; gap:14px; padding:10px 18px; border-bottom:1px solid var(--bd); position:sticky; top:0; background:#fff; z-index:5; }
+    .navbar { display:flex; align-items:center; gap:14px; padding:10px 18px; border-bottom:1px solid var(--bd); position:sticky; top:56px; background:#fff; z-index:5; }
     .navbar .btn { padding:11px 20px; font-size:15px; border-radius:9px; }
     .navbar input[type=number] { padding:10px 8px !important; font-size:15px; }
     .progress { flex:1; }
@@ -96,9 +130,25 @@
     .meta .k { color:var(--mut); margin-right:4px; }
     .star { color:#d97706; }
     .cards { padding:8px 18px 40px; }
-    .card { border:1px solid var(--bd); border-radius:10px; margin:12px 0; overflow:hidden; }
-    .card-h { padding:8px 12px; font-size:13px; font-weight:600; border-bottom:1px solid var(--bd); background:#fafbfc; }
+    .card { border:1px solid var(--bd); border-radius:12px; margin:12px 0; overflow:hidden; background:var(--card); box-shadow:0 2px 8px rgba(20,40,80,.035); }
+    .card-h { padding:9px 12px; font-size:13px; font-weight:700; border-bottom:1px solid var(--bd); background:#f8fbff; }
     .plot { width:100%; }
+    .analysis-drawer-mask { position:fixed; inset:0; z-index:40; background:rgba(15,23,42,.18); display:flex; justify-content:flex-end; }
+    .analysis-drawer { position:relative; width:var(--analysis-w, 720px); min-width:420px; max-width:90vw; height:100vh; overflow:auto; background:var(--bg); border-left:1px solid var(--bd); box-shadow:-18px 0 46px rgba(15,23,42,.22); }
+    .analysis-resizer { position:absolute; left:-5px; top:0; bottom:0; width:10px; cursor:col-resize; z-index:3; }
+    .analysis-resizer::after { content:""; position:absolute; left:4px; top:0; bottom:0; width:2px; background:transparent; }
+    .analysis-resizer:hover::after { background:var(--acc); }
+    .analysis-drawer-head { position:sticky; top:0; z-index:2; display:flex; align-items:center; gap:10px; padding:14px 16px; background:rgba(255,255,255,.96); border-bottom:1px solid var(--bd); }
+    .analysis-drawer-head h3 { margin:0; font-size:17px; }
+    .analysis-drawer-head .hint { margin:0; }
+    .analysis-drawer-body { padding:14px 16px 24px; }
+    .analysis-targets { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:12px; padding:10px 12px; border:1px solid var(--bd); border-radius:12px; background:#fff; }
+    .analysis-targets b { font-size:13px; }
+    .analysis-targets .btn.active { background:var(--acc); border-color:var(--acc); color:#fff; }
+    .analysis-tabs { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+    .analysis-tabs .btn.primary { box-shadow:0 6px 16px rgba(23,105,224,.18); }
+    .analysis-empty { padding:18px; border:1px dashed var(--bd); border-radius:12px; background:#fff; color:var(--mut); font-size:13px; }
+    @media(max-width:850px){ .analysis-drawer { width:100vw; min-width:0; } }
     audio { width:100%; margin:6px 0 2px; }
     .placeholder { margin:14px 18px; padding:14px; border:1px dashed var(--bd); border-radius:10px; color:var(--mut); font-size:13px; }
     .loading { padding:30px; text-align:center; color:var(--mut); }
@@ -140,17 +190,44 @@
 </head>
 <body>
 <div id="app">
-  <header>
-    <h1>🎧 Forvia 标注 v2</h1>
-    <span v-if="isMock" class="badge">演示数据（未配置 sample_view / tdms）</span>
-    <div class="tabs">
-      <div class="tab" :class="{active: view==='init'}" @click="view='init'; taskMode='list'; loadProjects()">📋 任务</div>
-      <div class="tab" :class="{active: view==='list', disabled: !taskActive}" @click="taskActive && openList()">📋 列表总览</div>
-      <div class="tab" :class="{active: view==='label', disabled: !taskActive}" @click="taskActive && (view='label')">🎧 逐条标注</div>
-      <div class="tab" :class="{active: view==='task', disabled: !taskActive}" @click="taskActive && openTasks()">📤 导出表格结果</div>
-      <div class="tab" v-if="canPrototype && taskActive" :class="{active: view==='proto'}" @click="openProto">★ Prototype</div>
-    </div>
-  </header>
+  <div class="app-shell" :class="{'sidebar-collapsed': sidebarCollapsed}" :style="{'--side-w': sidebarWidth+'px', '--ui-scale': uiScale}">
+    <aside class="sidebar" @mouseup="rememberSidebarWidth">
+      <div class="brand">
+        <div class="brand-title">Forvia 标注 v2</div>
+        <div class="brand-en">Industrial Acoustic Labeling Console</div>
+      </div>
+      <nav class="side-nav">
+        <button class="side-tab" onclick="window.location.href='/console'">← 返回开始</button>
+        <button class="side-tab" :class="{active: view==='init'}" @click="view='init'; taskMode='list'; loadProjects()">📋 任务</button>
+        <button class="side-tab" :class="{active: view==='list', disabled: !taskActive}" @click="taskActive && openList()">📋 列表总览</button>
+        <button class="side-tab" :class="{active: view==='label', disabled: !taskActive}" @click="taskActive && (view='label')">🎧 逐条标注</button>
+        <button class="side-tab" :class="{active: view==='task', disabled: !taskActive}" @click="taskActive && openTasks()">📤 导出表格结果</button>
+        <button class="side-tab" :class="{active: view==='proto', disabled: !(canPrototype && taskActive)}" @click="canPrototype && taskActive && openProto()">★ Prototype</button>
+      </nav>
+      <div class="side-foot">
+        <div>当前任务：{{ taskActive ? (currentSn || '已加载') : '未打开' }}</div>
+        <div v-if="isMock">演示数据模式</div>
+      </div>
+    </aside>
+    <main class="main-shell">
+      <div class="topbar">
+        <button class="mini-btn" @click="toggleSidebar">{{ sidebarCollapsed ? '☰ 显示侧栏' : '☰ 隐藏侧栏' }}</button>
+        <div class="topbar-title">{{ view==='init' ? '任务控制台' : view==='list' ? '列表总览' : view==='label' ? '逐条标注' : view==='task' ? '导出表格结果' : 'Prototype' }}</div>
+        <span v-if="isMock" class="badge">演示数据（未配置 sample_view / tdms）</span>
+        <div class="shell-controls">
+          <span class="scale-label">字体</span>
+          <button class="mini-btn" :class="{active: uiScale===0.9}" @click="setUiScale(0.9)">小</button>
+          <button class="mini-btn" :class="{active: uiScale===1}" @click="setUiScale(1)">中</button>
+          <button class="mini-btn" :class="{active: uiScale===1.1}" @click="setUiScale(1.1)">大</button>
+          <button class="mini-btn" :class="{active: uiScale===1.2}" @click="setUiScale(1.2)">超大</button>
+        </div>
+        <div class="topbar-meta">
+          <span>样本 <b>{{ stats.total || 0 }}</b></span>
+          <span>已标 <b>{{ stats.labeled || 0 }}</b></span>
+          <span>未标 <b>{{ stats.unlabeled || 0 }}</b></span>
+          <span v-if="stats.typical">典型 <b>{{ stats.typical }}</b></span>
+        </div>
+      </div>
 
   <!-- ===== Prototype（典型件入库，db+expert）===== -->
   <div v-show="view==='proto'" class="wrap" style="max-width:900px">
@@ -161,30 +238,32 @@
         <button class="btn" @click="updateProto" :disabled="protoImporting || protoUpdating">
           <span v-if="protoUpdating" class="busy-spin"></span>{{ protoUpdating ? '更新中…' : '更新 Prototype' }}
         </button>
-        <label style="font-size:13px;color:var(--mut)">在Prototype库
+        <label v-if="protoRows.length" style="font-size:13px;color:var(--mut)">在Prototype库
           <select v-model="protoFilter" style="padding:5px 8px;border:1px solid var(--bd);border-radius:6px">
             <option value="all">全部</option><option value="in">是</option><option value="out">否</option>
           </select>
         </label>
-        <button class="btn primary" style="margin-left:auto;display:inline-flex;align-items:center;gap:6px"
+        <button v-if="protoRows.length" class="btn primary" style="margin-left:auto;display:inline-flex;align-items:center;gap:6px"
                 :disabled="!protoSel.length || protoImporting" @click="importProto">
           <span v-if="protoImporting" class="busy-spin"></span>{{ protoImporting ? '导入中…' : '导入选中（'+protoSel.length+'）→ <line>/prototype' }}
         </button>
       </div>
-      <div style="display:flex;align-items:center;gap:8px;margin:0 0 8px;flex-wrap:wrap">
+      <p v-if="!protoRows.length" class="hint" style="margin:8px 0 0">当前打开任务没有典型件候选。</p>
+      <div v-if="protoRows.length" style="display:flex;align-items:center;gap:8px;margin:0 0 8px;flex-wrap:wrap">
         <span style="font-size:13px;color:var(--mut)">导入目录（line 的父目录，通常 factory_raw）</span>
         <input v-model.trim="protoDest" :placeholder="protoRoot||'/path/to/factory_raw'"
                style="flex:1;min-width:280px;padding:6px 10px;border:1px solid var(--bd);border-radius:7px;font-size:13px" />
         <button class="btn" @click="openPicker('proto')">选择…</button>
       </div>
-      <p class="hint" style="margin:0 0 8px">再次确认后<b>移动</b>到 <b>{{ protoDest||protoRoot }}/&lt;line&gt;/prototype/&lt;reason&gt;/</b>，在数据库标记 [[prototype]]，并把 tdms_manifest.csv 的路径同步指到新位置。</p>
-      <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <p v-if="protoRows.length" class="hint" style="margin:0 0 8px">再次确认后<b>移动</b>到 <b>{{ protoDest||protoRoot }}/&lt;line&gt;/prototype/&lt;reason&gt;/</b>，在数据库标记 [[prototype]]，并把 tdms_manifest.csv 的路径同步指到新位置。</p>
+      <table v-if="protoRows.length" style="width:100%;border-collapse:collapse;font-size:13px">
         <thead><tr style="text-align:left;color:var(--mut)">
           <th style="padding:5px 8px"><input type="checkbox" :checked="allProtoChecked" @change="toggleAllProto($event)" /></th>
           <th>line</th><th>sn</th><th>sample_id</th><th>reason</th><th>来源</th><th>tdms</th><th>在Prototype库</th>
         </tr></thead>
         <tbody>
-          <tr v-for="r in protoRowsView" :key="r.sample_id" style="border-top:1px solid var(--bd)">
+          <tr v-for="r in protoRowsView" :key="r.sample_id" style="border-top:1px solid var(--bd);cursor:pointer"
+              title="双击进入逐条标注" @dblclick="openProtoSample(r)">
             <td style="padding:5px 8px"><input type="checkbox" :value="r.sample_id" v-model="protoSel" :disabled="!r.resolvable" /></td>
             <td>{{ r.line }}</td><td>{{ r.sn }}</td><td>{{ r.sample_id }}</td>
             <td>{{ r.reason_name }}</td><td>{{ r.source }}</td>
@@ -233,7 +312,16 @@
   </div>
 
   <!-- ===== 任务 ===== -->
-  <div v-show="view==='init'" class="wrap taskpage" style="max-width:760px;margin:0 auto">
+  <div v-show="view==='init'" class="wrap taskpage" style="max-width:1060px;margin:0 auto">
+    <section class="welcome-hero">
+      <div class="welcome-kicker">Industrial Acoustic Labeling Console</div>
+      <div class="welcome-title">Forvia 标注 v2</div>
+      <div class="welcome-actions">
+        <button class="btn primary" @click="newTask">＋ 创建任务</button>
+        <button class="btn" @click="loadProjects">↻ 刷新任务</button>
+        <button class="btn" :disabled="!taskActive" @click="taskActive && openList()">进入列表总览</button>
+      </div>
+    </section>
 
     <!-- 列表页：创建任务 + 任务列表 -->
     <div v-if="taskMode==='list'">
@@ -312,7 +400,7 @@
         <p v-if="initForm.loadLabels" class="hint" style="margin:4px 0 0">自动在该文件夹及其 metadata/ 下查找 label_records.db（历史标签）与 tdms_manifest.csv（tdms 登记）。</p>
       </div>
       <div class="field" v-if="initForm.loadLabels">
-        <label>标注来源 source</label>
+        <label>本次标注角色</label>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <select v-model="initForm.source" style="padding:7px 10px;border:1px solid var(--bd);border-radius:7px;min-width:140px">
             <option v-for="src in sources" :key="src" :value="src">{{ src }}</option>
@@ -597,6 +685,7 @@
         个 SN
         <button class="btn" @click="goSnIndex">前往</button>
       </span>
+      <button class="btn primary" @click="openAnalysis()">高级分析</button>
       <button class="btn" @click="openExport">⬇ 导出标签</button>
     </div>
 
@@ -620,13 +709,21 @@
             <span v-if="ch.row.labeled" class="tag ok">已标注 · {{ ch.row.reason_name }}</span>
             <span v-else class="tag">未标注</span>
             <span v-if="ch.row.typical" class="tag star">★典型</span>
+            <button class="btn" style="padding:2px 8px;margin-left:auto" @click.stop="openAnalysis(ch)">分析</button>
           </div>
 
           <div v-if="ch.loading" class="loading">加载 tdms / 生成曲线频谱…</div>
           <template v-else>
             <div class="card" v-if="ch.audioUrl">
               <div class="card-h">🔊 播放器</div>
-              <div style="padding:6px 12px"><audio :src="ch.audioUrl" controls preload="none" style="width:100%"></audio></div>
+              <div style="display:flex;gap:8px;align-items:center;padding:6px 12px">
+                <audio :src="ch.audioUrl" controls preload="none" style="flex:1;min-width:0"></audio>
+                <a class="btn" :href="ch.audioDownloadUrl" download>⬇ 下载</a>
+              </div>
+            </div>
+            <div class="card" v-if="ch.cardError">
+              <div class="card-h">📈 曲线 / 频谱</div>
+              <div style="padding:12px;color:#b91c1c">{{ ch.cardError }}</div>
             </div>
             <div class="card" v-for="card in ch.cards" :key="card.id">
               <div class="card-h">{{ cardIcon(card) }} {{ card.title }}</div>
@@ -744,20 +841,47 @@
               </div>
             </div>
 
-            <!-- 高级频谱分析：按行按钮，点击展开内容（在 label_history 下方）-->
-            <div class="card">
-              <div class="card-h">🧩 高级频谱分析</div>
-              <div style="padding:10px 12px;display:flex;gap:8px;flex-wrap:wrap">
+          </template>
+        </div>
+
+      </div>
+      <div v-if="analysisDrawerOpen" class="analysis-drawer-mask" @click.self="closeAnalysis">
+        <aside class="analysis-drawer" :style="{'--analysis-w': analysisDrawerWidth+'px'}">
+          <div class="analysis-resizer" title="拖动调整宽度" @mousedown.prevent="startResizeAnalysisDrawer"></div>
+          <div class="analysis-drawer-head">
+            <div>
+              <h3>高级分析</h3>
+              <p class="hint" v-if="currentAnalysisChannel()">
+                {{ currentSn }} · {{ currentAnalysisChannel().sample_id }} · {{ currentAnalysisChannel().direction }}
+              </p>
+              <p class="hint" v-else>当前无可分析通道</p>
+            </div>
+            <button class="btn" style="margin-left:auto" @click="closeAnalysis">收起</button>
+          </div>
+          <div class="analysis-drawer-body">
+            <template v-if="currentAnalysisChannel()">
+              <div class="analysis-targets">
+                <b>分析对象</b>
+                <button v-for="ch in analysisChannels()" :key="ch.sample_id" class="btn"
+                        :class="{active: ch.sample_id===currentAnalysisChannel().sample_id}"
+                        @click="selectAnalysisChannel(ch)">
+                  {{ ch.direction }} · {{ ch.sample_id }}
+                </button>
+              </div>
+              <div class="analysis-tabs">
                 <button v-for="ic in insertable" :key="ic.id" class="btn"
-                        :class="{primary: isAdvShown(ch, ic.id)}" @click="toggleCard(ch, ic.id)">
+                        :class="{primary: isAdvShown(currentAnalysisChannel(), ic.id)}"
+                        @click="toggleAnalysisCard(ic.id)">
                   {{ ic.title }}
                 </button>
               </div>
-              <!-- 展开的高级频谱内容（按卡片顺序，放在最下面）-->
-              <div v-for="card in ch.advCards" :key="card.id" style="border-top:1px solid var(--bd)">
-                <div class="card-h" style="display:flex;align-items:center;gap:6px;background:#fff">
+              <div v-if="!currentAnalysisChannel().advCards.length" class="analysis-empty">
+                选择上方分析方法后显示结果。分析对象跟随当前 sample，也可以点击通道标题旁的“分析”指定。
+              </div>
+              <div v-for="card in currentAnalysisChannel().advCards" :key="card.id" class="card">
+                <div class="card-h" style="display:flex;align-items:center;gap:6px">
                   <span>{{ cardIcon(card) }} {{ card.title }}</span>
-                  <button class="btn" style="margin-left:auto;padding:1px 8px" @click="toggleCard(ch, card.id)">✕</button>
+                  <button class="btn" style="margin-left:auto;padding:1px 8px" @click="toggleAnalysisCard(card.id)">✕</button>
                 </div>
                 <div v-if="card.params && card.params.length" class="param-panel">
                   <div class="param-panel-h">⚙ 参数调整</div>
@@ -769,17 +893,16 @@
                       </select>
                       <input v-else type="number" v-model.number="card.values[p.key]" :min="p.min" :max="p.max" :step="p.step" />
                     </label>
-                    <button class="btn primary" style="align-self:end" @click="applyCardParams(ch,card)">开始分析</button>
+                    <button class="btn primary" style="align-self:end" @click="applyCardParams(currentAnalysisChannel(),card)">开始分析</button>
                   </div>
                 </div>
                 <div v-if="card.loading" class="loading">渲染中…</div>
                 <div v-else-if="card.error" style="padding:12px;color:#b91c1c">渲染失败: {{ card.error }}</div>
-                <div v-else class="plot full" :id="'plot-'+ch.index+'-'+card.id"></div>
+                <div v-else class="plot full" :id="'plot-'+currentAnalysisChannel().index+'-'+card.id"></div>
               </div>
-            </div>
-          </template>
-        </div>
-
+            </template>
+          </div>
+        </aside>
       </div>
     </template>
     <div v-else style="color:var(--mut); padding:18px">
@@ -787,6 +910,8 @@
       <p v-else style="margin:0">从列表双击一行进入。</p>
       <button v-if="currentSn" class="btn" style="margin-top:8px" @click="view='list'">返回列表检查筛选</button>
     </div>
+  </div>
+    </main>
   </div>
 </div>
 
@@ -803,8 +928,16 @@ const _ClickOutside = {
 
 createApp({
   setup() {
+    const uiPrefs = (() => {
+      try { return JSON.parse(localStorage.getItem('forvia_label_v2_ui_shell') || '{}') || {}; }
+      catch(e) { return {}; }
+    })();
     const state = reactive({
       view: 'init', allRows: [], lines: [],
+      sidebarCollapsed: !!uiPrefs.sidebarCollapsed,
+      sidebarWidth: Number(uiPrefs.sidebarWidth) || 240,
+      uiScale: Number(uiPrefs.uiScale) || 1,
+      analysisDrawerWidth: Number(uiPrefs.analysisDrawerWidth) || 720,
       stats: { total: 0, labeled: 0, unlabeled: 0, typical: 0 },
       isMock: false, taskActive: false, perf: '', labelSrc: 'db', fromSampleView: false, gotoN: 1, navIdx: 0, listViewVersion: 0,
       filters: { labelStatus:[], confirmed:'all', line:'all', reason:[], reference:[], changed:'all', typicalOnly:false, missingTdms:false },
@@ -817,6 +950,7 @@ createApp({
       ],
       openFilter: '', reasonOptions: [], referenceOptions: [],
       currentSn: '', currentSampleId: '', channels: [], listRows: [], listColumns: [],
+      analysisDrawerOpen: false,
       initForm: { name:'', sample_view_path:'', useSampleView:false, tdms_root:'', loadLabels:false, label_records_db_path:'', source:'operator', operatorName:'', workspace_id:'' },
       editingProject: null,
       operatorNameOptions: ['hetao'],
@@ -837,6 +971,45 @@ createApp({
     });
     let gridApi = null;
     let initProgressTimer = null;
+
+    function saveUiShell(){
+      localStorage.setItem('forvia_label_v2_ui_shell', JSON.stringify({
+        sidebarCollapsed: state.sidebarCollapsed,
+        sidebarWidth: state.sidebarWidth,
+        uiScale: state.uiScale,
+        analysisDrawerWidth: state.analysisDrawerWidth,
+      }));
+    }
+    function toggleSidebar(){
+      state.sidebarCollapsed = !state.sidebarCollapsed;
+      saveUiShell();
+    }
+    function setUiScale(v){
+      state.uiScale = v;
+      saveUiShell();
+    }
+    function startResizeAnalysisDrawer(e){
+      const startX = e.clientX;
+      const startW = state.analysisDrawerWidth;
+      const move = ev => {
+        const next = Math.max(420, Math.min(Math.round(startW + startX - ev.clientX), Math.round(window.innerWidth * 0.9)));
+        state.analysisDrawerWidth = next;
+      };
+      const up = () => {
+        document.removeEventListener('mousemove', move);
+        document.removeEventListener('mouseup', up);
+        saveUiShell();
+      };
+      document.addEventListener('mousemove', move);
+      document.addEventListener('mouseup', up);
+    }
+    function rememberSidebarWidth(e){
+      const w = Math.round(e.currentTarget.getBoundingClientRect().width);
+      if(w >= 210 && w <= 420) {
+        state.sidebarWidth = w;
+        saveUiShell();
+      }
+    }
 
     async function pollInitProgress(){
       try {
@@ -1271,15 +1444,35 @@ createApp({
     function defaultReason(){ return state.reasons.length ? state.reasons[0].key : ''; }
 
     function makeChannel(row){
-      return { index:row.index, sample_id:row.sample_id, direction:dirOf(row.sample_id),
-               row, cards:[], audioUrl:'', loading:true, history:[], svLabel:null, advCards:[],
+      const idx = Number(row.sample_index ?? row.index);
+      return { index:idx, sample_id:row.sample_id, direction:dirOf(row.sample_id),
+               row, cards:[], audioUrl:'', audioDownloadUrl:'', loading:true, history:[], svLabel:null, advCards:[],
                taskResults:[], suggestions:[],
                labelForm:{open:false, reason_key:defaultReason(), confidence:0.9, note:''},
-               saving:false, msg:'', err:false, busy:false, _writing:false };
+               saving:false, msg:'', err:false, busy:false, _writing:false, cardError:'' };
     }
 
     function isAdvShown(ch, cid){ return ch.advCards.some(c=>c.id===cid); }
     function advOrder(cid){ return state.insertable.findIndex(ic=>ic.id===cid); }
+    function currentAnalysisChannel(){
+      return state.channels.find(c=>c.sample_id===state.currentSampleId) || state.channels[0] || null;
+    }
+    function analysisChannels(){ return state.channels; }
+    function selectAnalysisChannel(ch){
+      state.currentSampleId = ch.sample_id;
+      renderPlots();
+    }
+    function openAnalysis(ch=null){
+      if(ch) state.currentSampleId = ch.sample_id;
+      else if(!currentAnalysisChannel() && state.channels[0]) state.currentSampleId = state.channels[0].sample_id;
+      state.analysisDrawerOpen = true;
+      renderPlots();
+    }
+    function closeAnalysis(){ state.analysisDrawerOpen = false; }
+    function toggleAnalysisCard(cid){
+      const ch = currentAnalysisChannel();
+      if(ch) toggleCard(ch, cid);
+    }
     async function toggleCard(ch, cid){
       if (isAdvShown(ch, cid)){
         const el = document.getElementById('plot-'+ch.index+'-'+cid);
@@ -1302,7 +1495,7 @@ createApp({
       try {
         const d = await fetch(`/api/sample/${ch.index}/card`,{method:'POST',
           headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({card_id:card.id, params:card.values})}).then(x=>x.json());
+          body:JSON.stringify({card_id:card.id, params:card.values, sample_id:ch.sample_id})}).then(x=>x.json());
         const res = d.card || {};
         card.figure = res.figure; card.error = res.error;
       } catch(e){ card.error = String(e); }
@@ -1340,13 +1533,13 @@ createApp({
 
     async function reloadHistory(ch){
       try {
-        const list = (await fetch(`/api/sample/${ch.index}/history`).then(x=>x.json())).history || [];
+        const list = (await fetch(`/api/sample/${ch.index}/history?sample_id=`+encodeURIComponent(ch.sample_id)).then(x=>x.json())).history || [];
         list.forEach(h=> h._src = h.source || state.initForm.source || 'expert');
         ch.history = list;
       } catch(e){ ch.history = []; }
     }
     async function loadSvLabel(ch){
-      try { ch.svLabel = (await fetch(`/api/sample/${ch.index}/sv_label`).then(x=>x.json())).label || null; }
+      try { ch.svLabel = (await fetch(`/api/sample/${ch.index}/sv_label?sample_id=`+encodeURIComponent(ch.sample_id)).then(x=>x.json())).label || null; }
       catch(e){ ch.svLabel = null; }
     }
     function sourceCategory(src){
@@ -1383,7 +1576,7 @@ createApp({
     }
     // 用已刷新的 history 本地更新该样本的行（避免再拉整张表的 /overview）
     function applyHistoryToRow(ch){
-      const TYP='[[典型异音]]';
+      const TYP='[[prototype]]';
       const last = ch.history.length ? ch.history[ch.history.length-1] : null;
       const labeled = ch.history.length>0;
       const reason_name = last ? (last.reason_name||'') : '';
@@ -1444,29 +1637,39 @@ createApp({
     }
 
     async function loadChannel(ch){
-      ch.loading = true; ch.cards = []; ch.audioUrl = '';
+      ch.loading = true; ch.cards = []; ch.audioUrl = ''; ch.audioDownloadUrl = ''; ch.cardError = '';
       const tH=performance.now(); await reloadHistory(ch); const histMs=performance.now()-tH;
       loadSvLabel(ch);
       const tK=performance.now(); await loadChannelTasks(ch); const tasksMs=performance.now()-tK;
       let respMs=0, jsonMs=0, bytes=0, srv=null;
       try {
         const t0=performance.now();
-        const resp = await fetch(`/api/sample/${ch.index}/cards`);
+        const resp = await fetch(`/api/sample/${ch.index}/cards?sample_id=`+encodeURIComponent(ch.sample_id));
         respMs=performance.now()-t0;
         const txt = await resp.text(); bytes=txt.length;
         const t1=performance.now();
         const d = JSON.parse(txt); jsonMs=performance.now()-t1;
+        if(!resp.ok) throw new Error(d.detail || `曲线/频谱接口失败：HTTP ${resp.status}`);
         srv=d.timings||null;
         ch.cards = d.cards || [];
-        ch.audioUrl = `/api/sample/${ch.index}/audio.wav?t=${Date.now()}`;
-      } catch(e){ ch.cards = []; }
+        if(!ch.cards.length) ch.cardError = '后端没有返回默认曲线/频谱卡片，请检查该样本是否有可用 TDMS 信号。';
+        const audioQuery = `sample_id=${encodeURIComponent(ch.sample_id)}&t=${Date.now()}`;
+        ch.audioUrl = `/api/sample/${ch.index}/audio.wav?${audioQuery}`;
+        ch.audioDownloadUrl = `/api/sample/${ch.index}/audio.wav?${audioQuery}&download=true`;
+      } catch(e){
+        ch.cards = [];
+        ch.cardError = String(e && e.message ? e.message : e);
+        const audioQuery = `sample_id=${encodeURIComponent(ch.sample_id)}&t=${Date.now()}`;
+        ch.audioUrl = `/api/sample/${ch.index}/audio.wav?${audioQuery}`;
+        ch.audioDownloadUrl = `/api/sample/${ch.index}/audio.wav?${audioQuery}&download=true`;
+      }
       ch.loading = false;
       const netMs=respMs+jsonMs;
       ch._t = { netMs, respMs, jsonMs, histMs, tasksMs, bytes, srv };
     }
     async function loadChannelTasks(ch){
       try {
-        const d = await fetch(`/api/sample/${ch.index}/tasks`).then(x=>x.json());
+        const d = await fetch(`/api/sample/${ch.index}/tasks?sample_id=`+encodeURIComponent(ch.sample_id)).then(x=>x.json());
         ch.taskResults = d.results || []; ch.suggestions = d.suggestions || [];
       } catch(e){ ch.taskResults = []; ch.suggestions = []; }
     }
@@ -1509,6 +1712,20 @@ createApp({
       else state.protoSel = [];
     }
     async function openProto(){ state.view='proto'; loadProto(); }
+    function openProtoSample(r){
+      const sid = String(r?.sample_id || '');
+      const sn = String(r?.sn || '');
+      const row = state.allRows.find(x=>String(x.sample_id||'')===sid)
+        || state.allRows.find(x=>String(x.sn||'')===sn);
+      if(!row){
+        state.protoErr = true;
+        state.protoMsg = `当前任务中找不到 ${sid || sn}`;
+        return;
+      }
+      state.protoErr = false;
+      state.protoMsg = '';
+      goto(row);
+    }
     async function loadProto(){
       state.protoMsg=''; state.protoErr=false; state.protoSel=[];
       try {
@@ -1653,7 +1870,7 @@ createApp({
         const sid = String(r.sample_id || '');
         if(!sid) continue;
         const old = byId.get(sid);
-        if(!old || r.index === preferredIndex || String(r.timestamp||'') > String(old.timestamp||'')){
+        if(!old || Number(r.sample_index ?? r.index) === preferredIndex || String(r.timestamp||'') > String(old.timestamp||'')){
           byId.set(sid, r);
         }
       }
@@ -1729,7 +1946,7 @@ createApp({
       const i = snPos.value;
       const nextSn = (i>=0 && i<snList.value.length-1) ? snList.value[i+1] : null;
       if(!nextSn) return;
-      const idxs = displayedListRows().filter(r=>r.sn===nextSn).map(r=>r.index);
+      const idxs = displayedListRows().filter(r=>r.sn===nextSn).map(r=>Number(r.sample_index ?? r.index));
       if(!idxs.length) return;
       fetch('/api/prefetch',{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({indices:idxs})}).catch(()=>{});
@@ -1739,7 +1956,7 @@ createApp({
       const row = (typeof rowOrIndex === 'object') ? rowOrIndex : state.allRows[rowOrIndex];
       if (!row) return;
       state.view = 'label';
-      loadGroup(row.sn, row.sample_id, row.index);
+      loadGroup(row.sn, row.sample_id, Number(row.sample_index ?? row.index));
     }
     function firstDisplayedRowForSn(sn){
       return filteredRowsForSn(sn)[0] || null;
@@ -1749,7 +1966,7 @@ createApp({
       const target = (i>=0) ? i-1 : snPos.value-1;      // 当前已掉出筛选列表→只在筛选后序列内跳
       if(target>=0 && target<list.length){
         const row = firstDisplayedRowForSn(list[target]);
-        row ? loadGroup(row.sn, row.sample_id, row.index) : loadGroup(list[target]);
+        row ? loadGroup(row.sn, row.sample_id, Number(row.sample_index ?? row.index)) : loadGroup(list[target]);
       }
     }
     function nextGroup(){
@@ -1758,7 +1975,7 @@ createApp({
       const target = (i>=0) ? i+1 : snPos.value;
       if(target>=0 && target<list.length){
         const row = firstDisplayedRowForSn(list[target]);
-        row ? loadGroup(row.sn, row.sample_id, row.index) : loadGroup(list[target]);
+        row ? loadGroup(row.sn, row.sample_id, Number(row.sample_index ?? row.index)) : loadGroup(list[target]);
       }
     }
     function goSnIndex(){
@@ -1766,7 +1983,7 @@ createApp({
       if(!n || n<1 || n>snList.value.length){ state.opErr=true; state.opMsg=`请输入 1~${snList.value.length}`; return; }
       state.opErr=false; state.opMsg='';
       const row = firstDisplayedRowForSn(snList.value[n-1]);
-      row ? loadGroup(row.sn, row.sample_id, row.index) : loadGroup(snList.value[n-1]);
+      row ? loadGroup(row.sn, row.sample_id, Number(row.sample_index ?? row.index)) : loadGroup(snList.value[n-1]);
     }
 
     // 写操作后：刷新总览并把当前组的 row 引用更新（保留卡片不重渲染）
@@ -1918,14 +2135,15 @@ createApp({
     return { ...toRefs(state), pct, snPct, snList, snPos, pickerDirMode, currentTaskParams, svLabelCols, labelRowsView,
              refStatsResultLabels, refStatsReasonLabels, allRefStatsChecked, refStatsMerged,
              applyFilters, reload, goto, cardIcon,
-             prevGroup, nextGroup, goSnIndex, isAdvShown, toggleCard, applyCardParams, resetCardParams, acceptSuggestion,
+             prevGroup, nextGroup, goSnIndex, isAdvShown, toggleCard, openAnalysis, closeAnalysis, currentAnalysisChannel, analysisChannels, selectAnalysisChannel, toggleAnalysisCard, applyCardParams, resetCardParams, acceptSuggestion,
              confirmLabel, deleteLabel, confirmSvLabel,
              loadProjects, openProject, deleteProject, newTask, editTask, registerTdms,
              onDrop, openPicker, openPickerModal, nativeDir, openExport, browse, joinPath, pickFile, pickDir,
              openTasks, loadLabelRows, setExportScope, exportNewTable, writeBackSV, pruneMissing, currentExportSampleId,
-             openProto, loadProto, importProto, updateProto, allProtoChecked, toggleAllProto, protoRowsView,
+             openProto, loadProto, importProto, updateProto, openProtoSample, allProtoChecked, toggleAllProto, protoRowsView,
              tryNativeDialog, doInit, saveLabel, markTypical, openList, switchLabelSrc,
-             openReferenceStats, runReferenceStats, toggleAllRefStats };
+             openReferenceStats, runReferenceStats, toggleAllRefStats,
+             rememberSidebarWidth, toggleSidebar, setUiScale, startResizeAnalysisDrawer };
   }
 }).directive('click-outside', _ClickOutside).mount('#app');
 </script>

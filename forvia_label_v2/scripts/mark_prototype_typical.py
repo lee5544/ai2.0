@@ -10,7 +10,7 @@
 按需改 SCAN_ROOT / DB / MANIFEST / ATOMS。逻辑：
   - 在 SCAN_ROOT 下递归找路径里含 "prototype" 目录的 *.tdms.zst；line 取 "prototype" 上一级目录名，
     sn 从文件名解析（默认按 "_" 取第 2 段）；
-  - 每个 sn：复用 db 已有 sample_id；db 里没有就插入 sn_up/sn_down；最新标签 note 加 [[典型异音]]（无标签则新建一条）；
+  - 每个 sn：复用 db 已有 sample_id；db 里没有就插入 sn_up/sn_down；最新标签 note 加 [[prototype]]（无标签则新建一条）；
   - 把 (line,sn) 在 tdms_manifest.csv 的 tdms_path 指到该 prototype 文件（清掉相对路径）。
 幂等：已是典型/已指向同路径的不重复处理。
 """
@@ -30,7 +30,7 @@ SOURCE = "expert"
 ATOMS = ("up", "down")          # 每个 tdms 标两路；只标一路改成 ("up",)
 # ==================
 
-TYPICAL = "[[典型异音]]"
+TYPICAL = "[[prototype]]"
 
 _REPO = os.environ.get("FORVIA_REPO_ROOT") or str(Path(__file__).resolve().parents[2])
 if _REPO not in sys.path:

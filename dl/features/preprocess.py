@@ -1,6 +1,6 @@
 """信号统一预处理（所有提取器共用）。
 
-- ``trim_edges``：裁剪原始信号头尾各 8000 点（去掉启停瞬态）。
+- ``trim_edges``：按采样率裁剪原始信号头尾各 0.5 秒（去掉启停瞬态）。
 - ``standardize``：每条信号内部 z-score 标准化 (x-mean)/(std+eps)。
 
 降采样是 raw 专属，放在 features/extract_raw.py，不在此共用。
@@ -10,20 +10,18 @@ from __future__ import annotations
 
 import numpy as np
 
-DEFAULT_TRIM_HEAD = 8000
-DEFAULT_TRIM_TAIL = 8000
+DEFAULT_TRIM_SECONDS = 0.5
 DEFAULT_STD_EPS = 1e-8
 
 
 def trim_edges(
     signal: np.ndarray,
-    head: int = DEFAULT_TRIM_HEAD,
-    tail: int = DEFAULT_TRIM_TAIL,
+    sampling_rate: float = 20000,
+    trim_seconds: float = DEFAULT_TRIM_SECONDS,
 ) -> np.ndarray:
-    """裁剪信号头尾各 head/tail 个点；信号太短（<= head+tail）则原样返回，避免变空。"""
+    """按采样率裁剪信号头尾各 trim_seconds 秒；短信号保持原样。"""
     sig = np.asarray(signal).reshape(-1)
-    h = max(0, int(head))
-    t = max(0, int(tail))
+    h = t = max(0, int(round(float(sampling_rate) * float(trim_seconds))))
     if sig.size > h + t:
         return sig[h: sig.size - t]
     return sig
