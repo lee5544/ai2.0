@@ -25,7 +25,7 @@ _SV = os.path.join(HERE, "vendor", "sample_view")
 if not os.path.isdir(_SV):
     _SV = os.path.join(REPO, "sample_view")        # 兜底：若以后挪到仓库根
 datas = [
-    (os.path.join(HERE, "frontend"), "forvia_label_v2/frontend"),
+    (os.path.join(REPO, "web", "forvia_label_v2"), "web/forvia_label_v2"),
     (os.path.join(REPO, "data_manager"), "data_manager"),
     (os.path.join(REPO, "cfg"), "cfg"),
 ]

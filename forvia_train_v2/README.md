@@ -94,6 +94,8 @@ forvia_train_v2/
 └── workspaces/<project_id>/runs/<run_id>/
     ├── config_snapshot.yaml
     └── run.log
+web/forvia_train_v2/index.html
+└── 训练启动台前端页面
 ```
 
 - 项目配置以 `cfg/*.yaml` 为主存储，SQLite 仅保存项目索引和运行状态。
