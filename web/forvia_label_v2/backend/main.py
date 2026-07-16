@@ -32,7 +32,7 @@ from .session import get_session, init_session
 from .tdms_loader import downsample, load_sample
 
 app = FastAPI(title="Forvia 标注 v2")
-PROJECT_ROOT = Path(os.environ.get("FORVIA_REPO_ROOT", "")).expanduser() if os.environ.get("FORVIA_REPO_ROOT") else Path(__file__).resolve().parents[2]
+PROJECT_ROOT = Path(os.environ.get("FORVIA_REPO_ROOT", "")).expanduser() if os.environ.get("FORVIA_REPO_ROOT") else Path(__file__).resolve().parents[3]
 
 _INIT_PROGRESS_LOCK = threading.Lock()
 _INIT_PROGRESS = {"running": False, "percent": 0, "message": "未开始", "error": ""}
@@ -60,7 +60,7 @@ def api_init_progress():
 
 def _find_frontend_dir() -> Path:
     """统一从仓库 web/ 读取启动台，兼容 PyInstaller 的 web/ 资源目录。"""
-    cands = [PROJECT_ROOT / "web" / "forvia_label_v2"]
+    cands = [Path(__file__).resolve().parent.parent, PROJECT_ROOT / "web" / "forvia_label_v2"]
     meipass = getattr(sys, "_MEIPASS", None)
     if meipass:
         cands.append(Path(meipass) / "web" / "forvia_label_v2")

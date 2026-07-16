@@ -30,8 +30,8 @@ general_cfgs = {
 }
 for item in (
     _dir(os.path.join(REPO, "web"), "web"),
-    _dir(os.path.join(REPO, "forvia_label_v2", "backend"), "forvia_label_v2/backend"),
-    _dir(os.path.join(REPO, "forvia_train_v2", "backend"), "forvia_train_v2/backend"),
+    _dir(os.path.join(REPO, "web", "forvia_label_v2", "backend"), "web/forvia_label_v2/backend"),
+    _dir(os.path.join(REPO, "web", "forvia_train_v2", "backend"), "web/forvia_train_v2/backend"),
     _dir(os.path.join(REPO, "web", "forvia_label_v2"), "web/forvia_label_v2"),
     _dir(os.path.join(REPO, "web", "forvia_train_v2"), "web/forvia_train_v2"),
     _dir(os.path.join(REPO, "cfg", "core"), "cfg/core"),
@@ -46,7 +46,7 @@ for target, source_name in general_cfgs.items():
     if os.path.isfile(path):
         datas.append((path, os.path.join("cfg/examples", target)))
 
-sample_view = os.path.join(REPO, "forvia_label_v2", "vendor", "sample_view")
+sample_view = os.path.join(REPO, "web", "forvia_label_v2", "vendor", "sample_view")
 if os.path.isdir(sample_view):
     datas.append((sample_view, "sample_view"))
 
@@ -107,7 +107,7 @@ for pkg in ("librosa", "numba", "llvmlite", "scikit-learn", "xgboost", "lightgbm
 
 a = Analysis(
     [os.path.join(REPO, "forvia_console_launcher.py")],
-    pathex=[REPO, os.path.join(REPO, "forvia_label_v2"), os.path.join(REPO, "forvia_train_v2")],
+    pathex=[REPO, os.path.join(REPO, "web"), os.path.join(REPO, "web", "forvia_label_v2"), os.path.join(REPO, "web", "forvia_train_v2")],
     binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,

@@ -17,8 +17,8 @@ cd forvia_label_v2
 建议在干净的虚拟环境里构建，避免把多余依赖打进去：
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
-pip install -r forvia_label_v2/requirements.txt pyinstaller
-pyinstaller --clean --noconfirm forvia_label_v2/forvia_label_v2.spec
+pip install -r web/forvia_label_v2/requirements.txt pyinstaller
+pyinstaller --clean --noconfirm web/forvia_label_v2/forvia_label_v2.spec
 ```
 
 ## 二、分发给别人
@@ -40,5 +40,5 @@ pyinstaller --clean --noconfirm forvia_label_v2/forvia_label_v2.spec
 ## 四、架构 / Win 版
 - App 内置了 FastAPI 服务 + 前端 + 复用的 v1 子集（data_manager / sample_view / cfg），自包含。
 - 路径都是运行时选择，**代码里没有写死任何数据路径**。
-- Windows 版：在 Windows 上用同一个 spec 跑 `pyinstaller forvia_label_v2/forvia_label_v2.spec`
+- Windows 版：在 Windows 上用同一个 spec 跑 `pyinstaller web/forvia_label_v2/forvia_label_v2.spec`
   会得到 `dist/Forvia标注v2/Forvia标注v2.exe`（onedir）。需要在 Windows 机器上构建（PyInstaller 不能跨平台）。

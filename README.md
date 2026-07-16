@@ -58,8 +58,8 @@ conda activate <你的环境名>
 可以在 Anaconda Prompt 中使用当前环境分别启动：
 
 ```bat
-python -m uvicorn forvia_label_v2.backend.main:app --reload --port 8012
-python -m uvicorn forvia_train_v2.backend.main:app --reload --port 8001
+PYTHONPATH=web python -m uvicorn forvia_label_v2.backend.main:app --reload --port 8012
+PYTHONPATH=web python -m uvicorn forvia_train_v2.backend.main:app --reload --port 8001
 ```
 
 然后打开 `http://127.0.0.1:8012/console`。
@@ -72,8 +72,8 @@ python -m uvicorn forvia_train_v2.backend.main:app --reload --port 8001
 
 ## 目录说明
 
-- `forvia_label_v2/`：数据库、标注和高级频谱分析
-- `forvia_train_v2/`：数据集、特征、训练和结果分析
+- `web/forvia_label_v2/`：数据库、标注和高级频谱分析
+- `web/forvia_train_v2/`：数据集、特征、训练和结果分析
 - `web/forvia_console_preview.html`：统一 Console 首页
 - `web/forvia_console_modules.js`：Console 模块入口配置
 - `cfg/`：全局规则和模型配置

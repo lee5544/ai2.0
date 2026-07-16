@@ -1,14 +1,14 @@
 # -*- mode: python ; coding: utf-8 -*-
 # Forvia 标注 v2 · PyInstaller 打包（双击运行，无需装 Python/Docker）。
-# 在仓库根 AI-2.0 下执行： pyinstaller forvia_label_v2/forvia_label_v2.spec
+# 在仓库根 AI-2.0 下执行： pyinstaller web/forvia_label_v2/forvia_label_v2.spec
 import os
 from PyInstaller.utils.hooks import (
     collect_data_files, collect_dynamic_libs, collect_submodules, copy_metadata,
 )
 
 # 路径一律用绝对路径，避免 PyInstaller 把 spec 里的相对路径相对“spec 目录”解析而出错。
-HERE = SPECPATH                       # .../forvia_label_v2（spec 所在目录）
-REPO = os.path.dirname(HERE)          # .../AI-2.0（仓库根）
+HERE = SPECPATH                       # .../web/forvia_label_v2（spec 所在目录）
+REPO = os.path.dirname(os.path.dirname(HERE))  # .../AI-2.0（仓库根）
 
 # 动态发现的卡片 / 任务模块（discover() 用 importlib 加载，PyInstaller 不会自动包含）→ 显式列出
 _dyn = []
@@ -20,12 +20,12 @@ for sub in ("cards", "tasks"):
 
 # 随包资源：前端 + 复用的 v1 子集（保持目录结构，供 config_paths / sys.path 解析）
 # 复用的 v1 子集：data_manager / cfg 用仓库根那份（运行时 sys.path 指向 REPO_ROOT 用的就是它们）；
-# sample_view 仓库根没有，只在 forvia_label_v2/vendor 下有（data_manager 里按需懒导入），用 vendor 那份。
+# sample_view 仓库根没有，只在 web/forvia_label_v2/vendor 下有（data_manager 里按需懒导入），用 vendor 那份。
 _SV = os.path.join(HERE, "vendor", "sample_view")
 if not os.path.isdir(_SV):
     _SV = os.path.join(REPO, "sample_view")        # 兜底：若以后挪到仓库根
 datas = [
-    (os.path.join(REPO, "web", "forvia_label_v2"), "web/forvia_label_v2"),
+    (os.path.join(HERE), "web/forvia_label_v2"),
     (os.path.join(REPO, "data_manager"), "data_manager"),
     (os.path.join(REPO, "cfg"), "cfg"),
 ]
@@ -69,7 +69,7 @@ for pkg in ("librosa", "numba", "llvmlite"):
 
 a = Analysis(
     [os.path.join(HERE, "launcher.py")],
-    pathex=[REPO, HERE],
+    pathex=[REPO, os.path.dirname(HERE), HERE],
     binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,

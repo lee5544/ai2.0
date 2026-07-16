@@ -21,7 +21,7 @@ def _bundle_root() -> Path:
     meipass = getattr(sys, "_MEIPASS", None)
     if meipass:
         return Path(meipass)
-    return Path(__file__).resolve().parent.parent  # 源码运行：仓库根 AI-2.0
+    return Path(__file__).resolve().parents[2]  # 源码运行：仓库根 AI-2.0
 
 
 def _user_data_home() -> Path:
@@ -50,7 +50,7 @@ def main() -> None:
     root = _bundle_root()
     # 复用的 v1 子集（data_manager / sample_view / cfg）随包；让 config.py 找到它们
     os.environ.setdefault("FORVIA_REPO_ROOT", str(root))
-    for extra in (str(root), str(root / "forvia_label_v2")):
+    for extra in (str(root), str(root / "web"), str(root / "web" / "forvia_label_v2")):
         if extra not in sys.path:
             sys.path.insert(0, extra)
 

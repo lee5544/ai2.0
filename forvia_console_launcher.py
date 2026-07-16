@@ -72,7 +72,7 @@ def _setup_runtime(root: Path, data_home: Path) -> None:
     os.environ.setdefault("FORVIA_RESULTS_DIR", str(data_home / "results"))
     os.environ.setdefault("FORVIA_TRAIN_V2_STATE_DIR", str(data_home / "train_state"))
     os.environ.setdefault("FORVIA_TDMS_CACHE_DIR", str(data_home / "tdms_cache"))
-    for item in (root, root / "forvia_label_v2", root / "forvia_train_v2"):
+    for item in (root, root / "web", root / "web" / "forvia_label_v2", root / "web" / "forvia_train_v2"):
         text = str(item)
         if item.exists() and text not in sys.path:
             sys.path.insert(0, text)

@@ -1,6 +1,6 @@
 # Forvia 标注 v2 · 自包含镜像（Mac/Windows 用 Docker Desktop 运行）
 #
-# 构建上下文 = forvia_label_v2/。镜像里自带复用的 v1 子集（data_manager / sample_view / cfg），
+# 构建上下文 = web/forvia_label_v2/。镜像里自带复用的 v1 子集（data_manager / sample_view / cfg），
 # 这些由 scripts/run-mac.sh（或 run-win.ps1）在构建前暂存到 vendor/，因此镜像独立、不依赖宿主仓库。
 FROM python:3.11-slim
 
@@ -22,7 +22,8 @@ COPY vendor/cfg          /app/vendor/cfg
 
 # 3) 应用本体
 COPY backend  /app/backend
-COPY frontend /app/frontend
+COPY index.html /app/index.html
+COPY lib /app/lib
 
 # FORVIA_REPO_ROOT 指向 vendor → config.py 把 vendor 注入 sys.path，
 # 并让 data_manager.config_paths 在 vendor/cfg 下找规则 yaml。

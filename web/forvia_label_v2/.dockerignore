@@ -1,0 +1,10 @@
+# 构建上下文 = web/forvia_label_v2/。排除运行期/缓存产物，保留 vendor/。
+_data/
+data/
+**/__pycache__/
+*.pyc
+*.pyo
+.env
+.git
+.DS_Store
+vendor/**/__pycache__/

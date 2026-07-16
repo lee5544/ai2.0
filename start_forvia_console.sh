@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT"
+export PYTHONPATH="$ROOT/web${PYTHONPATH:+:$PYTHONPATH}"
 
 LOG_DIR="$ROOT/tmp/forvia_console_logs"
 mkdir -p "$LOG_DIR"
