@@ -266,6 +266,18 @@
     .precheck-metric { border:1px solid var(--bd); background:#fff; border-radius:8px; padding:10px; }
     .precheck-metric span { display:block; color:var(--mut); font-size:12px; }
     .precheck-metric b { font-size:20px; }
+    .database-root-picker { margin-top:12px; padding:14px; border:1px solid #b9d3f6; border-radius:10px; background:#f7fbff; }
+    .database-root-picker h4 { margin:0 0 10px; color:var(--fg); }
+    .database-root-picker .hint { margin:8px 0 0; }
+    .database-tree { display:grid; gap:6px; margin-top:12px; padding:10px 12px; border:1px solid var(--bd); border-radius:8px; background:#fff; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; }
+    .database-tree-row { display:grid; grid-template-columns:150px minmax(0,1fr) auto; gap:10px; align-items:center; min-height:24px; }
+    .database-tree-row b { color:var(--fg); font-weight:700; }
+    .database-tree-row span { overflow-wrap:anywhere; color:var(--mut); }
+    .database-tree-row em { font-style:normal; font-family:system-ui,-apple-system,"Segoe UI","PingFang SC",sans-serif; font-weight:700; color:var(--mut); }
+    .database-tree-row em.ok { color:var(--good); }
+    .database-tree-row em.bad { color:var(--bad); }
+    .system-resource-bar { display:flex; justify-content:flex-end; gap:16px; flex-wrap:wrap; margin-top:16px; padding:10px 2px 0; border-top:1px solid var(--bd); color:var(--mut); font-size:12px; }
+    .system-resource-bar b { color:var(--fg); }
     .stage-steps { display:grid; grid-template-columns:repeat(7,minmax(80px,1fr)); gap:8px; margin-top:12px; }
     .stage-step { border:1px solid var(--bd); border-radius:8px; background:#fff; padding:9px; text-align:center; color:var(--mut); font-size:12px; }
     .stage-step.active { border-color:var(--acc); color:var(--acc); background:#eef5ff; font-weight:800; }
@@ -532,12 +544,19 @@
             <button @click="refreshDatabaseHome">↻ 刷新</button>
           </div>
         </section>
-        <div v-if="showOpenDatabase" class="card">
+        <div v-if="showOpenDatabase" class="card database-root-picker">
           <h3>打开数据库</h3>
           <label>数据库根目录 data_root
-            <span class="input-row"><input v-model.trim="globalDatabase.data_root" @input="deriveGlobalDatabasePaths" placeholder="例如 /Volumes/.../data_root"><button @click="openBrowser('globalDatabase.data_root','dir')">选择</button><button class="primary" @click="openDatabaseFromPath">打开</button></span>
+            <span class="input-row"><input v-model.trim="globalDatabase.data_root" @input="deriveGlobalDatabasePaths" placeholder="提示选择 /xxx/xxx/data_root"><button @click="openBrowser('globalDatabase.data_root','dir')">选择</button><button class="primary" :disabled="!databaseRootValid||databaseOpening" @click="openDatabaseFromPath">{{databaseOpening?'打开中…':'打开'}}</button></span>
           </label>
-          <p class="hint">系统将读取该目录下的 metadata/label_records.db、metadata/tdms_manifest.csv 和 factory_raw。</p>
+          <p class="hint">必须选择名称为 <b>data_root</b> 的目录。系统将读取该目录下的 metadata/label_records.db、metadata/tdms_manifest.csv 和 factory_raw。</p>
+          <div class="database-tree">
+            <div class="database-tree-row"><b>data_root</b><span>{{globalDatabase.data_root||'请选择 /xxx/xxx/data_root'}}</span><em :class="databaseRootValid?'ok':'bad'">{{databaseRootValid?'✓ 根目录':'需选择 data_root'}}</em></div>
+            <div class="database-tree-row"><b>├─ metadata</b><span>{{databaseStructure[0].path||'data_root/metadata'}}</span><em :class="databaseStructure[0].ok?'ok':'bad'">{{databaseStructure[0].status}}</em></div>
+            <div class="database-tree-row"><b>│  ├─ label_records.db</b><span>{{globalDatabase.label_records_db_path||'data_root/metadata/label_records.db'}}</span><em :class="databaseStructure[1].ok?'ok':'bad'">{{databaseStructure[1].status}}</em></div>
+            <div class="database-tree-row"><b>│  └─ tdms_manifest.csv</b><span>{{globalDatabase.manifest_path||'data_root/metadata/tdms_manifest.csv'}}</span><em :class="databaseStructure[2].ok?'ok':'bad'">{{databaseStructure[2].status}}</em></div>
+            <div class="database-tree-row"><b>└─ factory_raw</b><span>{{globalDatabase.tdms_root||'data_root/factory_raw'}}</span><em :class="databaseStructure[3].ok?'ok':'bad'">{{databaseStructure[3].status}}</em></div>
+          </div>
         </div>
         <div class="database-registry-panel">
           <div class="page-title"><h3>已建立数据库</h3><div class="actions"><span class="hint">当前：{{databaseDisplayName(globalDatabase.data_root)}}</span></div></div>
@@ -737,6 +756,7 @@
           </div>
           <p v-if="!modelOverview.line_rows.length" class="hint">没有可显示的 XLSX 模型数据。</p>
         </div>
+      <div v-if="view==='database'" class="system-resource-bar"><span>CPU（系统） <b>{{resourceText(systemResource.cpu_percent)}}</b></span><span>CPU（Train） <b>{{resourceText(systemResource.process_cpu_percent)}}</b></span><span>内存（系统） <b>{{resourceText(systemResource.memory_percent)}}</b></span><span>内存（Train） <b>{{resourceText(systemResource.process_memory_percent)}}</b></span></div>
     </section>
 
     <!-- 配置项目信息 -->
@@ -1174,6 +1194,7 @@ createApp({
       activeTrainStep:'dataset',
       databaseUi:{tab:initialDatabaseTabFromHash()},databaseLineOpen:{},selectedDistributionRefs:{},databaseOpening:false,databaseOpenProgress:'',
       globalDatabase:{data_root:'',label_records_db_path:'',manifest_path:'',tdms_root:''},
+      systemResource:{available:false,cpu_percent:null,process_cpu_percent:null,memory_percent:null,process_memory_percent:null,updated_at:0},
       databaseRegistry:(()=>{try{return JSON.parse(localStorage.getItem('forvia_train_v2_databases')||'[]')||[]}catch(e){return []}})(),
       databaseDraftRoot:'',
       labelRules:{loading:false,saving:false,path:'',results:[],reasons:[],meta:{},metaText:''},
@@ -1279,6 +1300,20 @@ createApp({
     }
     const databaseStages=[{id:'scan',name:'扫描文件'},{id:'compress',name:'压缩 TDMS'},{id:'transfer',name:'复制/移动'},{id:'manifest',name:'注册 TDMS'},{id:'samples',name:'生成样本'},{id:'labels',name:'导入标签'},{id:'done',name:'完成'}];
     const canExecuteDatabase=computed(()=>Boolean(s.databaseTool.precheck?.ok&&!s.databaseTool.scanning));
+    const databaseRootValid=computed(()=>{
+      const root=String(s.globalDatabase.data_root||'').trim().replace(/[\\/]+$/,'');
+      return Boolean(root&&root.split(/[\\/]/).pop().toLowerCase()==='data_root');
+    });
+    const databaseStructure=computed(()=>{
+      const status=s.databaseTool.precheck?.status||{};
+      const root=String(s.globalDatabase.data_root||'').trim().replace(/[\\/]+$/,'');
+      return [
+        {path:root?`${root}/metadata`:'',ok:!!status.metadata_exists,status:status.metadata_exists?'存在':'待检查'},
+        {path:root?`${root}/metadata/label_records.db`:'',ok:!!status.db_exists,status:status.db_exists?'存在':'缺失'},
+        {path:root?`${root}/metadata/tdms_manifest.csv`:'',ok:!!status.manifest_exists,status:status.manifest_exists?'存在':'缺失'},
+        {path:root?`${root}/factory_raw`:'',ok:!!status.factory_raw_exists,status:status.factory_raw_exists?'存在':'缺失'},
+      ];
+    });
     const databaseStatusItems=computed(()=>{
       const status=s.databaseTool.precheck?.status||{};
       return [
@@ -1290,10 +1325,12 @@ createApp({
       ];
     });
     function notify(text,err=false){s.message=text;s.messageError=err;setTimeout(()=>{if(s.message===text)s.message=''},5000)}
+    function resourceText(value){return value===null||value===undefined?'--':`${Number(value).toFixed(1)}%`}
     async function api(url,opt={}){const r=await fetch(url,{headers:{'Content-Type':'application/json',...(opt.headers||{})},...opt});const d=await r.json();if(!r.ok)throw new Error(d.detail||'请求失败');return d}
+    async function loadSystemResources(){try{s.systemResource=await api('/api/system/resources')}catch(e){s.systemResource={available:false,cpu_percent:null,process_cpu_percent:null,memory_percent:null,process_memory_percent:null,updated_at:0}}}
     async function loadProjects(){s.projects=(await api('/api/projects')).projects}
     function deriveGlobalDatabasePaths(){
-      const root=String(s.globalDatabase.data_root||'').replace(/\/$/,'');
+      const root=String(s.globalDatabase.data_root||'').trim().replace(/[\\/]+$/,'');
       s.globalDatabase.label_records_db_path=root?`${root}/metadata/label_records.db`:'';
       s.globalDatabase.manifest_path=root?`${root}/metadata/tdms_manifest.csv`:'';
       s.globalDatabase.tdms_root=root?`${root}/factory_raw`:'';
@@ -1332,6 +1369,9 @@ createApp({
     async function openDatabaseFromPath(){
       const root=String(s.globalDatabase.data_root||'').trim();
       if(!root){notify('请选择数据库根目录',true);return}
+      if(!databaseRootValid.value){notify('请选择以 data_root 结尾的数据库根目录，例如 /xxx/xxx/data_root',true);return}
+      await precheckDatabase(true);
+      if(!s.databaseTool.precheck?.ok){notify(s.databaseTool.precheck?.errors?.[0]||'数据库目录预检查未通过',true);return}
       const item=s.databaseRegistry.find(x=>x.data_root===root)||{name:databaseDisplayName(root),data_root:root};
       try{await openRegisteredDatabase(item);s.showOpenDatabase=false}catch(e){notify(e.message,true)}
     }
@@ -1749,7 +1789,7 @@ createApp({
         }catch(fallbackError){notify(fallbackError.message||e.message,true)}
       }
     }
-    function chooseBrowserPath(path){if(s.browser.mode==='file'&&!s.browser.files.includes(path.split('/').pop())&&path===s.browser.path){notify('请选择文件',true);return}const old=targetValue(s.browser.target);setTargetValue(s.browser.target,s.browser.writeMode==='append'?[old,path].filter(Boolean).join('\n'):path);s.browser.open=false}
+    function chooseBrowserPath(path){if(s.browser.mode==='file'&&!s.browser.files.includes(path.split('/').pop())&&path===s.browser.path){notify('请选择文件',true);return}const old=targetValue(s.browser.target);setTargetValue(s.browser.target,s.browser.writeMode==='append'?[old,path].filter(Boolean).join('\n'):path);if(s.browser.target==='globalDatabase.data_root')deriveGlobalDatabasePaths();s.browser.open=false}
     function modelSpec(type){return (s.options.model_specs||{})[type]||{display_name:type||'模型',description:'',parameter_key:'model_params',parameters:[]}}
     function modelTitle(type){const spec=modelSpec(type);return `${spec.display_name||type} (${type})`}
     function selectModel(type){if(s.trainForm.model_type===type)return;s.trainForm.model_type=type;const params={};for(const p of modelSpec(type).parameters||[])params[p.key]=p.default;s.trainForm.model_params=params}
@@ -1797,8 +1837,8 @@ createApp({
       if(id==='database'&&sub==='line-rules')loadLineRules();
       if(id==='database'&&sub==='distribution')loadLineOverview();
     }
-    onMounted(async()=>{try{deriveGlobalDatabasePaths();s.options=await api('/api/options');applyDatabaseDefaults();s.createForm.line_name=s.options.line_options?.[0]||'';await Promise.all([loadProjects(),loadLabelRules(),precheckDatabase(true)]);openHashView();window.addEventListener('hashchange',openHashView);setInterval(loadRuns,2000);setInterval(loadDatabaseJob,1000)}catch(e){notify(e.message,true)}});
-    return {...Vue.toRefs(s),createModelId,editableModelId,currentModelId,requireCurrent,pipelineRuns,augmentationRuns,predictRuns,featureActionClass,featureActionText,trainActionClass,trainActionText,availableLines,labelCountsReady,trainSteps,trainStepStatus,trainStepIndex,currentTrainStep,trainStepClass,trainStepText,openTrainStep,saveCurrentTrainStep,nextTrainStep,prevTrainStep,databaseStages,canExecuteDatabase,databaseStatusItems,workflowTabs,projectComplete,workflowClass,tabDisabled,openTab,openDatabaseSubTab,createProject,openProject,projectModelId,toggleProjectDetails,reloadProjectDetails,saveProjectYaml,validateProjectYaml,saveProjectForm,saveProjectInfo,duplicateProject,selectProject,selectPredictProject,clearPredictProject,removeProject,deriveGlobalDatabasePaths,databaseDisplayName,selectedProjectDatabase,applyProjectDatabase,chooseDatabaseAction,resetDatabaseAction,precheckDatabase,databaseStageActive,openRegisteredDatabase,startOpenDatabase,openDatabaseFromPath,startCreateDatabase,refreshDatabaseHome,openDatabaseProject,updateDatabaseProject,removeRegisteredDatabase,databaseLineExpanded,toggleDatabaseLine,distributionRefSelected,toggleDistributionRef,allDistributionRefsSelected,toggleAllDistributionRefs,selectedDistributionStats,loadLabelRules,saveLabelRules,restoreDefaultLabelRules,loadLineRules,validateLineRules,saveLineRules,restoreDefaultLineRules,addResultRule,removeResultRule,addReasonRule,removeReasonRule,addDatabaseCsv,removeDatabaseCsv,runDatabaseAction,saveTrain,saveYaml,loadDatasetSummary,loadLineOverview,loadModelOverview,loadTrainingOptions,validateCurrent,startRun,startAugmentation,enableAugmentation,disableAugmentation,addAugmentationFolder,removeAugmentationFolder,addKeyFolder,removeKeyFolder,cancelRun,showRun,loadResults,startPredict,openBrowser,browse,joinPath,chooseBrowserPath,pathBasename,modelSpec,modelTitle,selectModel,reasonUsed,reasonCount,groupAvailableCount,groupTrainingCount,addLabelGroup,resetLabelGroups,removeLabelGroup,addReason,removeReason,stagesFor,stageClass,artifactUrl,fmt,distName,barWidth,rememberSidebarWidth,toggleSidebar,setUiScale};
+    onMounted(async()=>{try{deriveGlobalDatabasePaths();s.options=await api('/api/options');applyDatabaseDefaults();s.createForm.line_name=s.options.line_options?.[0]||'';await Promise.all([loadProjects(),loadLabelRules(),precheckDatabase(true),loadSystemResources()]);openHashView();window.addEventListener('hashchange',openHashView);setInterval(loadRuns,2000);setInterval(loadDatabaseJob,1000);setInterval(loadSystemResources,3000)}catch(e){notify(e.message,true)}});
+    return {...Vue.toRefs(s),createModelId,editableModelId,currentModelId,requireCurrent,pipelineRuns,augmentationRuns,predictRuns,featureActionClass,featureActionText,trainActionClass,trainActionText,availableLines,labelCountsReady,trainSteps,trainStepStatus,trainStepIndex,currentTrainStep,trainStepClass,trainStepText,openTrainStep,saveCurrentTrainStep,nextTrainStep,prevTrainStep,databaseStages,canExecuteDatabase,databaseStatusItems,databaseRootValid,databaseStructure,workflowTabs,projectComplete,workflowClass,tabDisabled,openTab,openDatabaseSubTab,createProject,openProject,projectModelId,toggleProjectDetails,reloadProjectDetails,saveProjectYaml,validateProjectYaml,saveProjectForm,saveProjectInfo,duplicateProject,selectProject,selectPredictProject,clearPredictProject,removeProject,deriveGlobalDatabasePaths,databaseDisplayName,selectedProjectDatabase,applyProjectDatabase,chooseDatabaseAction,resetDatabaseAction,precheckDatabase,databaseStageActive,openRegisteredDatabase,startOpenDatabase,openDatabaseFromPath,startCreateDatabase,refreshDatabaseHome,openDatabaseProject,updateDatabaseProject,removeRegisteredDatabase,databaseLineExpanded,toggleDatabaseLine,distributionRefSelected,toggleDistributionRef,allDistributionRefsSelected,toggleAllDistributionRefs,selectedDistributionStats,loadLabelRules,saveLabelRules,restoreDefaultLabelRules,loadLineRules,validateLineRules,saveLineRules,restoreDefaultLineRules,addResultRule,removeResultRule,addReasonRule,removeReasonRule,addDatabaseCsv,removeDatabaseCsv,runDatabaseAction,saveTrain,saveYaml,loadDatasetSummary,loadLineOverview,loadModelOverview,loadTrainingOptions,validateCurrent,startRun,startAugmentation,enableAugmentation,disableAugmentation,addAugmentationFolder,removeAugmentationFolder,addKeyFolder,removeKeyFolder,cancelRun,showRun,loadResults,startPredict,openBrowser,browse,joinPath,chooseBrowserPath,pathBasename,modelSpec,modelTitle,selectModel,reasonUsed,reasonCount,groupAvailableCount,groupTrainingCount,addLabelGroup,resetLabelGroups,removeLabelGroup,addReason,removeReason,stagesFor,stageClass,artifactUrl,fmt,distName,barWidth,rememberSidebarWidth,toggleSidebar,setUiScale,resourceText};
   }
 }).mount('#app');
 </script>

@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import copy
 import csv
+import os
 from pathlib import Path
 import subprocess
 import sys
 import sqlite3
+import time
 from collections import Counter
 
 from fastapi import FastAPI, HTTPException
@@ -62,6 +64,28 @@ def startup() -> None:
     ensure_dirs()
     store.init_db()
     run_manager.reconcile_active_runs()
+
+
+@app.get("/api/system/resources")
+def api_system_resources():
+    """Return lightweight process/system resource data for the console footer."""
+    try:
+        import psutil
+
+        process = psutil.Process(os.getpid())
+        system_memory = psutil.virtual_memory()
+        return {
+            "available": True,
+            "cpu_percent": round(float(psutil.cpu_percent(interval=0.05)), 1),
+            "process_cpu_percent": round(float(process.cpu_percent(interval=0.05)), 1),
+            "memory_percent": round(float(system_memory.percent), 1),
+            "process_memory_percent": round(float(process.memory_percent()), 1),
+            "memory_used_bytes": int(system_memory.used),
+            "memory_total_bytes": int(system_memory.total),
+            "updated_at": time.time(),
+        }
+    except Exception as exc:
+        return {"available": False, "error": str(exc), "updated_at": time.time()}
 
 
 def _require_project(project_id: str) -> dict:
@@ -853,6 +877,7 @@ def _database_status(paths: dict[str, str]) -> dict:
     db_path = Path(paths["label_records_db_path"]).expanduser()
     manifest_path = Path(paths["manifest_path"]).expanduser()
     tdms_root = Path(paths["tdms_root"]).expanduser()
+    metadata_root = db_path.parent
     label_rules_ok = False
     try:
         rules = _read_label_rules()
@@ -876,6 +901,7 @@ def _database_status(paths: dict[str, str]) -> dict:
     return {
         "db_exists": db_path.is_file(),
         "manifest_exists": manifest_path.is_file(),
+        "metadata_exists": metadata_root.is_dir(),
         "factory_raw_exists": tdms_root.is_dir(),
         "label_rules_ok": label_rules_ok,
         "sampling_total": sampling_total,
@@ -906,6 +932,9 @@ def _precheck_database(req: DatabasePrecheckReq) -> dict:
     errors = []
     action = str(req.action or "").strip().lower()
     update_kind = str(req.update_kind or "").strip().lower()
+    root_name = data_root_text.rstrip("/\\").replace("\\", "/").rsplit("/", 1)[-1]
+    if root_name.lower() != "data_root":
+        errors.append("请选择以 data_root 结尾的数据库根目录，例如 /xxx/xxx/data_root")
     if action == "update" and not str(req.source_folder or "").strip():
         repair_scan_root = data_root / storage_root
         line = str(req.line or "").strip()
