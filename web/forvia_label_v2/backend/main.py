@@ -652,16 +652,25 @@ def api_sample(index: int):
 
 
 def _resolve_sample_index(session, index: int, sample_id: str = "") -> int:
-    """前端列表可能带旧 index；sample_id 匹配时按 sample_id 兜底定位。"""
-    if 0 <= index < len(session.sample_view):
-        if not sample_id or str(session.row(index).get("sample_id", "")) == str(sample_id):
-            return index
+    """Resolve a channel against the current workspace.
+
+    The filtered list can retain an index from before a refresh/rebuild.  A
+    sample_id is the stable identity, so use it first and keep index only as a
+    fallback for legacy requests that do not provide sample_id.
+    """
     if sample_id:
-        sid = str(sample_id)
-        matches = session.sample_view.index[session.sample_view["sample_id"].astype(str) == sid].tolist()
-        if matches:
-            return int(matches[0])
-    raise HTTPException(status_code=404, detail="sample index out of range")
+        sid = str(sample_id).strip().casefold()
+        if "sample_id" in session.sample_view.columns:
+            sample_ids = session.sample_view["sample_id"].astype(str).str.strip().str.casefold()
+            matches = session.sample_view.index[sample_ids == sid].tolist()
+            if matches:
+                return int(matches[0])
+    if 0 <= index < len(session.sample_view):
+        return index
+    raise HTTPException(
+        status_code=404,
+        detail=f"sample index out of range: index={index}, sample_id={sample_id or '-'}",
+    )
 
 
 @app.get("/api/sample/{index}/signal")
