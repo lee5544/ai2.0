@@ -10,11 +10,11 @@ env/
 build/
 dist/
 *.spec.bak
-forvia_label_v2/build/
-forvia_label_v2/dist/
+web/forvia_label_v2/build/
+web/forvia_label_v2/dist/
 
 # ---- 运行时数据 / 标注库 / 缓存（本地或 runner 生成）----
-forvia_label_v2/_data/
+web/forvia_label_v2/_data/
 *.log
 *.db
 *.sqlite
@@ -39,7 +39,7 @@ quick_test/
 
 # ---- 压缩包 / 大文件（避免误传超 100MB，触发 GitHub 拒绝）----
 *.zip
-forvia_label_v2/_data.zip
+web/forvia_label_v2/_data.zip
 
 # ---- 系统 ----
 .DS_Store

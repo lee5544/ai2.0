@@ -39,6 +39,9 @@ docker compose up --build
 # 打开 http://localhost:8000
 ```
 
+Docker 构建前请先执行 `./scripts/run-mac.sh`，脚本会从仓库 `web/forvia_label_v2/`
+暂存前端到 Docker 构建上下文，停止后自动清理暂存目录。
+
 真实数据：把数据放进 `./data/`，在 `docker-compose.yml` 里设置
 `SAMPLE_VIEW_PATH=/data/sample_view.csv`、`LABEL_RECORDS_DB_PATH=/data/sample_records.db` 等环境变量即可。
 
@@ -57,11 +60,12 @@ forvia_label_v2/
 ├── backend/
 │   ├── main.py     FastAPI 应用 + 路由
 │   └── session.py  sample_view × sample_records.db 连接、筛选、典型异音标记
-├── frontend/
-│   └── index.html  Vue3 + AG Grid 单页（CDN，无需 node 构建）
 ├── requirements.txt
 ├── Dockerfile
 └── docker-compose.yml
+web/forvia_label_v2/
+├── index.html      Vue3 + AG Grid 单页（CDN，无需 node 构建）
+└── lib/            本地静态依赖
 ```
 
 ## 说明 / 下一步

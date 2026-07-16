@@ -32,7 +32,7 @@ from .session import get_session, init_session
 from .tdms_loader import downsample, load_sample
 
 app = FastAPI(title="Forvia 标注 v2")
-PROJECT_ROOT = Path(os.environ.get("FORVIA_REPO_ROOT", "")).expanduser() if os.environ.get("FORVIA_REPO_ROOT") else Path(__file__).resolve().parents[2]
+PROJECT_ROOT = Path(os.environ.get("FORVIA_REPO_ROOT", "")).expanduser() if os.environ.get("FORVIA_REPO_ROOT") else Path(__file__).resolve().parents[3]
 
 _INIT_PROGRESS_LOCK = threading.Lock()
 _INIT_PROGRESS = {"running": False, "percent": 0, "message": "未开始", "error": ""}
@@ -59,16 +59,14 @@ def api_init_progress():
         return dict(_INIT_PROGRESS)
 
 def _find_frontend_dir() -> Path:
-    """前端目录：开发时在 backend 上一级；打包后 PyInstaller 把它放在
-    <_MEIPASS>/forvia_label_v2/frontend（见 .spec datas）。逐个候选取第一个存在的。"""
-    cands = [Path(__file__).resolve().parent.parent / "frontend"]
+    """统一从仓库 web/ 读取启动台，兼容 PyInstaller 的 web/ 资源目录。"""
+    cands = [Path(__file__).resolve().parent.parent, PROJECT_ROOT / "web" / "forvia_label_v2"]
     meipass = getattr(sys, "_MEIPASS", None)
     if meipass:
-        cands += [Path(meipass) / "forvia_label_v2" / "frontend",
-                  Path(meipass) / "frontend"]
+        cands.append(Path(meipass) / "web" / "forvia_label_v2")
     repo = os.environ.get("FORVIA_REPO_ROOT")
     if repo:
-        cands.append(Path(repo) / "forvia_label_v2" / "frontend")
+        cands.append(Path(repo) / "web" / "forvia_label_v2")
     for c in cands:
         if (c / "index.html").exists():
             return c

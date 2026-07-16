@@ -9,13 +9,13 @@ import os
 import sys
 from pathlib import Path
 
-# forvia_label_v2/backend/config.py -> 仓库根 AI-2.0
+# web/forvia_label_v2/backend/config.py -> 仓库根 AI-2.0
 REPO_ROOT = Path(os.environ.get("FORVIA_REPO_ROOT", "")).expanduser() if os.environ.get(
     "FORVIA_REPO_ROOT"
-) else Path(__file__).resolve().parents[2]
+) else Path(__file__).resolve().parents[3]
 
 # 复用现有代码所需的两个 import 根
-for p in (REPO_ROOT, REPO_ROOT / "forvia_label"):
+for p in (REPO_ROOT, REPO_ROOT / "web", REPO_ROOT / "forvia_label"):
     sp = str(p)
     if p.exists() and sp not in sys.path:
         sys.path.insert(0, sp)

@@ -14,7 +14,7 @@ for /f "delims=" %%P in ('python -c "import sys; print(sys.executable)"') do set
 echo 使用当前 Python 环境：%PYTHON_PATH%
 call python -m pip install --upgrade pip
 if errorlevel 1 goto failed
-call python -m pip install -r forvia_label_v2\requirements.txt -r forvia_train_v2\requirements.txt pyinstaller
+call python -m pip install -r web\forvia_label_v2\requirements.txt -r web\forvia_train_v2\requirements.txt pyinstaller
 if errorlevel 1 goto failed
 call python -c "import fastapi, uvicorn, numpy, pandas, scipy, librosa, soundfile, nptdms, zstandard, plotly, pywt, sklearn, xgboost, lightgbm, matplotlib; print('Forvia AI2.0 依赖检查通过')"
 if errorlevel 1 goto failed

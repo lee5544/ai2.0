@@ -8,7 +8,7 @@
 
 ## 三步运行
 ```bash
-cd forvia_label_v2
+cd web/forvia_label_v2
 
 # 1) 配置数据目录：编辑 .env（首次运行脚本会自动从 .env.example 生成）
 #    把 FORVIA_DATA_DIR 指向你的数据所在目录，它会挂到容器内 /data。

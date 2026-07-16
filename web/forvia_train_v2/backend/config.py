@@ -5,8 +5,8 @@ from pathlib import Path
 
 
 APP_DIR = Path(__file__).resolve().parents[1]
-PROJECT_ROOT = Path(os.environ.get("FORVIA_REPO_ROOT", APP_DIR.parent)).expanduser()
-FRONTEND_DIR = APP_DIR / "frontend"
+PROJECT_ROOT = Path(os.environ.get("FORVIA_REPO_ROOT", APP_DIR.parent.parent)).expanduser()
+FRONTEND_DIR = PROJECT_ROOT / "web" / "forvia_train_v2"
 CFG_DIR = Path(os.environ.get("FORVIA_CFG_DIR", PROJECT_ROOT / "cfg")).expanduser()
 RESULTS_DIR = Path(os.environ.get("FORVIA_RESULTS_DIR", PROJECT_ROOT / "results")).expanduser()
 STATE_DIR = Path(os.environ.get("FORVIA_TRAIN_V2_STATE_DIR", APP_DIR / "state")).expanduser()

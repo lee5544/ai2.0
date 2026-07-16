@@ -75,8 +75,8 @@ python -m data_augmentation.direct_features \
 在项目根目录执行：
 
 ```bash
-pip install -r forvia_train_v2/requirements.txt
-uvicorn forvia_train_v2.backend.main:app --reload --port 8001
+pip install -r web/forvia_train_v2/requirements.txt
+PYTHONPATH=web uvicorn forvia_train_v2.backend.main:app --reload --port 8001
 ```
 
 打开 `http://127.0.0.1:8001`。
@@ -94,6 +94,8 @@ forvia_train_v2/
 └── workspaces/<project_id>/runs/<run_id>/
     ├── config_snapshot.yaml
     └── run.log
+web/forvia_train_v2/index.html
+└── 训练启动台前端页面
 ```
 
 - 项目配置以 `cfg/*.yaml` 为主存储，SQLite 仅保存项目索引和运行状态。
