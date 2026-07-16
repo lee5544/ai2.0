@@ -55,14 +55,13 @@ conda activate <你的环境名>
 
 ### Windows
 
-可以在 Anaconda Prompt 中使用当前环境分别启动：
+在 Anaconda Prompt 中激活自己的环境后，双击或执行：
 
 ```bat
-PYTHONPATH=web python -m uvicorn forvia_label_v2.backend.main:app --reload --port 8012
-PYTHONPATH=web python -m uvicorn forvia_train_v2.backend.main:app --reload --port 8001
+start_forvia_console.bat
 ```
 
-然后打开 `http://127.0.0.1:8012/console`。
+脚本会打开两个服务窗口，并自动打开 `http://127.0.0.1:8012/console`。
 
 ## 关闭服务
 
