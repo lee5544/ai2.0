@@ -244,6 +244,29 @@ class LabelSession:
             out[sid] = row
         return out
 
+    @classmethod
+    def _effective_label_map_from_events(cls, events: list[dict]) -> dict[str, dict]:
+        """Return the sample-level effective reason used by list filters."""
+        by_sid: dict[str, list[dict]] = {}
+        for event in events:
+            sid = str(event.get("sample_id", ""))
+            if sid:
+                by_sid.setdefault(sid, []).append(event)
+        out: dict[str, dict] = {}
+        for sid, evs in by_sid.items():
+            experts = [e for e in evs if cls._source_category(e.get("source")) == "expert"]
+            if experts:
+                selected = max(experts, key=lambda e: str(e.get("timestamp", "") or ""))
+            else:
+                operators = [e for e in evs if cls._source_category(e.get("source")) == "operator"]
+                if not operators:
+                    continue
+                selected = operators[0] if len({cls._label_signature(e) for e in operators}) > 1 else max(
+                    operators, key=lambda e: str(e.get("timestamp", "") or ""))
+            out[sid] = {"reason_key": str(selected.get("reason_key", "") or ""),
+                        "reason_name": str(selected.get("reason_name", "") or "")}
+        return out
+
     def latest_label_map(self, events: list[dict] | None = None) -> dict[str, dict]:
         if events is None:
             events = self.label_table.events_normalized()
@@ -416,6 +439,7 @@ class LabelSession:
             events = self.label_table.events_normalized()
         if label_status_map is None:
             label_status_map = self._label_status_map_from_events(events)
+        effective_map = self._effective_label_map_from_events(events)
         expert_ids = self._expert_ids_from_events(events)
         if self.has_db and label_source == "db":
             columns = ["index", "is_input", "changed", "label_status_name"] + LABEL_TABLE_COLUMNS[:6] + ["status"] + LABEL_TABLE_COLUMNS[6:] + ["tdms"]
@@ -427,6 +451,7 @@ class LabelSession:
                 base = self._list_base_row(i, sv)
                 changed = base["sample_id"] in self.changed_ids
                 label_status = label_status_map.get(base["sample_id"], {"key": "unlabeled", "name": LABEL_STATUS_NAMES["unlabeled"]})
+                effective = effective_map.get(base["sample_id"], {})
                 has_expert = label_status["key"] == "expert"
                 confirmed_status = "confirmed" if base["sample_id"] in expert_ids else "unconfirmed"
                 evs = events_by_sid.get(base["sample_id"], [])
@@ -434,6 +459,8 @@ class LabelSession:
                     rows.append({**base, "changed": changed, "has_expert": has_expert,
                                  "confirmed_status": confirmed_status,
                                  "label_status_key": label_status["key"], "label_status_name": label_status["name"],
+                                 "effective_reason_key": effective.get("reason_key", ""),
+                                 "effective_reason_name": effective.get("reason_name", ""),
                                  "status": "",
                                  **{c: "" for c in _LABEL_ONLY_COLS},
                                  "labeled": False, "typical": False})
@@ -443,6 +470,8 @@ class LabelSession:
                         rows.append({**base, "changed": changed, "has_expert": has_expert,
                                      "confirmed_status": confirmed_status,
                                      "label_status_key": label_status["key"], "label_status_name": label_status["name"],
+                                     "effective_reason_key": effective.get("reason_key", ""),
+                                     "effective_reason_name": effective.get("reason_name", ""),
                                      "status": str(e.get("status", "") or "confirmed"),
                                      **{c: str(e.get(c, "") or "") for c in _LABEL_ONLY_COLS},
                                      "labeled": bool(e.get("reason_name")),
@@ -455,16 +484,20 @@ class LabelSession:
         extra = [c for c in _LABEL_ONLY_COLS if c not in sv_cols]
         columns = ["index", "is_input", "changed", "label_status_name"] + sv_cols + extra + ["tdms"]
         latest = self.latest_label_map(events) if label_source == "db" else {}
+        effective_map = self._effective_label_map_from_events(events)
         rows = []
         for i, (_, sv) in enumerate(self.sample_view.iterrows()):
             base = self._list_base_row(i, sv)
             label_status = label_status_map.get(base["sample_id"], {"key": "unlabeled", "name": LABEL_STATUS_NAMES["unlabeled"]})
+            effective = effective_map.get(base["sample_id"], {})
             row = {"index": i, "is_input": base["is_input"], "tdms": base["tdms"],
                    "changed": base["sample_id"] in self.changed_ids,
                    "has_expert": label_status["key"] == "expert",
                    "confirmed_status": "confirmed" if base["sample_id"] in expert_ids else "unconfirmed",
                    "label_status_key": label_status["key"],
                    "label_status_name": label_status["name"],
+                   "effective_reason_key": effective.get("reason_key", ""),
+                   "effective_reason_name": effective.get("reason_name", ""),
                    "reference": base["reference"]}
             for c in sv_cols:
                 row[c] = str(sv.get(c, "") or "")
@@ -777,7 +810,7 @@ def _distinct_filters(rows: list[dict]) -> dict:
     """从列表行里取 reason / reference 的去重取值，供前端多选筛选下拉（后端算更可靠）。"""
     reasons, refs = set(), set()
     for r in rows:
-        v = str(r.get("reason_name", "") or "")
+        v = str(r.get("effective_reason_name", "") or "")
         if v:
             reasons.add(v)
         rf = str(r.get("reference", "") or "")

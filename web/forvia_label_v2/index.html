@@ -1375,7 +1375,7 @@ createApp({
       if (f.labelStatus.length && !f.labelStatus.includes(String(r.label_status_key||''))) return false;
       if (f.confirmed !== 'all' && String(r.confirmed_status||'') !== f.confirmed) return false;
       if (f.line!=='all' && r.line!==f.line) return false;
-      if (f.reason.length && !f.reason.includes(String(r.reason_name||''))) return false;
+      if (f.reason.length && !f.reason.includes(String(r.effective_reason_name || r.reason_name || ''))) return false;
       if (f.reference.length && !f.reference.includes(String(r.reference||''))) return false;
       if (f.typicalOnly && !r.typical) return false;
       if (f.missingTdms && r.tdms!=='缺失') return false;
@@ -1578,6 +1578,14 @@ createApp({
       if(ops.length === 1) return ['operator_single','员工单个'];
       return ['unlabeled','无专家/员工标注'];
     }
+    function effectiveLabelFromHistory(list){
+      const experts = (list||[]).filter(h=>h && sourceCategory(h.source || h._src)==='expert');
+      if(experts.length) return experts.slice().sort((a,b)=>String(a.timestamp||'').localeCompare(String(b.timestamp||''))).pop();
+      const ops = (list||[]).filter(h=>h && sourceCategory(h.source || h._src)==='operator');
+      if(!ops.length) return null;
+      if(new Set(ops.map(labelSignature)).size > 1) return ops[0];
+      return ops.slice().sort((a,b)=>String(a.timestamp||'').localeCompare(String(b.timestamp||''))).pop();
+    }
     async function confirmSvLabel(ch){
       if(ch.busy) return;
       ch.busy=true; ch.err=false; ch.msg='';
@@ -1600,10 +1608,11 @@ createApp({
       const reason_name = last ? (last.reason_name||'') : '';
       const typical = !!(last && String(last.note||'').includes(TYP));
       const [labelStatusKey, labelStatusName] = labelStatusFromHistory(ch.history);
+      const effective = effectiveLabelFromHistory(ch.history);
       const confirmedStatus = labelStatusKey === 'expert' ? 'confirmed' : 'unconfirmed';
-      if(ch.row){ ch.row.labeled=labeled; ch.row.reason_name=reason_name; ch.row.typical=typical; ch.row.changed=true; ch.row.has_expert=labelStatusKey==='expert'; ch.row.label_status_key=labelStatusKey; ch.row.label_status_name=labelStatusName; ch.row.confirmed_status=confirmedStatus; }
+      if(ch.row){ ch.row.labeled=labeled; ch.row.reason_name=reason_name; ch.row.effective_reason_name=effective ? (effective.reason_name||'') : ''; ch.row.effective_reason_key=effective ? (effective.reason_key||'') : ''; ch.row.typical=typical; ch.row.changed=true; ch.row.has_expert=labelStatusKey==='expert'; ch.row.label_status_key=labelStatusKey; ch.row.label_status_name=labelStatusName; ch.row.confirmed_status=confirmedStatus; }
       const r = state.allRows.find(x=>x.sample_id===ch.sample_id);
-      if(r){ r.labeled=labeled; r.reason_name=reason_name; r.typical=typical; r.changed=true; r.has_expert=labelStatusKey==='expert'; r.label_status_key=labelStatusKey; r.label_status_name=labelStatusName; r.confirmed_status=confirmedStatus; }
+      if(r){ r.labeled=labeled; r.reason_name=reason_name; r.effective_reason_name=effective ? (effective.reason_name||'') : ''; r.effective_reason_key=effective ? (effective.reason_key||'') : ''; r.typical=typical; r.changed=true; r.has_expert=labelStatusKey==='expert'; r.label_status_key=labelStatusKey; r.label_status_name=labelStatusName; r.confirmed_status=confirmedStatus; }
       for(const row of state.listRows){ if(row.sample_id === ch.sample_id) row.confirmed_status = confirmedStatus; }
       for(const row of state.channels){ if(row.sample_id === ch.sample_id) row.row.confirmed_status = confirmedStatus; }
     }
