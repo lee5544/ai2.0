@@ -512,6 +512,10 @@ def filter_sample_view_dataframe(
             raise ValueError(f"label_history 缺少列: {col}")
 
     by_triplet, by_pair = _build_label_row_maps(label_df)
+    data_cfg = cfg.get("data") if isinstance(cfg.get("data"), dict) else {}
+    label_scope = _norm(data_cfg.get("label_scope") or "valid").lower()
+    if label_scope not in {"valid", "confirmed"}:
+        label_scope = "valid"
     kept_rows: list[dict[str, Any]] = []
     decision_counter: Counter[str] = Counter()
     pair_fallback_rows = 0
@@ -523,6 +527,8 @@ def filter_sample_view_dataframe(
             candidates = by_pair.get((key[1], key[2]), [])
             if candidates:
                 pair_fallback_rows += 1
+        if label_scope == "confirmed":
+            candidates = [row for row in candidates if row.get("_source_category") == "expert"]
         chosen_label, decision = _pick_training_label(candidates)
         decision_counter[decision] += 1
         if not chosen_label:

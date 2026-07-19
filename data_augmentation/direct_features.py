@@ -14,6 +14,7 @@ import yaml
 from data_manager.label_database import load_label_dataframe
 from data_manager.tdms_read import iter_tdms_files, read_tdms
 from ml.features import get_feature_extractor, resolve_feature_version
+from ml.dataset.label_filter import LABEL_FILTER_STATUSES, _build_label_row_maps, _pick_training_label
 
 from .methods import METHODS
 
@@ -71,22 +72,22 @@ def _collect_inputs(input_folders: Iterable[tuple[str | Path, int]]) -> list[tup
 
 
 def _label_lookup(config: dict[str, Any], line: str) -> dict[tuple[str, str, str], dict[str, Any]]:
-    labels = load_label_dataframe(_database_path(config))
+    labels = load_label_dataframe(_database_path(config), statuses=LABEL_FILTER_STATUSES)
     if labels.empty:
         return {}
-    labels = labels.copy()
-    for column in ("line", "sn", "sample_id"):
-        labels[column] = labels[column].map(_text)
-    if line:
-        labels = labels[labels["line"] == line]
-    sort_columns = [column for column in ("id", "imported_at", "timestamp") if column in labels.columns]
-    if sort_columns:
-        labels = labels.sort_values(sort_columns)
-    labels = labels.drop_duplicates(subset=["line", "sn", "sample_id"], keep="last")
-    return {
-        (str(row["line"]), str(row["sn"]), str(row["sample_id"])): row.to_dict()
-        for _, row in labels.iterrows()
-    }
+    data_cfg = config.get("data") if isinstance(config.get("data"), dict) else {}
+    scope = _text(data_cfg.get("label_scope") or "valid").lower()
+    by_triplet, by_pair = _build_label_row_maps(labels)
+    out: dict[tuple[str, str, str], dict[str, Any]] = {}
+    for key, rows in by_triplet.items():
+        if line and key[0] != line:
+            continue
+        if scope == "confirmed":
+            rows = [row for row in rows if row.get("_source_category") == "expert"]
+        selected, _ = _pick_training_label(rows)
+        if selected:
+            out[key] = selected
+    return out
 
 
 def _apply_methods(data: np.ndarray, methods: list[str], rng: np.random.Generator) -> np.ndarray:

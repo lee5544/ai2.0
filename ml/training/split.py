@@ -997,6 +997,12 @@ def _build_sn_group_series(
             missing_total += int(empty_mask.sum())
         normalized_columns[col] = normalized.astype(str)
 
+    # 增强特征使用 augmented sn，但必须继承原始 sample 的分组，避免
+    # 原始样本在 train、增强样本在 val/test 造成数据泄漏。
+    if "sn" in normalized_columns and "source_sn" in df.columns:
+        source_sn = _normalized_text_series(df["source_sn"])
+        normalized_columns["sn"] = source_sn.where(source_sn.ne(""), normalized_columns["sn"]).astype(str)
+
     if missing_total > 0:
         print(f"[WARN] {split_name} 检测到 {missing_total} 个空分组字段，已按独立组处理。")
 
