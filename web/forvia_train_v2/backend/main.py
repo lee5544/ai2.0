@@ -2,16 +2,18 @@ from __future__ import annotations
 
 import copy
 import csv
+import io
 import os
 from pathlib import Path
 import subprocess
 import sys
 import sqlite3
 import time
+import zipfile
 from collections import Counter
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 import yaml
@@ -37,7 +39,7 @@ from ml.training.app_api import (
     validate_config,
     xlsx_model_overview,
 )
-from ml.training.results import collect_results, find_model_dir
+from ml.training.results import collect_results, find_model_dir, is_result_current
 from data_augmentation import AUGMENTATION_METHODS
 from data_manager.line_rules import reload_line_rules
 
@@ -254,10 +256,17 @@ def _slug_key(text: str, prefix: str, used: set[str]) -> str:
     return key
 
 
-def _normalize_rule_rows(rows: list[LabelRuleItem], *, include_parent: bool, key_prefix: str) -> dict:
+def _normalize_rule_rows(
+    rows: list[LabelRuleItem],
+    *,
+    include_parent: bool,
+    key_prefix: str,
+    auto_id_start: int = 0,
+) -> dict:
     used: set[str] = set()
+    used_ids: set[int] = set()
     explicit_ids = [int(row.id) for row in rows if row.id is not None]
-    next_id = (max(explicit_ids) + 1) if explicit_ids else 0
+    next_id = max([auto_id_start, *(value + 1 for value in explicit_ids)], default=auto_id_start)
     out: dict[str, dict] = {}
     for row in rows:
         name = row.name.strip()
@@ -271,8 +280,13 @@ def _normalize_rule_rows(rows: list[LabelRuleItem], *, include_parent: bool, key
         else:
             key = _slug_key(name, key_prefix, used)
         item_id = int(row.id) if row.id is not None else next_id
+        while item_id in used_ids:
+            if row.id is not None:
+                raise ValueError(f"标签 id 重复: {item_id}")
+            item_id += 1
+        used_ids.add(item_id)
         if row.id is None:
-            next_id += 1
+            next_id = item_id + 1
         item: dict[str, object] = {
             "id": item_id,
             "name": name,
@@ -380,7 +394,9 @@ def api_save_label_rules(req: LabelRulesReq):
         result_keys = {row.key.strip() for row in req.results if row.key.strip()}
         payload = {
             "results": _normalize_rule_rows(req.results, include_parent=False, key_prefix="result"),
-            "reasons": _normalize_rule_rows(req.reasons, include_parent=True, key_prefix="reason"),
+            "reasons": _normalize_rule_rows(
+                req.reasons, include_parent=True, key_prefix="reason", auto_id_start=110
+            ),
             "meta": req.meta or {},
         }
         invalid_parents = [
@@ -1126,8 +1142,66 @@ def api_results(project_id: str):
     project = _require_project(project_id)
     latest = store.latest_successful_run(project_id, ("train", "full"))
     result = collect_results(project["config"])
-    result["latest_run"] = latest
+    model_runs = [
+        run for run in store.list_runs(project_id)
+        if run.get("kind") in {"data", "train", "full"}
+    ]
+    latest_model_run = model_runs[0] if model_runs else None
+    current = is_result_current(project.get("updated_at", ""), latest, latest_model_run)
+    result["latest_run"] = latest_model_run
+    result["stale"] = bool(result.get("exists") and not current)
+    if not current:
+        result["exists"] = False
+        result["model_exists"] = False
+        result["predict_config_exists"] = False
+        result["summary"] = []
+        result["stats"] = []
+        result["featured_charts"] = []
+        result["other_charts"] = []
+        result["images"] = []
     return result
+
+
+@app.get("/api/database/export-labels")
+def api_database_export_labels(data_root: str = ""):
+    """导出当前数据库的全部 label_events（含样本字段）为 CSV。"""
+    root = Path(data_root).expanduser() if data_root else None
+    db_path = (root / "metadata" / "label_records.db") if root else None
+    if not db_path or not db_path.is_file():
+        raise HTTPException(status_code=404, detail="未找到 data_root/metadata/label_records.db")
+    columns = [
+        "event_id", "event_uuid", "line", "sn", "sample_id", "group_name",
+        "channel_name", "sampling_rate", "reference", "sample_time", "sample_type",
+        "event_timestamp", "source", "status", "result_key", "result_id",
+        "result_name", "reason_key", "reason_id", "reason_name",
+        "reason_confidence", "label_version", "note", "imported_at",
+    ]
+    query = """
+        SELECT e.id AS event_id, e.event_uuid, s.line, s.sn, s.sample_id,
+               s.group_name, s.channel_name, s.sampling_rate, s.reference,
+               s.time AS sample_time, s.sample_type, e.timestamp AS event_timestamp,
+               e.source, e.status, e.result_key, e.result_id, e.result_name,
+               e.reason_key, e.reason_id, e.reason_name, e.reason_confidence,
+               e.label_version, e.note, e.imported_at
+        FROM label_events e
+        JOIN samples s ON s.id = e.sample_pk
+        ORDER BY s.line, s.sn, s.sample_id, e.timestamp, e.id
+    """
+    try:
+        with sqlite3.connect(db_path) as connection:
+            rows = connection.execute(query).fetchall()
+    except sqlite3.Error as exc:
+        raise HTTPException(status_code=400, detail=f"读取 label_records.db 失败: {exc}") from exc
+    output = io.StringIO(newline="")
+    writer = csv.writer(output, lineterminator="\n")
+    writer.writerow(columns)
+    writer.writerows(rows)
+    filename = f"label_records_{time.strftime('%Y%m%d_%H%M%S')}.csv"
+    return Response(
+        content=output.getvalue().encode("utf-8-sig"),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @app.get("/api/artifact")
@@ -1139,6 +1213,28 @@ def api_artifact(path: str):
     if not target.is_file():
         raise HTTPException(status_code=404, detail="文件不存在")
     return FileResponse(target)
+
+
+@app.get("/api/projects/{project_id}/results/export")
+def api_export_project_results(project_id: str):
+    """导出当前项目的完整训练结果目录，不包含数据库原始文件。"""
+    project = _require_project(project_id)
+    model_dir = find_model_dir(project["config"])
+    if not model_dir.is_dir():
+        raise HTTPException(status_code=404, detail="当前项目没有可导出的训练结果")
+
+    project_name = str(project.get("name") or model_dir.name)
+    safe_name = "".join(char if char.isalnum() or char in "-_ ." else "_" for char in project_name).strip() or model_dir.name
+    archive = model_dir.parent / f"{safe_name}.zip"
+    try:
+        with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
+            for source in sorted(model_dir.rglob("*")):
+                if source.is_file():
+                    bundle.write(source, Path(model_dir.name) / source.relative_to(model_dir))
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"生成结果压缩包失败: {exc}") from exc
+
+    return FileResponse(archive, media_type="application/zip", filename=f"{safe_name}.zip")
 
 
 class PredictReq(BaseModel):

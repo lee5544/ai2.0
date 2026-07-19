@@ -5,6 +5,7 @@ import copy
 import json
 import re
 import signal
+import shutil
 import subprocess
 import sys
 import threading
@@ -65,6 +66,47 @@ STAGES: dict[str, list[tuple[str, str, list[str]]]] = {
     "full": [*DATA_STAGES, *TRAIN_STAGES],
 }
 CUSTOM_COMMAND_KINDS = {"predict", "augmentation"}
+
+
+def _model_results_dir(config: dict) -> Path:
+    """Resolve the project-specific results directory using the same rules as ML."""
+    configured_root = Path(str(config.get("results_path") or "results")).expanduser()
+    results_root = configured_root if configured_root.is_absolute() else PROJECT_ROOT / configured_root
+    return (results_root / model_id(config)).resolve()
+
+
+def _remove_path(path: Path) -> None:
+    if path.is_dir() and not path.is_symlink():
+        shutil.rmtree(path)
+    elif path.exists() or path.is_symlink():
+        path.unlink()
+
+
+def cleanup_feature_artifacts(config: dict) -> list[str]:
+    """Remove outputs produced by dataset/feature preparation for this model."""
+    results_dir = _model_results_dir(config)
+    removed: list[str] = []
+    for name in ("dataset_csv", "feature_selection", "tsne"):
+        path = results_dir / name
+        if path.exists():
+            _remove_path(path)
+            removed.append(str(path))
+    return removed
+
+
+def cleanup_model_artifacts(config: dict) -> list[str]:
+    """Remove model/evaluation outputs while preserving the prepared feature dataset."""
+    results_dir = _model_results_dir(config)
+    if not results_dir.exists():
+        return []
+    preserved = {"dataset_csv"}
+    removed: list[str] = []
+    for path in results_dir.iterdir():
+        if path.name in preserved:
+            continue
+        _remove_path(path)
+        removed.append(str(path))
+    return removed
 
 
 def _subprocess_env() -> dict[str, str]:
@@ -219,6 +261,9 @@ def start(project_id: str, kind: str, *, command: list[str] | None = None) -> di
         _assert_no_active_model_run(project_id, project["config"])
         if kind == "train":
             _validate_train_dataset(project["config"])
+            cleanup_model_artifacts(project["config"])
+        elif kind == "data":
+            cleanup_feature_artifacts(project["config"])
         progress_detail = f"已训练 0 / {_training_total(project['config'])}" if kind == "train" else ""
         run = create_run({"project_id": project_id, "kind": kind, "progress_detail": progress_detail})
     run_dir, artifact_root, log_path = _run_paths(project_id, run["id"])

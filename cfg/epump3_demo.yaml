@@ -1,26 +1,27 @@
-line_name: epump2
+line_name: epump3
 model:
   model_name: demo
 results_path: ./results/
 database:
-  label_records_db_path: /Volumes/18555440521/fault/epump2_minimal_dataset/data_root/metadata/label_records.db
-  tdms_root: /Volumes/18555440521/fault/epump2_minimal_dataset/data_root/factory_raw
-  manifest_path: /Volumes/18555440521/fault/epump2_minimal_dataset/data_root/metadata/tdms_manifest.csv
+  label_records_db_path: /Volumes/18555440521/fault/epump3_minimal_dataset/data_root/metadata/label_records.db
+  tdms_root: /Volumes/18555440521/fault/epump3_minimal_dataset/data_root/factory_raw
+  manifest_path: /Volumes/18555440521/fault/epump3_minimal_dataset/data_root/metadata/tdms_manifest.csv
   configured: true
   last_operation: refresh
-  data_root: /Volumes/18555440521/fault/epump2_minimal_dataset/data_root/
-data_root: /Volumes/18555440521/fault/epump2_minimal_dataset/data_root
-label_records_db_path: /Volumes/18555440521/fault/epump2_minimal_dataset/data_root/metadata/label_records.db
+  data_root: /Volumes/18555440521/fault/epump3_minimal_dataset/data_root/
+data_root: /Volumes/18555440521/fault/epump3_minimal_dataset/data_root
+label_records_db_path: /Volumes/18555440521/fault/epump3_minimal_dataset/data_root/metadata/label_records.db
 data:
   key_sns: []
   line:
   - epump2
+  - epump3
 dataset:
   num_workers: 8
-  data_root: /Volumes/18555440521/fault/epump2_minimal_dataset/data_root
-  label_records_db_path: /Volumes/18555440521/fault/epump2_minimal_dataset/data_root/metadata/label_records.db
-  manifest_path: /Volumes/18555440521/fault/epump2_minimal_dataset/data_root/metadata/tdms_manifest.csv
-  tdms_root: /Volumes/18555440521/fault/epump2_minimal_dataset/data_root/factory_raw
+  data_root: /Volumes/18555440521/fault/epump3_minimal_dataset/data_root
+  label_records_db_path: /Volumes/18555440521/fault/epump3_minimal_dataset/data_root/metadata/label_records.db
+  manifest_path: /Volumes/18555440521/fault/epump3_minimal_dataset/data_root/metadata/tdms_manifest.csv
+  tdms_root: /Volumes/18555440521/fault/epump3_minimal_dataset/data_root/factory_raw
 train:
   model_type: lgb
   train_mode: normal
@@ -34,36 +35,36 @@ train:
     - weight: 1
       reasons:
       - reason: 正常
-        sample: 10
+        sample: 200
     - weight: 1
       reasons:
-      - reason: 传感器错误
+      - reason: 摩擦
         sample: -1
     - weight: 1
       reasons:
-      - reason: 秒表
+      - reason: 杂音
         sample: -1
     - weight: 1
       reasons:
-      - reason: 摩擦acc
+      - reason: 震颤
         sample: -1
   class_weights:
     正常: 1
-    传感器错误: 1
-    秒表: 1
-    摩擦acc: 1
+    摩擦: 1
+    杂音: 1
+    震颤: 1
   lgb_params:
-    n_estimators: 800
+    n_estimators: 100
     num_leaves: 20
     max_depth: -1
     learning_rate: 0.05
     min_child_samples: 20
     min_split_gain: 0
-    reg_lambda: 0
-    reg_alpha: 0
-    subsample: 0.8
+    reg_lambda: 5
+    reg_alpha: 0.5
+    subsample: 1
     subsample_freq: 1
-    feature_fraction: 0.7
+    feature_fraction: 1
     random_state: 42
     n_jobs: -1
   xgb_params:
@@ -98,4 +99,4 @@ augmentation:
   - time_frequency_mask
   - reverberation
   - add_noise
-  output_dir: ./results/epump2_demo/dataset_csv
+  output_dir: ./results/epump3_demo/dataset_csv

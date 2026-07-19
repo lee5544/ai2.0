@@ -14,13 +14,13 @@
 ## 页面
 
 ```text
-项目列表（模型名称） | 配置数据库 | 训练（配置参数 + 提取特征 + 训练） | 结果分析 | 模型推理
+项目列表（模型名称） | 数据库 | 训练（配置参数 + 提取特征 + 训练） | 结果分析 | 模型推理
 ```
 
 项目列表直接同步项目根目录下的 `cfg/*.yaml`。每次数据处理、训练和推理均生成独立运行记录。
 
 - 项目支持创建、重命名、复制和删除。
-- 配置数据库页面只负责数据库输入和查看现有数据、标签情况。
+- 数据库页面只负责数据库输入和查看现有数据、标签情况。
 - 数据概览使用两个独立刷新按钮：按产线/reference 展示标签分布，或按 `型号数据.xlsx` 展示模型标签分布；不展示全部数据总计。
 - 标签统计以独立 `line + sn + sample_id` 为单位，复用训练过滤规则，重复标签事件不重复计算。
 - 训练数据分为主要数据和额外 key 数据；`data.key_sns` 只接受文件夹，通常选择 `factory_raw/prototype`。
@@ -41,7 +41,7 @@ v2 以新的 SQLite 数据库 `sample_records.db` 为主输入：
 生成 `sample_view.csv`，并在标签筛选、特征提取命令中显式传入数据库路径。
 数据库读取使用 SQLite 只读连接，不要求数据库所在目录可写。
 
-配置数据库页面通过 `forvia_train_v2.backend.database_service.execute_database_action` 提供三种方式：
+数据库页面通过 `forvia_train_v2.backend.database_service.execute_database_action` 提供三种方式：
 
 - 新建数据库：选择 TDMS 根目录，标签来源支持 DB、内部标签事件表或 Forvia 宽表；Forvia 表会先转换为内部表再写入 DB，manifest 自动生成。
 - 追加已有数据库：可追加 TDMS、多个标签 CSV，或只追加 CSV。

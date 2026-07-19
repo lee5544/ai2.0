@@ -1,7 +1,7 @@
 """Prototype（典型异音件）入库：把标记为典型异音的件复制到 prototype/<line>/，并在 db 标注。
 
 替代旧 PrototypeStore：不再单独存 WAV/PNG，只把原始 tdms 归集到 prototype 目录 + db 标记。
-权限：仅在 加载了数据库 且 source=expert 时可操作。
+权限：仅在 加载了数据库 且来源属于 expert 类别时可操作。
 """
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from io import StringIO
 from pathlib import Path
 
 from .config import LABEL_HISTORY_COLUMNS, TYPICAL_TAG
-from data_manager.label_internal_registry import INTERNAL_LABEL_CSV_COLUMNS
+from data_manager.label_internal_registry import INTERNAL_LABEL_CSV_COLUMNS, normalize_label_source_category
 from data_manager.prototype_registry import register_prototype
 
 
@@ -56,14 +56,8 @@ def _data_root(session) -> Path | None:
 
 
 def _path_from_fields(data_root: Path | None, tdms_path: str, storage_root: str, relative_path: str) -> Path | None:
-    tdms_path = str(tdms_path or "").strip()
-    if tdms_path:
-        p = Path(tdms_path).expanduser()
-        if p.is_absolute():
-            return p
-        if data_root is not None:
-            return data_root / p
-        return p
+    # 路径唯一来源是 manifest：data_root / storage_root / relative_path。
+    # tdms_path 是旧导出字段，不再参与定位，避免绝对路径和根目录重复拼接。
     relative_path = str(relative_path or "").strip()
     if not relative_path:
         return None
@@ -71,10 +65,10 @@ def _path_from_fields(data_root: Path | None, tdms_path: str, storage_root: str,
         return Path(relative_path).expanduser()
     rel = Path(relative_path.replace("\\", "/"))
     rel_parts = [p for p in rel.parts if p not in ("/", "")]
-    if rel_parts and rel_parts[0].lower() == "factory_raw":
-        return data_root.joinpath(*rel_parts)
+    if rel.is_absolute() or (rel_parts and rel_parts[0].lower() in {"data_root", "factory_raw"}):
+        return None
     storage_root = str(storage_root or "factory_raw").strip() or "factory_raw"
-    return data_root / storage_root / relative_path
+    return data_root / storage_root / rel
 
 
 def _load_sample_paths(session) -> dict[str, Path]:
@@ -336,7 +330,7 @@ PROTOTYPE_INTERNAL_LABELS = "prototype_internal_labels.csv"
 
 
 def can_operate(session) -> bool:
-    return bool(session.has_db and session.default_source == "expert")
+    return bool(session.has_db and normalize_label_source_category(session.default_source) == "expert")
 
 
 def prototype_root(session) -> Path:

@@ -68,5 +68,5 @@ etilt2:
   channels:
     up_group: "Vib Up_0"
     down_group: "Vib Down_0"
-    acc_channel: "ACC"
+    acc_channel: "ACC1"
   note: "固定规则"

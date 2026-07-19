@@ -24,6 +24,7 @@ RUNTIME = Label(LABEL_RULES)
 LABEL_VERSION = str(LABEL_RULES.get("meta", {}).get("version", "unknown"))
 DEFAULT_SOURCE = "expert"
 VISIBLE_LABEL_STATUSES = {"confirmed", "unconfirmed"}
+SYSTEM_UNREGISTERED_REASON = "系统未登记类型"
 
 
 def _status_for_source(source: object) -> str:
@@ -77,6 +78,16 @@ def reconcile_label_fields(row: dict) -> dict:
     result = RUNTIME.get_result_by_reason(key)
     row["reason_key"], row["reason_id"], row["reason_name"] = reason["key"], reason["id"], reason["name"]
     row["result_key"], row["result_id"], row["result_name"] = result["key"], result["id"], result["name"]
+    return row
+
+
+def normalize_reason_display(row: dict) -> dict:
+    """把不在 label_rules.yaml 中的历史 reason 归并为一个显示类别。"""
+    raw_key = str(row.get("reason_key", "") or "").strip()
+    raw_name = str(row.get("reason_name", "") or "").strip()
+    raw_id = row.get("reason_id")
+    if (raw_key or raw_name or str(raw_id or "").strip()) and not _resolve_reason_key(raw_key, raw_id, raw_name):
+        row["reason_name"] = SYSTEM_UNREGISTERED_REASON
     return row
 
 
@@ -265,6 +276,7 @@ class LabelTable:
             for event in self._events_raw():
                 row = self.store._normalize_row(event)
                 row["status"] = str(event.get("status", "") or "confirmed")
+                normalize_reason_display(row)
                 rows.append(row)
             return rows
 
@@ -292,14 +304,15 @@ class LabelTable:
             return evs[event_index]
         return None
 
-    # ---- 确认正确：复制该条为 source=expert 的新记录（单条 INSERT + 更新缓存）----
-    def confirm_event(self, sample_id: str, event_id=None, event_index=None) -> list[dict]:
+    # ---- 确认正确：复制该条为当前专家来源的新记录（单条 INSERT + 更新缓存）----
+    def confirm_event(self, sample_id: str, event_id=None, event_index=None,
+                      source: str = "expert") -> list[dict]:
       with self._lock:
         ev = self._pick_event(sample_id, event_id, event_index)
         if ev is None:
             raise IndexError("event not found")
         new_row = {c: str(ev.get(c, "") or "") for c in LABEL_HISTORY_COLUMNS}
-        new_row["source"] = "expert"
+        new_row["source"] = source or "expert"
         new_row["status"] = "confirmed"
         new_row["timestamp"] = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
         if self._srs is not None:
@@ -423,6 +436,7 @@ class LabelTable:
             row = self.store._normalize_row(e)
             row["_id"] = int(e.get("id", 0) or 0)
             row["status"] = str(e.get("status", "") or "confirmed")
+            normalize_reason_display(row)
             out.append(row)
         return out
 

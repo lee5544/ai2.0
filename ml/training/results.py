@@ -10,6 +10,27 @@ PROJECT_ROOT = Path(os.environ.get("FORVIA_REPO_ROOT", Path(__file__).resolve().
 RESULTS_DIR = Path(os.environ.get("FORVIA_RESULTS_DIR", PROJECT_ROOT / "results")).expanduser()
 
 
+def is_result_current(
+    project_updated_at: str,
+    latest_successful_run: dict | None,
+    latest_model_run: dict | None,
+) -> bool:
+    """判断结果目录是否仍对应当前项目配置。
+
+    结果文件按模型 ID 复用目录，不能仅凭目录存在判断结果属于当前配置。
+    配置保存或启动新的数据/训练任务后，旧结果必须先视为过期。
+    """
+    # project.updated_at can be touched by a post-run UI/config sync. The run
+    # identity is the reliable boundary for deciding whether model artifacts
+    # belong to the latest completed training.
+    del project_updated_at
+    if not latest_successful_run or not latest_model_run:
+        return False
+    if latest_model_run.get("id") != latest_successful_run.get("id"):
+        return False
+    return str(latest_successful_run.get("status") or "succeeded") == "succeeded"
+
+
 def _read_csv(path: Path, limit: int = 500) -> list[dict]:
     if not path.exists():
         return []

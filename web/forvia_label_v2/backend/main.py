@@ -114,10 +114,18 @@ def _startup():
 # 来源列表由 data_manager.label_internal_registry 统一提供。
 # 人工标注只用非 model 来源（model 为任务/模型来源）。
 try:
-    from data_manager.label_internal_registry import SOURCE as _RULE_SOURCES
+    from data_manager.label_internal_registry import SOURCE as _RULE_SOURCES, normalize_label_source_category
     SOURCE_OPTIONS = [s for s in _RULE_SOURCES if s != "model"] or ["operator", "expert"]
 except Exception:
     SOURCE_OPTIONS = ["operator", "expert"]
+    def normalize_label_source_category(source):
+        value = str(source or "").strip().lower()
+        return "expert" if value.startswith("expert_") else value
+
+
+def _is_expert_source(source: object) -> bool:
+    """专家来源允许 expert 及 expert_姓名 等带身份的来源。"""
+    return normalize_label_source_category(source) == "expert"
 
 
 class InitReq(BaseModel):
@@ -986,17 +994,21 @@ class ConfirmReq(BaseModel):
 
 @app.post("/api/label/confirm")
 def api_label_confirm(req: ConfirmReq):
-    """确认某条标注正确：复制为 source=expert 的新记录（单条 INSERT + 更新内存缓存，不重读整表）。"""
+    """确认某条标注正确：复制为当前专家来源的新记录。"""
     import time as _t
     s = get_session()
     sid = str(s.row(req.index).get("sample_id", "")) if 0 <= req.index < len(s.sample_view) else ""
+    source = req.source or s.default_source or "expert"
+    if not _is_expert_source(source):
+        raise HTTPException(status_code=403, detail="只有专家来源可以确认标签")
     t0 = _t.perf_counter()
     try:
-        history = s.label_table.confirm_event(sid, event_id=req.event_id, event_index=req.event_index)
+        history = s.label_table.confirm_event(sid, event_id=req.event_id,
+                                              event_index=req.event_index, source=source)
     except IndexError:
         raise HTTPException(status_code=404, detail="标注记录不存在")
     s.mark_changed(sid)
-    return {"ok": True, "sample_id": sid, "source": "expert", "history": history,
+    return {"ok": True, "sample_id": sid, "source": source, "history": history,
             "write_ms": round((_t.perf_counter() - t0) * 1000, 1)}
 
 
@@ -1063,12 +1075,12 @@ class ConfirmSvReq(BaseModel):
 
 @app.post("/api/label/confirm_sv")
 def api_label_confirm_sv(req: ConfirmSvReq):
-    """把 sample_view 自带的标签确认为正确 → 以 source=expert 写入数据库（仅 expert 模式）。"""
+    """把 sample_view 自带的标签确认为正确 → 以当前专家来源写入数据库。"""
     import time as _t
     s = get_session()
     if req.index < 0 or req.index >= len(s.sample_view):
         raise HTTPException(status_code=404, detail="sample index out of range")
-    if s.default_source != "expert":
+    if not _is_expert_source(s.default_source):
         raise HTTPException(status_code=403, detail="仅 expert 模式可确认写入数据库")
     lab = s.sample_view_label(req.index)
     if not lab:
@@ -1082,7 +1094,7 @@ def api_label_confirm_sv(req: ConfirmSvReq):
         "sn": str(row.get("sn", "")),
         "sample_id": sid,
         "timestamp": _t.strftime("%Y-%m-%dT%H:%M:%S"),
-        "source": "expert",
+        "source": s.default_source,
         "result_key": lab.get("result_key", ""),
         "result_id": lab.get("result_id", ""),
         "result_name": lab.get("result_name", ""),

@@ -18,8 +18,7 @@ import tempfile
 from typing import Callable
 
 from .config import LABEL_HISTORY_COLUMNS, TYPICAL_TAG
-from .label_table import RUNTIME
-from .label_table import LabelTable
+from .label_table import RUNTIME, LabelTable, normalize_reason_display
 from .mock import mock_label_history, mock_sample_view
 from .tdms_locator import ManifestAdapter, TdmsLocator
 from data_manager.label_database import LabelDatabase, resolve_database_path
@@ -292,6 +291,27 @@ class LabelSession:
             out[sid] = {"key": key, "name": LABEL_STATUS_NAMES[key]}
         return out
 
+    @staticmethod
+    def _status_counts_for_sample_ids(
+        sample_ids: list[str] | set[str],
+        status_map: dict[str, dict[str, str]],
+    ) -> dict[str, int]:
+        """Return mutually exclusive sample-level label categories.
+
+        The status map is deliberately consulted once per sample_id.  In
+        particular, an expert event wins over every operator category; the
+        operator events are not counted again as consistent, conflicting, or
+        single-operator labels.
+        """
+        counts = {key: 0 for key in (
+            "expert", "operator_consistent", "operator_conflict",
+            "operator_single", "unlabeled",
+        )}
+        for sid in sample_ids:
+            key = str(status_map.get(str(sid), {}).get("key") or "unlabeled")
+            counts[key if key in counts else "unlabeled"] += 1
+        return counts
+
     def row(self, index: int) -> pd.Series:
         return self.sample_view.iloc[index]
 
@@ -503,7 +523,8 @@ class LabelSession:
         keys = ["timestamp", "source", "result_key", "result_id", "result_name",
                 "reason_key", "reason_id", "reason_name", "reason_confidence",
                 "label_version", "note", "group_name", "channel_name"]
-        return {k: str(sv.get(k, "") or "") for k in keys}
+        row = {k: str(sv.get(k, "") or "") for k in keys}
+        return normalize_reason_display(row)
 
     def build_overview(self, latest: dict | None = None,
                        label_source: str = "db",
@@ -712,6 +733,9 @@ class LabelSession:
         total_reason_counts: dict[str, int] = {}
         for ref in wanted:
             item = items[ref]
+            status_counts = self._status_counts_for_sample_ids(
+                all_ref_samples.get(ref, set()), label_status_map
+            )
             result_counts = item.pop("_result_counts")
             reason_counts = item.pop("_reason_counts")
             item["labeled_sample_count"] = len(item.pop("_labeled_samples"))
@@ -719,6 +743,7 @@ class LabelSession:
             item["valid_label_count"] = len(item.pop("_valid_samples"))
             item["result_counts"] = result_counts
             item["reason_counts"] = reason_counts
+            item["label_status_counts"] = status_counts
             item["result_distribution"] = self._fmt_counts(result_counts)
             item["reason_distribution"] = self._fmt_counts(reason_counts)
             for k, v in result_counts.items():
@@ -733,6 +758,10 @@ class LabelSession:
             "label_statuses": sorted(status_set),
             "result_labels": sorted(total_result_counts, key=lambda k: self._label_order(k, "result")),
             "reason_labels": sorted(total_reason_counts, key=lambda k: self._label_order(k, "reason")),
+            "label_status_counts": self._status_counts_for_sample_ids(
+                {sid for ref in wanted for sid in all_ref_samples.get(ref, set())},
+                label_status_map,
+            ),
             "reference_count": len(wanted),
             "found_count": sum(1 for x in out if x["exists"]),
             "missing_count": sum(1 for x in out if not x["exists"]),

@@ -294,15 +294,12 @@
     .train-step-body { padding:16px 18px 18px; }
     .train-step-workspace .step-subsection { padding:16px; margin:0 0 16px; border:1px solid var(--bd); border-radius:12px; background:#fff; box-shadow:0 2px 8px rgba(20,40,80,.035); }
     .train-step-workspace .step-subsection:last-child { margin-bottom:0; }
-    .train-step-footer { position:sticky; bottom:0; z-index:8; display:flex; justify-content:space-between; gap:10px; align-items:center; padding:12px 18px; border-top:1px solid var(--bd); background:rgba(255,255,255,.96); }
-    .train-step-footer .actions { display:flex; gap:8px; }
-    .run-strip { display:block; }
-    .run-strip .action-step { width:100%; min-height:68px; display:flex; align-items:center; justify-content:space-between; gap:16px; padding:16px 20px; border-radius:11px; border:1px solid #75aaf0; background:#eef5ff; color:var(--acc); text-align:left; box-shadow:none; }
-    .run-strip .action-step::after { content:none; }
-    .run-strip .action-step b { font-size:18px; }
-    .run-strip .action-step small { margin:0; color:var(--mut); font-size:13px; }
-    .run-strip .action-step.active { background:#e7f1ff; }
-    .run-strip .action-step.done { border-color:#8cc99d; background:#eefbf2; color:var(--good); }
+    .train-step-footer { position:sticky; bottom:0; z-index:8; display:grid; grid-template-columns:auto repeat(3,minmax(0,1fr)); gap:10px; align-items:center; padding:12px 18px; border-top:1px solid var(--bd); background:rgba(255,255,255,.96); }
+    .train-step-footer .hint { white-space:nowrap; margin:0 8px 0 0; }
+    .train-step-footer .actions { display:contents; }
+    .train-step-footer .actions button { width:100%; min-height:50px; padding:13px 16px; font-size:16px; font-weight:700; }
+    .train-step-footer .actions .step-action { border-color:#cbd5e1; background:#eef1f5; color:#667085; }
+    .train-step-footer .actions .step-action.done { border-color:#8cc99d; background:#dff5e5; color:var(--good); }
     .augment-toggle { width:100%; min-height:52px; margin:0 0 16px; display:flex; align-items:center; justify-content:space-between; padding:13px 16px; border:1px dashed #9bb8dc; border-radius:12px; background:#f8fbff; color:var(--acc); font-weight:800; text-align:left; }
     .prominent-actions { gap:22px; }
     .prominent-actions .action-step { min-height:108px; padding:20px 42px 20px 24px; border:2px solid #75aaf0; background:linear-gradient(135deg,#1769e0,#0f5fcf); color:#fff; border-radius:13px 0 0 13px; box-shadow:0 9px 22px rgba(23,105,224,.22); }
@@ -384,7 +381,7 @@
         <button class="side-tab" onclick="window.location.href='/console'">← 返回开始</button>
         <button v-if="view!=='database'&&(!current||view==='projects')" class="side-tab" :class="{active:view==='projects'}" @click="openTab('projects')">📋 项目列表</button>
         <template v-if="view==='database'">
-          <div class="side-group-title">配置数据库</div>
+          <div class="side-group-title">数据库</div>
           <button class="side-tab" :class="{active:databaseUi.tab==='operation'}" @click="openDatabaseSubTab('operation')">数据库操作</button>
           <button class="side-tab" :class="{active:databaseUi.tab==='labels'}" @click="openDatabaseSubTab('labels')">配置标签</button>
           <button class="side-tab" :class="{active:databaseUi.tab==='line-rules'}" @click="openDatabaseSubTab('line-rules')">配置产线规则</button>
@@ -399,9 +396,7 @@
             </button>
           </template>
           <button class="side-tab" :class="{active:view==='results'}" @click="openTab('results')">结果分析</button>
-          <button class="side-tab" :class="{active:view==='predict'}" @click="openTab('predict')">📤 模型推理</button>
         </template>
-        <button v-if="view==='projects'||view==='predict'&&!current" class="side-tab" :class="{active:view==='predict'}" @click="openTab('predict')">📤 模型推理</button>
       </nav>
       <div class="side-foot">
         <div>当前项目：{{ current ? current.name : '未选择模型项目' }}</div>
@@ -411,7 +406,7 @@
     <div class="main-shell">
       <div class="topbar">
         <button class="mini-btn" @click="toggleSidebar">{{ sidebarCollapsed ? '☰ 显示侧栏' : '☰ 隐藏侧栏' }}</button>
-        <div class="topbar-title">{{ view==='database' ? '配置数据库' : view==='projects' ? '项目列表（模型名称）' : view==='data' ? '配置项目信息' : view==='train' ? '模型与参数配置' : view==='results' ? '结果分析' : view==='predict' ? '模型推理' : 'Forvia Train v2' }}</div>
+        <div class="topbar-title">{{ view==='database' ? '数据库' : view==='projects' ? '项目列表（模型名称）' : view==='data' ? '配置项目信息' : view==='train' ? '模型与参数配置' : view==='results' ? '结果分析' : view==='predict' ? '模型推理' : 'Forvia Train v2' }}</div>
         <div class="shell-controls">
           <span class="scale-label">字体</span>
           <button class="mini-btn" :class="{active: uiScale===0.9}" @click="setUiScale(0.9)">小</button>
@@ -531,9 +526,9 @@
       </div>
     </section>
 
-    <!-- 配置数据库 -->
+    <!-- 数据库 -->
     <section v-show="view==='database'">
-      <div class="page-title"><h2>配置数据库</h2><div class="actions" v-if="databaseUi.tab==='operation'&&databaseTool.action"><button @click="resetDatabaseAction">返回选择</button></div></div>
+      <div class="page-title"><h2>数据库</h2><div class="actions" v-if="databaseUi.tab==='operation'&&databaseTool.action"><button @click="resetDatabaseAction">返回选择</button></div></div>
       <div v-if="databaseUi.tab==='operation'&&!databaseTool.action" class="database-home">
         <section class="welcome-hero">
           <div class="welcome-kicker">Industrial Acoustic Database Console</div>
@@ -541,6 +536,8 @@
           <div class="welcome-actions">
             <button @click="startOpenDatabase">打开数据库</button>
             <button class="primary" @click="startCreateDatabase">＋ 新建数据库</button>
+            <a v-if="databaseRootValid" :href="'/api/database/export-labels?data_root='+encodeURIComponent(globalDatabase.data_root)" class="mini-btn" style="display:inline-flex;align-items:center;text-decoration:none">导出标签表</a>
+            <button v-else disabled>导出标签表</button>
             <button @click="refreshDatabaseHome">↻ 刷新</button>
           </div>
         </section>
@@ -612,7 +609,7 @@
         <h3>数据库根目录</h3>
         <label>data_root
           <span class="input-row"><input v-model.trim="globalDatabase.data_root" @input="deriveGlobalDatabasePaths"><button @click="openBrowser('globalDatabase.data_root','dir')">选择</button></span>
-          <span class="hint">例如 /Volumes/18555440521/fault/data_root；系统会自动使用 metadata/label_records.db、metadata/tdms_manifest.csv 和 factory_raw。</span>
+          <span class="hint">⚠️ 保证所在磁盘有足够的空间</span>
         </label>
         <div class="project-database-info" style="margin-top:12px">
           <div class="info-tile"><span>label_records.db</span><b>{{globalDatabase.label_records_db_path}}</b></div>
@@ -621,24 +618,25 @@
         </div>
       </div>
         <div v-if="databaseUi.tab==='operation'&&databaseTool.action&&databaseTool.action!=='open'" class="card">
-          <h3>数据库操作</h3>
+          <h3>导入数据</h3>
           <div style="margin-top:14px">
             <div class="step-subsection">
-              <h4>数据来源</h4>
+              <h4>导入数据</h4>
               <div class="grid">
+                <label v-if="databaseTool.action==='create'||databaseTool.action==='update'">文件处理方式
+                  <select v-model="databaseTool.file_mode"><option value="manual">已在数据库目录内</option><option value="copy">从外部文件夹复制到数据库目录</option><option value="move">从外部文件夹移动到数据库目录</option></select>
+                </label>
                 <label v-if="databaseTool.action==='create'||databaseTool.action==='update'">输入包含 TDMS / TDMS.ZST 的源数据文件夹<span class="input-row"><input v-model="databaseTool.source_folder"><button @click="openBrowser('databaseTool.source_folder','dir')">选择</button><button @click="precheckDatabase">扫描</button></span><span v-if="databaseTool.action==='update'" class="hint">可留空；留空时扫描当前 TDMS 根目录，自动处理路径变化、新增 TDMS 和采样率。</span></label>
                 <label>产线 line（可选）
                   <select v-model="databaseTool.line"><option value="">自动推断 / 全部产线</option><option v-for="line in options.line_options" :value="line">{{line}}</option></select>
                   <span v-if="databaseTool.action==='update'" class="hint">选择 line 只更新该产线；不选择则更新全部产线。</span>
                 </label>
-                <label v-if="databaseTool.action==='create'||databaseTool.action==='update'">文件处理方式
-                  <select v-model="databaseTool.file_mode"><option value="manual">已在数据库目录内</option><option value="copy">复制到数据库目录</option><option value="move">移动到数据库目录</option></select>
-                </label>
+
                 <label>并行解析线程<input type="number" min="0" v-model.number="databaseTool.workers"><span class="hint">0 表示自动</span></label>
               </div>
             </div>
             <div v-if="databaseTool.action==='create'||databaseTool.action==='update'" class="step-subsection" style="margin-top:12px">
-              <h4>标签来源</h4>
+              <h4>导入标签</h4>
               <div class="grid">
                 <label>来源类型<select v-model="databaseTool.label_source_type"><option value="none">无标签</option><option value="db">DB</option><option value="internal">内部表</option><option value="forvia">Forvia表</option></select></label>
                 <label v-if="databaseTool.label_source_type==='db'">选择标签 DB<span class="input-row"><input v-model="databaseTool.source_label_db"><button @click="openBrowser('databaseTool.source_label_db','file')">选择</button></span></label>
@@ -650,9 +648,9 @@
                   <p v-if="!databaseTool.label_csvs.length" class="hint" style="padding:10px">未添加 CSV。</p>
                 </div>
               </div>
-              <p class="hint">内部表使用统一标签事件表；Forvia 表会先转换成内部表再导入。</p>
+              <!-- <p class="hint">内部表使用统一标签事件表；Forvia 表会先转换成内部表再导入。</p> -->
             </div>
-            <p v-if="databaseTool.file_mode==='manual'&&(databaseTool.action==='create'||databaseTool.action==='update')" class="hint">已在数据库目录内模式不会移动文件；输入文件夹必须位于当前 TDMS 根目录中。</p>
+            <p v-if="databaseTool.file_mode==='manual'&&(databaseTool.action==='create'||databaseTool.action==='update')" class="hint">已在数据库目录内模式不会移动文件。</p>
             <p v-if="databaseTool.action==='update'" class="notice">更新数据库会扫描当前 TDMS 根目录 <b>{{globalDatabase.tdms_root}}</b>，自动同步 TDMS 路径、sample_id、采样率和标签。</p>
             <div class="actions" style="margin-top:12px"><button @click="precheckDatabase" :disabled="databaseTool.scanning">{{databaseTool.scanning?'扫描中…':'预检查'}}</button><button class="primary" :disabled="databaseTool.running||!canExecuteDatabase" @click="runDatabaseAction">{{databaseTool.running?'处理中…':databaseTool.action==='create'?'新建数据库':'更新数据库'}}</button></div>
             <div v-if="databaseTool.precheck" class="precheck-panel">
@@ -810,6 +808,7 @@
         </div>
       </div>
       <div class="card">
+        <p class="hint">标签要和员工标注的类型一致。</p>
         <p class="hint">编辑全局文件：{{labelRules.path || 'cfg/core/label_rules.yaml'}}。新增项的 id 由系统分配；保存后训练标签下拉会重新读取该文件。</p>
         <div v-if="labelRules.loading" class="notice">正在加载标签规则...</div>
         <div v-else class="label-rule-grid">
@@ -820,8 +819,8 @@
                 <thead><tr><th>key</th><th>id</th><th>名称</th><th>别名（每行一个）</th><th>备注</th><th>操作</th></tr></thead>
                 <tbody>
                   <tr v-for="(row,index) in labelRules.results" :key="row.key || index">
-                    <td class="label-rule-key">{{row.key || '保存时生成'}}</td>
-                    <td><input type="number" v-model.number="row.id" readonly></td>
+                    <td class="label-rule-key"><input v-model.trim="row.key" placeholder="保存时生成"></td>
+                    <td><input type="number" v-model.number="row.id"></td>
                     <td><input v-model.trim="row.name"></td>
                     <td><textarea v-model="row.aliasText"></textarea></td>
                     <td><input v-model.trim="row.note"></td>
@@ -833,14 +832,14 @@
             </div>
           </div>
           <div>
-            <div class="page-title"><h3>原因标签 reasons</h3><button @click="addReasonRule">＋ 添加原因标签</button></div>
+            <div class="page-title"><h3>原因标签 reasons</h3><div class="actions"><span class="hint">新增 ID 从 110 起</span><button @click="addReasonRule">＋ 添加原因标签</button></div></div>
             <div style="overflow:auto">
               <table class="label-rule-table">
                 <thead><tr><th>key</th><th>id</th><th>名称</th><th>归属结果</th><th>别名（每行一个）</th><th>操作</th></tr></thead>
                 <tbody>
                   <tr v-for="(row,index) in labelRules.reasons" :key="row.key || index">
-                    <td class="label-rule-key">{{row.key || '保存时生成'}}</td>
-                    <td><input type="number" v-model.number="row.id" readonly></td>
+                    <td class="label-rule-key"><input v-model.trim="row.key" placeholder="保存时生成"></td>
+                    <td><input type="number" v-model.number="row.id"></td>
                     <td><input v-model.trim="row.name"></td>
                     <td><select v-model="row.parent"><option v-for="result in labelRules.results" :value="result.key">{{result.name}} ({{result.key}})</option></select></td>
                     <td><textarea v-model="row.aliasText"></textarea></td>
@@ -1006,48 +1005,33 @@
               </div>
             </div>
 
-            <div id="train-step-validate" v-show="activeTrainStep==='validate'">
-              <validation-panel :validation="validation"></validation-panel>
-            </div>
-
             <div id="train-step-features" v-show="activeTrainStep==='features'">
               <h3>提取特征</h3>
               <p class="hint">先执行“提取特征”生成完整数据。训练启动前会校验 sample_view 与 features 是否一致。</p>
               <label class="method-option" style="display:inline-flex;margin-bottom:12px"><input type="checkbox" v-model="trainForm.extract_all_features">全量提取特征（超出训练样本数量的剩余数据全部加入测试集合）</label>
-              <div class="action-flow run-strip">
-                <button class="action-step" :class="featureActionClass" @click="startRun('data')"><b>点击开始 提取特征</b><small>{{featureActionText}}</small></button>
-              </div>
               <run-panel :runs="pipelineRuns" @cancel="cancelRun" @detail="showRun"></run-panel>
             </div>
 
             <div id="train-step-train" v-show="activeTrainStep==='train'">
               <h3>开始训练</h3>
-              <p class="hint">使用已提取的特征训练模型。建议先完成数据校验和特征提取。</p>
-              <div class="action-flow run-strip">
-                <button class="action-step" :class="trainActionClass" @click="startRun('train')"><b>点击开始 训练模型</b><small>{{trainActionText}}</small></button>
-              </div>
+              <p class="hint">使用已提取的特征训练模型。请先完成特征提取。</p>
               <run-panel :runs="pipelineRuns" @cancel="cancelRun" @detail="showRun"></run-panel>
             </div>
 
-            <div id="train-step-results" v-show="activeTrainStep==='results'">
-              <h3>训练结果</h3>
-              <p class="hint">训练完成后可跳转到结果分析页查看模型图表、指标和输出文件。</p>
-              <div class="actions"><button class="primary" @click="openTab('results')">打开训练结果</button><button @click="loadResults">刷新结果</button></div>
-              <run-panel :runs="pipelineRuns" @cancel="cancelRun" @detail="showRun"></run-panel>
-            </div>
-
-            <details class="step-subsection" style="margin-top:14px">
+            <!-- <details class="step-subsection" style="margin-top:14px">
               <summary>高级 YAML 配置</summary>
               <p class="hint">项目配置文件：{{current.config_path||'保存后生成到 cfg/'}}。标签定义读取 cfg/core/label_rules.yaml，训练结果保存到 results/。</p>
               <textarea class="yaml" v-model="yamlText"></textarea>
               <button class="primary" @click="saveYaml">保存 YAML</button>
-            </details>
+            </details> -->
           </div>
           <div class="train-step-footer">
             <span class="hint">当前步骤：{{currentTrainStep?.no}} / {{trainSteps.length}}</span>
             <div class="actions">
               <button @click="prevTrainStep" :disabled="trainStepIndex<=0">上一步</button>
-              <button @click="saveCurrentTrainStep">保存</button>
+              <button class="step-action" :class="{done: currentTrainStep?.id==='features' ? featureActionClass==='done' : currentTrainStep?.id==='train' ? trainActionClass==='done' : false}" @click="runCurrentTrainStep">
+                {{ currentTrainStep?.id==='features' ? '点击开始 提取特征' : currentTrainStep?.id==='train' ? '点击开始 训练模型' : '保存' }}
+              </button>
               <button class="primary" @click="nextTrainStep" :disabled="trainStepIndex>=trainSteps.length-1">下一步</button>
             </div>
           </div>
@@ -1057,15 +1041,16 @@
 
     <!-- 结果 -->
     <section v-show="view==='results'">
-      <div class="page-title"><h2>结果分析</h2><div class="actions"><button @click="loadResults">刷新结果</button></div></div>
+      <div class="page-title"><h2>结果分析</h2><div class="actions"><button @click="loadResults">刷新结果</button><a v-if="results && results.exists" class="mini-btn" :href="resultsExportUrl()" download>导出训练结果</a></div></div>
       <template v-if="requireCurrent">
-        <div v-if="results" class="metrics">
+        <div v-if="results && results.exists" class="metrics">
           <div class="metric"><div class="label">模型 ID</div><div class="value">{{results.model_id}}</div></div>
           <div class="metric"><div class="label">best seed</div><div class="value">{{results.best.seed||'—'}}</div></div>
           <div class="metric"><div class="label">val F1 macro</div><div class="value">{{fmt(results.best.val_f1_macro)}}</div></div>
           <div class="metric"><div class="label">test F1 macro</div><div class="value">{{fmt(results.best.test_f1_macro)}}</div></div>
         </div>
-        <div v-if="results && !results.exists" class="notice">当前项目尚无成功训练产物。</div>
+        <div v-if="results && results.stale" class="notice">当前配置或数据已变化，旧训练结果已隐藏。请完成新的特征提取/训练后查看结果。</div>
+        <div v-else-if="results && !results.exists" class="notice">当前项目尚无成功训练产物。</div>
         <div v-if="results && results.summary.length" class="card">
           <h3>种子对比</h3>
           <div style="overflow:auto"><table><thead><tr><th>seed</th><th>val_acc</th><th>test_acc</th><th>val_f1_macro</th><th>test_f1_macro</th><th>test_nok_recall</th><th>test_false_ok_rate</th></tr></thead>
@@ -1113,8 +1098,8 @@
           <h3>使用项目：{{currentModelId()}}</h3>
           <div class="grid">
             <label>推理模式<select v-model="predictForm.mode"><option value="single">单个 TDMS / TDMS.ZST</option><option value="folder">多个 TDMS（文件夹）</option></select></label>
-            <label>统一阈值（可选）<input type="number" step="0.01" v-model="predictForm.threshold"></label>
             <label>输入路径<span class="input-row"><input v-model="predictForm.input_path"><button @click="openBrowser('predictForm.input_path',predictForm.mode==='single'?'file':'dir')">选择</button></span></label>
+            <label>统一阈值（可选）<input type="number" step="0.01" v-model="predictForm.threshold"></label>
             <label>输出 CSV（批量模式可选）<span class="input-row"><input v-model="predictForm.output_path"><button @click="openBrowser('predictForm.output_path','save')">选择</button></span></label>
           </div>
           <button class="primary" style="margin-top:12px" @click="startPredict">执行推理</button>
@@ -1227,10 +1212,8 @@ createApp({
     const trainSteps=[
       {no:1,id:'dataset',label:'配置数据集',target:'train-step-dataset'},
       {no:2,id:'model',label:'配置模型',target:'train-step-model'},
-      {no:3,id:'validate',label:'数据校验',target:'train-step-validate'},
-      {no:4,id:'features',label:'提取特征',target:'train-step-features'},
-      {no:5,id:'train',label:'开始训练',target:'train-step-train'},
-      {no:6,id:'results',label:'训练结果',target:'train-step-results'},
+      {no:3,id:'features',label:'提取特征',target:'train-step-features'},
+      {no:4,id:'train',label:'开始训练',target:'train-step-train'},
     ];
     const trainStepIndex=computed(()=>Math.max(0,trainSteps.findIndex(x=>x.id===s.activeTrainStep)));
     const currentTrainStep=computed(()=>trainSteps[trainStepIndex.value]||trainSteps[0]);
@@ -1262,7 +1245,6 @@ createApp({
       const out={
         dataset:datasetDone?'done':'active',
         model:modelDone?'done':(datasetDone?'active':'idle'),
-        validate:s.validation?(s.validation.ok?'done':'failed'):(modelDone?'active':'idle'),
         features:featureDone?'done':(featureRun?.status==='failed'?'failed':(featureRunning||s.validation?.ok?'active':'idle')),
         train:trainDone?'done':(trainRun?.status==='failed'?'failed':(trainRunning||featureDone?'active':'idle')),
         results:trainDone?'done':'idle',
@@ -1280,14 +1262,15 @@ createApp({
     }
     function openTrainStep(step){
       s.activeTrainStep=step.id;
-      if(step.id==='validate')validateCurrent(true);
-      if(step.id==='results')loadResults();
       setTimeout(()=>document.querySelector('.train-step-workspace')?.scrollIntoView({behavior:'smooth',block:'start'}),0);
     }
     async function saveCurrentTrainStep(){
-      if(s.activeTrainStep==='validate'){await validateCurrent(true);return}
-      if(s.activeTrainStep==='results'){await loadResults();return}
       await saveTrain();
+    }
+    async function runCurrentTrainStep(){
+      if(s.activeTrainStep==='features'){await startRun('data');return}
+      if(s.activeTrainStep==='train'){await startRun('train');return}
+      await saveCurrentTrainStep();
     }
     async function nextTrainStep(){
       await saveCurrentTrainStep();
@@ -1547,7 +1530,20 @@ createApp({
     }
     function withAliasText(row){return {...row,aliasText:(row.alias||[]).join('\n')}}
     function splitAliasText(text){return String(text||'').split(/\n/).map(x=>x.trim()).filter(Boolean)}
-    function nextRuleId(rows){const ids=(rows||[]).map(x=>Number(x.id)).filter(Number.isFinite);return ids.length?Math.max(...ids)+1:0}
+    function nextRuleId(rows, start=0){
+      const used=new Set((rows||[]).map(x=>Number(x.id)).filter(Number.isFinite));
+      let id=Math.max(0,Number(start)||0); while(used.has(id)) id++; return id;
+    }
+    function duplicateRuleIds(rows){
+      const seen=new Set(), duplicates=new Set();
+      for(const row of rows||[]){const id=Number(row.id); if(!Number.isFinite(id)) continue; if(seen.has(id)) duplicates.add(id); seen.add(id)}
+      return [...duplicates];
+    }
+    function validateLabelRuleIds(){
+      const resultDup=duplicateRuleIds(s.labelRules.results), reasonDup=duplicateRuleIds(s.labelRules.reasons);
+      if(resultDup.length) throw new Error(`结果标签 id 重复：${resultDup.join('、')}`);
+      if(reasonDup.length) throw new Error(`原因标签 id 重复：${reasonDup.join('、')}`);
+    }
     async function loadLabelRules(){
       s.labelRules.loading=true;
       try{
@@ -1602,6 +1598,7 @@ createApp({
     async function saveLabelRules(){
       s.labelRules.saving=true;
       try{
+        validateLabelRuleIds();
         const d=await api('/api/label-rules',{method:'PUT',body:JSON.stringify(labelRulePayload())});
         Object.assign(s.labelRules,{saving:false,path:d.path||'',results:(d.results||[]).map(withAliasText),reasons:(d.reasons||[]).map(withAliasText),meta:d.meta||{},metaText:JSON.stringify(d.meta||{},null,2)});
         s.options=await api('/api/options');
@@ -1628,7 +1625,7 @@ createApp({
       s.labelRules.results.splice(index,1);
     }
     function addReasonRule(){
-      const id=nextRuleId(s.labelRules.reasons);
+      const id=nextRuleId(s.labelRules.reasons,110);
       const parent=s.labelRules.results[0]?.key||'';
       s.labelRules.reasons.push({key:`reason_${id}`,id,name:'新原因标签',parent,aliasText:''});
     }
@@ -1812,6 +1809,7 @@ createApp({
     function stagesFor(kind){return (s.options.run_stages||{})[kind]||[]}
     function stageClass(run,id){const stages=stagesFor(run.kind),current=stages.findIndex(x=>x.id===run.current_stage),index=stages.findIndex(x=>x.id===id);return {active:run.current_stage===id,done:run.status==='succeeded'||(current>=0&&index<current)}}
     function artifactUrl(p){return '/api/artifact?path='+encodeURIComponent(p)}
+    function resultsExportUrl(){return s.current ? `/api/projects/${encodeURIComponent(s.current.id)}/results/export` : '#'}
     function fmt(v){const n=Number(v);return Number.isFinite(n)?n.toFixed(4):'—'}
     function distName(v){const text=String(v||'');const i=text.indexOf(':');return i>=0?`${text.slice(i+1)} (${text.slice(0,i)})`:text}
     function barWidth(items,count){const max=Math.max(1,...(items||[]).map(x=>Number(x.count)||0));return `${Math.max(1,Number(count)/max*100)}%`}
@@ -1838,7 +1836,7 @@ createApp({
       if(id==='database'&&sub==='distribution')loadLineOverview();
     }
     onMounted(async()=>{try{deriveGlobalDatabasePaths();s.options=await api('/api/options');applyDatabaseDefaults();s.createForm.line_name=s.options.line_options?.[0]||'';await Promise.all([loadProjects(),loadLabelRules(),precheckDatabase(true),loadSystemResources()]);openHashView();window.addEventListener('hashchange',openHashView);setInterval(loadRuns,2000);setInterval(loadDatabaseJob,1000);setInterval(loadSystemResources,3000)}catch(e){notify(e.message,true)}});
-    return {...Vue.toRefs(s),createModelId,editableModelId,currentModelId,requireCurrent,pipelineRuns,augmentationRuns,predictRuns,featureActionClass,featureActionText,trainActionClass,trainActionText,availableLines,labelCountsReady,trainSteps,trainStepStatus,trainStepIndex,currentTrainStep,trainStepClass,trainStepText,openTrainStep,saveCurrentTrainStep,nextTrainStep,prevTrainStep,databaseStages,canExecuteDatabase,databaseStatusItems,databaseRootValid,databaseStructure,workflowTabs,projectComplete,workflowClass,tabDisabled,openTab,openDatabaseSubTab,createProject,openProject,projectModelId,toggleProjectDetails,reloadProjectDetails,saveProjectYaml,validateProjectYaml,saveProjectForm,saveProjectInfo,duplicateProject,selectProject,selectPredictProject,clearPredictProject,removeProject,deriveGlobalDatabasePaths,databaseDisplayName,selectedProjectDatabase,applyProjectDatabase,chooseDatabaseAction,resetDatabaseAction,precheckDatabase,databaseStageActive,openRegisteredDatabase,startOpenDatabase,openDatabaseFromPath,startCreateDatabase,refreshDatabaseHome,openDatabaseProject,updateDatabaseProject,removeRegisteredDatabase,databaseLineExpanded,toggleDatabaseLine,distributionRefSelected,toggleDistributionRef,allDistributionRefsSelected,toggleAllDistributionRefs,selectedDistributionStats,loadLabelRules,saveLabelRules,restoreDefaultLabelRules,loadLineRules,validateLineRules,saveLineRules,restoreDefaultLineRules,addResultRule,removeResultRule,addReasonRule,removeReasonRule,addDatabaseCsv,removeDatabaseCsv,runDatabaseAction,saveTrain,saveYaml,loadDatasetSummary,loadLineOverview,loadModelOverview,loadTrainingOptions,validateCurrent,startRun,startAugmentation,enableAugmentation,disableAugmentation,addAugmentationFolder,removeAugmentationFolder,addKeyFolder,removeKeyFolder,cancelRun,showRun,loadResults,startPredict,openBrowser,browse,joinPath,chooseBrowserPath,pathBasename,modelSpec,modelTitle,selectModel,reasonUsed,reasonCount,groupAvailableCount,groupTrainingCount,addLabelGroup,resetLabelGroups,removeLabelGroup,addReason,removeReason,stagesFor,stageClass,artifactUrl,fmt,distName,barWidth,rememberSidebarWidth,toggleSidebar,setUiScale,resourceText};
+    return {...Vue.toRefs(s),createModelId,editableModelId,currentModelId,requireCurrent,pipelineRuns,augmentationRuns,predictRuns,featureActionClass,featureActionText,trainActionClass,trainActionText,availableLines,labelCountsReady,trainSteps,trainStepStatus,trainStepIndex,currentTrainStep,trainStepClass,trainStepText,openTrainStep,saveCurrentTrainStep,runCurrentTrainStep,nextTrainStep,prevTrainStep,databaseStages,canExecuteDatabase,databaseStatusItems,databaseRootValid,databaseStructure,workflowTabs,projectComplete,workflowClass,tabDisabled,openTab,openDatabaseSubTab,createProject,openProject,projectModelId,toggleProjectDetails,reloadProjectDetails,saveProjectYaml,validateProjectYaml,saveProjectForm,saveProjectInfo,duplicateProject,selectProject,selectPredictProject,clearPredictProject,removeProject,deriveGlobalDatabasePaths,databaseDisplayName,selectedProjectDatabase,applyProjectDatabase,chooseDatabaseAction,resetDatabaseAction,precheckDatabase,databaseStageActive,openRegisteredDatabase,startOpenDatabase,openDatabaseFromPath,startCreateDatabase,refreshDatabaseHome,openDatabaseProject,updateDatabaseProject,removeRegisteredDatabase,databaseLineExpanded,toggleDatabaseLine,distributionRefSelected,toggleDistributionRef,allDistributionRefsSelected,toggleAllDistributionRefs,selectedDistributionStats,loadLabelRules,saveLabelRules,restoreDefaultLabelRules,loadLineRules,validateLineRules,saveLineRules,restoreDefaultLineRules,addResultRule,removeResultRule,addReasonRule,removeReasonRule,addDatabaseCsv,removeDatabaseCsv,runDatabaseAction,saveTrain,saveYaml,loadDatasetSummary,loadLineOverview,loadModelOverview,loadTrainingOptions,validateCurrent,startRun,startAugmentation,enableAugmentation,disableAugmentation,addAugmentationFolder,removeAugmentationFolder,addKeyFolder,removeKeyFolder,cancelRun,showRun,loadResults,startPredict,openBrowser,browse,joinPath,chooseBrowserPath,pathBasename,modelSpec,modelTitle,selectModel,reasonUsed,reasonCount,groupAvailableCount,groupTrainingCount,addLabelGroup,resetLabelGroups,removeLabelGroup,addReason,removeReason,stagesFor,stageClass,artifactUrl,resultsExportUrl,fmt,distName,barWidth,rememberSidebarWidth,toggleSidebar,setUiScale,resourceText};
   }
 }).mount('#app');
 </script>

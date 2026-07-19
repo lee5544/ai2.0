@@ -133,15 +133,18 @@
     .card { border:1px solid var(--bd); border-radius:12px; margin:12px 0; overflow:hidden; background:var(--card); box-shadow:0 2px 8px rgba(20,40,80,.035); }
     .card-h { padding:9px 12px; font-size:13px; font-weight:700; border-bottom:1px solid var(--bd); background:#f8fbff; }
     .plot { width:100%; }
-    .analysis-drawer-mask { position:fixed; inset:0; z-index:40; background:rgba(15,23,42,.18); display:flex; justify-content:flex-end; }
-    .analysis-drawer { position:relative; width:var(--analysis-w, 720px); min-width:420px; max-width:90vw; height:100vh; overflow:auto; background:var(--bg); border-left:1px solid var(--bd); box-shadow:-18px 0 46px rgba(15,23,42,.22); }
+    .analysis-drawer-mask { position:fixed; inset:0; z-index:40; background:rgba(15,23,42,.18); display:flex; justify-content:flex-end; overflow:hidden; }
+    .analysis-drawer { position:relative; width:var(--analysis-w, 720px); min-width:420px; max-width:90vw; height:100vh; height:100dvh; min-height:0; display:flex; flex-direction:column; overflow:hidden; background:var(--bg); border-left:1px solid var(--bd); box-shadow:-18px 0 46px rgba(15,23,42,.22); }
     .analysis-resizer { position:absolute; left:-5px; top:0; bottom:0; width:10px; cursor:col-resize; z-index:3; }
     .analysis-resizer::after { content:""; position:absolute; left:4px; top:0; bottom:0; width:2px; background:transparent; }
     .analysis-resizer:hover::after { background:var(--acc); }
-    .analysis-drawer-head { position:sticky; top:0; z-index:2; display:flex; align-items:center; gap:10px; padding:14px 16px; background:rgba(255,255,255,.96); border-bottom:1px solid var(--bd); }
+    .analysis-drawer-head { flex:0 0 auto; display:flex; align-items:center; gap:10px; padding:14px 16px; background:rgba(255,255,255,.96); border-bottom:1px solid var(--bd); }
     .analysis-drawer-head h3 { margin:0; font-size:17px; }
     .analysis-drawer-head .hint { margin:0; }
-    .analysis-drawer-body { padding:14px 16px 24px; }
+    .analysis-drawer-body { flex:1 1 auto; height:0; min-height:0; overflow-y:scroll; overflow-x:hidden; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; padding:14px 16px 64px; scrollbar-width:thin; scrollbar-color:#64748b #e2e8f0; }
+    .analysis-drawer-body::-webkit-scrollbar { width:12px; }
+    .analysis-drawer-body::-webkit-scrollbar-track { background:#e2e8f0; }
+    .analysis-drawer-body::-webkit-scrollbar-thumb { background:#64748b; border:3px solid #e2e8f0; border-radius:99px; }
     .analysis-targets { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:12px; padding:10px 12px; border:1px solid var(--bd); border-radius:12px; background:#fff; }
     .analysis-targets b { font-size:13px; }
     .analysis-targets .btn.active { background:var(--acc); border-color:var(--acc); color:#fff; }
@@ -413,8 +416,13 @@
               <option v-for="n in operatorNameOptions" :key="n" :value="n"></option>
             </datalist>
           </template>
+          <template v-if="initForm.source==='expert'">
+            <span style="color:var(--mut)">expert_</span>
+            <input v-model.trim="initForm.expertName" list="operatorNames" placeholder="如 hetao（可留空）"
+                   style="padding:7px 10px;border:1px solid var(--bd);border-radius:7px;min-width:150px" />
+          </template>
         </div>
-        <p class="hint" style="margin:4px 0 0">operator 时可填操作员名（下拉可选/可手输），写入来源记为 <b>operator_{{ initForm.operatorName || '?' }}</b>。</p>
+        <p class="hint" style="margin:4px 0 0">operator / expert 均可填写姓名（下拉可选/可手输），分别写入 <b>operator_姓名</b> / <b>expert_姓名</b>；留空使用基础来源。</p>
       </div>
       <div style="margin-top:14px; display:flex; gap:10px; align-items:center">
         <button class="btn primary" @click="doInit" :disabled="initing">{{ initing ? '加载中…' : '加载并开始标注' }}</button>
@@ -615,6 +623,13 @@
             <span>confirmed: <b>{{ refStats.result.confirmed_count }}</b></span>
             <span>专家/一致: <b>{{ refStats.result.valid_label_count }}</b></span>
             <span>分布口径: <b>{{ refStats.result.basis==='confirmed' ? '确认标签' : '有效标签' }}</b></span>
+            <span v-if="refStats.result.label_status_counts" class="status-summary">
+              分类：专家 <b>{{ refStats.result.label_status_counts.expert || 0 }}</b> ·
+              一致 <b>{{ refStats.result.label_status_counts.operator_consistent || 0 }}</b> ·
+              冲突 <b>{{ refStats.result.label_status_counts.operator_conflict || 0 }}</b> ·
+              单人 <b>{{ refStats.result.label_status_counts.operator_single || 0 }}</b> ·
+              无标注 <b>{{ refStats.result.label_status_counts.unlabeled || 0 }}</b>
+            </span>
           </div>
           <div class="stat-scroll">
             <table class="stat-table">
@@ -786,7 +801,7 @@
                     </tr>
                   </tbody>
                 </table>
-                <div v-if="ch.svLabel && hasDb && defaultSource==='expert'" style="margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                <div v-if="ch.svLabel && hasDb && sourceCategory(defaultSource)==='expert'" style="margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
                   <button class="btn primary" @click="confirmSvLabel(ch)" :disabled="ch.busy">
                     {{ ch.busy ? '写入中…' : '确认并写入数据库' }}
                   </button>
@@ -951,7 +966,7 @@ createApp({
       openFilter: '', reasonOptions: [], referenceOptions: [],
       currentSn: '', currentSampleId: '', channels: [], listRows: [], listColumns: [],
       analysisDrawerOpen: false,
-      initForm: { name:'', sample_view_path:'', useSampleView:false, tdms_root:'', loadLabels:false, label_records_db_path:'', source:'operator', operatorName:'', workspace_id:'' },
+      initForm: { name:'', sample_view_path:'', useSampleView:false, tdms_root:'', loadLabels:false, label_records_db_path:'', source:'operator', operatorName:'', expertName:'', workspace_id:'' },
       editingProject: null,
       operatorNameOptions: ['hetao'],
       initing: false, initMsg: '', initErr: false, dragTarget: '',
@@ -1088,7 +1103,7 @@ createApp({
       return Date.now().toString(16) + Math.random().toString(16).slice(2);
     }
     function newTask(){
-      state.initForm = { name:'', sample_view_path:'', useSampleView:false, tdms_root:'', loadLabels:false, label_records_db_path:'', source:'operator', operatorName:'', workspace_id:newWorkspaceId() };
+      state.initForm = { name:'', sample_view_path:'', useSampleView:false, tdms_root:'', loadLabels:false, label_records_db_path:'', source:'operator', operatorName:'', expertName:'', workspace_id:newWorkspaceId() };
       state.editingProject = null;
       state.initMsg=''; state.initErr=false;
       state.taskMode = 'form';
@@ -1098,7 +1113,7 @@ createApp({
         name: p.name || '', sample_view_path: p.sample_view_path || '', useSampleView: !!p.sample_view_path,
         tdms_root: p.tdms_root || '', loadLabels: !!p.label_records_db_path,
         label_records_db_path: p.label_records_db_path || '', source: p.source || 'operator',
-        operatorName: '', workspace_id: p.workspace_id || '',
+        operatorName: '', expertName: '', workspace_id: p.workspace_id || '',
       };
       state.editingProject = {
         sample_view_path: p.sample_view_path || '',
@@ -1124,10 +1139,11 @@ createApp({
       state.initForm.label_records_db_path = p.label_records_db_path || '';
       state.initForm.workspace_id = p.workspace_id || '';
       state.initForm.loadLabels = !!p.label_records_db_path;
-      // 还原 source：operator_xxx → source=operator + operatorName=xxx
+      // 还原 source：operator_xxx / expert_xxx → 基础来源 + 姓名
       const _src = p.source || 'operator';
       if(_src.indexOf('operator_')===0){ state.initForm.source='operator'; state.initForm.operatorName=_src.slice('operator_'.length); }
-      else { state.initForm.source=_src; state.initForm.operatorName=''; }
+      else if(_src.indexOf('expert_')===0){ state.initForm.source='expert'; state.initForm.expertName=_src.slice('expert_'.length); state.initForm.operatorName=''; }
+      else { state.initForm.source=_src; state.initForm.operatorName=''; state.initForm.expertName=''; }
       try {
         const r = await fetch(`/api/projects/${p.id}/open`, {method:'POST'});
         const d = await r.json();
@@ -1245,8 +1261,10 @@ createApp({
           sample_view_path: state.initForm.useSampleView ? state.initForm.sample_view_path : '',
           tdms_root: state.initForm.tdms_root,
           label_records_db_path: state.initForm.loadLabels ? state.initForm.label_records_db_path : '',
-          source: (state.initForm.source==='operator' && state.initForm.operatorName)
-                    ? 'operator_'+state.initForm.operatorName : state.initForm.source,
+          source: state.initForm.source==='operator' && state.initForm.operatorName
+                    ? 'operator_'+state.initForm.operatorName
+                    : (state.initForm.source==='expert' && state.initForm.expertName
+                      ? 'expert_'+state.initForm.expertName : state.initForm.source),
           workspace_id: state.initForm.workspace_id || '',
         };
         const old = state.editingProject;
@@ -1599,13 +1617,14 @@ createApp({
       const src = ch.history[i]; if(!src || src._id==null) return;   // 只对已落库的行操作
       ch.err=false;
       const t0=performance.now();
-      const opt = Object.assign({}, src, {source:'expert', _src:'expert', _id:null,
+      const expertSource = sourceCategory(state.defaultSource)==='expert' ? state.defaultSource : 'expert';
+      const opt = Object.assign({}, src, {source:expertSource, _src:expertSource, _id:null,
         timestamp:new Date().toISOString().slice(0,19)});
       ch.history = ch.history.concat([opt]);  // 立即可见
       applyHistoryToRow(ch);
       const uiMs=performance.now()-t0;        // 点击→界面生效（应≈0）
       fetch('/api/label/confirm',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({index:ch.index, event_id:src._id})})
+        body:JSON.stringify({index:ch.index, event_id:src._id, source:expertSource})})
         .then(r=>r.json()).then(d=>{
           if(d && d.history){ setHistory(ch, d.history); applyHistoryToRow(ch);
             const tot=performance.now()-t0;
@@ -2100,7 +2119,7 @@ createApp({
         state.allRows=ov.rows||[]; state.lines=ov.lines||[]; state.stats=ov.stats||{}; state.isMock=!!ov.is_mock;
         state.hasDb = !!d.has_db;
         state.defaultSource = d.default_source || state.defaultSource;
-        state.canPrototype = !!d.has_db && d.default_source==='expert';
+        state.canPrototype = !!d.has_db && sourceCategory(d.default_source)==='expert';
         state.fromSampleView = !!d.from_sample_view;
         if(!state.fromSampleView && state.labelSrc==='sample_view') state.labelSrc='db';
         state.listRows = (d.list && d.list.rows) || []; state.listColumns = (d.list && d.list.columns) || [];

@@ -68,5 +68,5 @@ etilt2:
   channels:
     up_group: "Measure_2"
     down_group: "Measure_1"
-    acc_channel: "ACC"
+    acc_channel: "ACC1"
   note: "固定规则"
