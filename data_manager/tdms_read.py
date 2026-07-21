@@ -123,6 +123,8 @@ def _decompress_with_system_zstd(compressed_path: Path, output_path: Path) -> No
             stdout=subprocess.DEVNULL,
             stderr=subprocess.PIPE,
             text=True,
+            encoding="utf-8",
+            errors="replace",
         )
     except subprocess.CalledProcessError as exc:
         detail = f": {(exc.stderr or '').strip()}" if (exc.stderr or "").strip() else ""

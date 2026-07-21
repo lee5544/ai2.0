@@ -32,7 +32,7 @@ def _mac_choose(kind: str, title: str, initial: str | None) -> str | None:
         ]
     proc = subprocess.run(
         ["osascript", *sum([["-e", x] for x in lines], [])],
-        capture_output=True, text=True, check=False,
+        capture_output=True, text=True, encoding="utf-8", errors="replace", check=False,
     )
     if proc.returncode == 0:
         return (proc.stdout or "").strip() or None
