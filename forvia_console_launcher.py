@@ -72,6 +72,7 @@ def _setup_runtime(root: Path, data_home: Path) -> None:
     os.environ.setdefault("FORVIA_RESULTS_DIR", str(data_home / "results"))
     os.environ.setdefault("FORVIA_TRAIN_V2_STATE_DIR", str(data_home / "train_state"))
     os.environ.setdefault("FORVIA_TDMS_CACHE_DIR", str(data_home / "tdms_cache"))
+    os.environ.setdefault("PYTHONIOENCODING", "utf-8:replace")
     for item in (root, root / "web", root / "web" / "forvia_label_v2", root / "web" / "forvia_train_v2"):
         text = str(item)
         if item.exists() and text not in sys.path:
@@ -130,6 +131,10 @@ def _redirect_logs(data_home: Path) -> None:
 def main() -> None:
     root = _bundle_root()
     data_home = _data_home()
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure:
+            reconfigure(encoding="utf-8", errors="replace")
     if _dispatch_python(root, data_home):
         return
     _setup_runtime(root, data_home)

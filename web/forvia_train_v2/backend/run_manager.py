@@ -71,7 +71,7 @@ CUSTOM_COMMAND_KINDS = {"predict", "augmentation"}
 def _model_results_dir(config: dict) -> Path:
     """Resolve the project-specific results directory using the same rules as ML."""
     configured_root = Path(str(config.get("results_path") or "results")).expanduser()
-    results_root = configured_root if configured_root.is_absolute() else PROJECT_ROOT / configured_root
+    results_root = configured_root if configured_root.is_absolute() else RESULTS_DIR
     return (results_root / model_id(config)).resolve()
 
 
@@ -156,10 +156,13 @@ def _assert_no_active_model_run(project_id: str, config: dict) -> None:
 
 def _validate_train_dataset(config: dict) -> dict:
     model_dir = RESULTS_DIR / model_id(config)
-    return validate_sample_view_features_alignment(
-        model_dir,
-        discover_feature_csvs(model_dir),
-    )
+    feature_files = discover_feature_csvs(model_dir)
+    if not feature_files:
+        raise RuntimeError(
+            f"训练前校验失败：未找到特征 CSV，检查目录: {model_dir / 'dataset_csv'}"
+            "。请先完成特征提取。"
+        )
+    return validate_sample_view_features_alignment(model_dir, feature_files)
 
 
 def _training_total(config: dict) -> int:

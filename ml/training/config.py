@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
@@ -10,6 +11,15 @@ import yaml
 
 from data_manager.label_rules import LABEL_RULES, Label
 DEFAULT_CONFIG_PATH = Path("cfg/epump4.yaml")
+
+
+def _results_root() -> Path:
+    """Return the one runtime results root used by source and frozen builds."""
+    configured = os.environ.get("FORVIA_RESULTS_DIR")
+    if configured:
+        return Path(configured).expanduser()
+    repo_root = os.environ.get("FORVIA_REPO_ROOT")
+    return Path(repo_root).expanduser() / "results" if repo_root else Path("results").resolve()
 
 NON_FEATURE_COLUMNS = {
     "sample_view_file",
@@ -96,6 +106,8 @@ def resolve_model_id(cfg: dict[str, Any]) -> str:
 def resolve_results_dir(cfg: dict[str, Any]) -> Path:
     model_id = resolve_model_id(cfg)
     results_root = Path(_to_text(cfg.get("results_path")) or "results").expanduser()
+    if not results_root.is_absolute():
+        results_root = _results_root()
     return results_root / model_id
 
 

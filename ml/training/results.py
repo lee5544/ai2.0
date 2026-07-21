@@ -45,7 +45,7 @@ def _read_csv(path: Path, limit: int = 500) -> list[dict]:
 
 def find_model_dir(config: dict) -> Path:
     configured = Path(str(config.get("results_path") or RESULTS_DIR)).expanduser()
-    root = configured if configured.is_absolute() else PROJECT_ROOT / configured
+    root = configured if configured.is_absolute() else RESULTS_DIR
     current = root / model_id(config)
     if current.exists():
         return current

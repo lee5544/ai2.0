@@ -44,7 +44,9 @@ for item in (
 for target, source_name in general_cfgs.items():
     path = os.path.join(REPO, "cfg", source_name)
     if os.path.isfile(path):
-        datas.append((path, os.path.join("cfg/examples", target)))
+        # PyInstaller's destination is a directory.  Passing the filename
+        # here creates cfg/examples/<name>.yaml/<name>.yaml in _internal.
+        datas.append((path, "cfg/examples"))
 
 sample_view = os.path.join(REPO, "web", "forvia_label_v2", "vendor", "sample_view")
 if os.path.isdir(sample_view):

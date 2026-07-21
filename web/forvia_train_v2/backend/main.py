@@ -1096,7 +1096,7 @@ def api_start_augmentation(project_id: str, req: AugmentationReq):
     if invalid_folders:
         raise HTTPException(status_code=400, detail=f"输入文件夹不存在: {invalid_folders[0]}")
     configured_root = Path(str(project["config"].get("results_path") or "./results/")).expanduser()
-    results_root = configured_root if configured_root.is_absolute() else PROJECT_ROOT / configured_root
+    results_root = configured_root if configured_root.is_absolute() else RESULTS_DIR
     output_dir = (results_root / model_id(project["config"]) / "dataset_csv").resolve()
     command = [
         "-m", "data_augmentation.direct_features",
