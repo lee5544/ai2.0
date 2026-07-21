@@ -1879,10 +1879,20 @@ createApp({
       return displayedListRows().filter(x => x.sn === sn);
     }
     function channelCandidateRowsForSn(sn){
-      const rows = state.listRows.filter(r => r.sn === sn);
-      const refs = new Set(filteredRowsForSn(sn).map(r => String(r.reference || '')));
-      const lines = new Set(filteredRowsForSn(sn).map(r => String(r.line || '')));
-      return rows.filter(r => (!refs.size || refs.has(String(r.reference || ''))) && (!lines.size || lines.has(String(r.line || ''))));
+      // 列表总览可能正在被数据库刷新任务更新，旧 grid 行的 sample_index
+      // 不再可靠。逐条标注必须以稳定的 sample_id 为主，且没有筛选命中时
+      // 退回当前任务的全部行，避免双击后出现空白页。
+      const rows = (state.listRows.length ? state.listRows : state.allRows)
+        .filter(r => String(r.sn || '') === String(sn || ''));
+      // 列表刷新与网格筛选可能短暂不同步；只要任务总表中有该 SN，继续使用总表。
+      const fallbackRows = state.allRows.filter(r => String(r.sn || '') === String(sn || ''));
+      const candidateRows = rows.length ? rows : fallbackRows;
+      const shown = filteredRowsForSn(sn);
+      const refs = new Set(shown.map(r => String(r.reference || '')));
+      const lines = new Set(shown.map(r => String(r.line || '')));
+      if (!shown.length) return candidateRows;
+      return candidateRows.filter(r => (!refs.size || refs.has(String(r.reference || ''))) &&
+                              (!lines.size || lines.has(String(r.line || ''))));
     }
     function makeChannelNote(sn, rows){
       const total = sampleIdSet(state.listRows.filter(r => r.sn === sn));
@@ -1914,7 +1924,7 @@ createApp({
       if(!rows.length){
         state.channels = [];
         state.opErr = true;
-        state.opMsg = makeChannelNote(sn, rows);
+        state.opMsg = `无法打开 SN ${sn}：当前任务中找不到对应 sample。请先刷新列表；若数据库正在更新，请等待数据库任务完成后再刷新。`;
         return;
       }
       state.opErr = false;
@@ -1924,7 +1934,13 @@ createApp({
       const fallback = state.channels.find(c=>c.row?.is_input) || state.channels[0];
       state.currentSampleId = preferred || (fallback ? String(fallback.sample_id || '') : '');
       const tFetch=performance.now();
-      await Promise.all(state.channels.map(loadChannel));
+      try {
+        await Promise.all(state.channels.map(loadChannel));
+      } catch (e) {
+        state.opErr = true;
+        state.opMsg = `打开 SN ${sn} 失败：${e?.message || e}`;
+        return;
+      }
       if(token !== _loadToken) return;     // 已被更晚的点击取代 → 丢弃这次渲染
       const fetchMs=performance.now()-tFetch;
       const tRender=performance.now();
@@ -1981,8 +1997,15 @@ createApp({
     }
 
     function goto(rowOrIndex){
-      const row = (typeof rowOrIndex === 'object') ? rowOrIndex : state.allRows[rowOrIndex];
+      const input = (typeof rowOrIndex === 'object') ? rowOrIndex : state.allRows[rowOrIndex];
+      if (!input) return;
+      const keyMatch = (r) => String(r.line || '') === String(input.line || '') &&
+        String(r.sn || '') === String(input.sn || '') &&
+        String(r.sample_id || '') === String(input.sample_id || '');
+      const row = state.allRows.find(keyMatch) || state.listRows.find(keyMatch) || input;
       if (!row) return;
+      // 保留双击行作为最小回退数据，避免刷新期间 state.listRows 短暂为空而显示空白页。
+      if (!state.listRows.some(keyMatch)) state.listRows = state.listRows.concat([row]);
       state.view = 'label';
       loadGroup(row.sn, row.sample_id, Number(row.sample_index ?? row.index));
     }
