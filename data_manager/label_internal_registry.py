@@ -170,7 +170,7 @@ def import_label_csv(
         }
     _validate_internal_label_header(rows[0].keys())
 
-    database = LabelDatabase(database_path)
+    database = LabelDatabase(database_path, auto_export=False)
     imported = 0
     skipped = 0
     errors: list[str] = []
@@ -188,17 +188,13 @@ def import_label_csv(
             skipped += 1
             continue
         try:
-            database.append_label(
-                line=normalized["line"],
-                sn=normalized["sn"],
-                sample_id=normalized["sample_id"],
-                label=normalized,
-            )
+            database.import_label_events([normalized], deduplicate=True)
             imported += 1
         except Exception as exc:
             skipped += 1
             errors.append(f"第 {row_index} 行导入失败: {type(exc).__name__}: {exc}")
 
+    database._refresh_csv_exports()
     return {
         "format": "internal_label_event",
         "imported_labels": imported,
@@ -218,16 +214,39 @@ def import_label_csvs(
     """Import multiple unified internal label CSV files in order."""
     paths = [Path(path).expanduser().resolve() for path in csv_paths]
     reports: list[dict[str, Any]] = []
+    all_rows: list[dict[str, str]] = []
+    errors: list[str] = []
+    skipped = 0
     for index, path in enumerate(paths, start=1):
         if progress is not None:
             progress(index, len(paths), path)
-        reports.append(import_label_csv(db_path, path, line=line))
+        rows = _read_csv(path)
+        if not rows:
+            reports.append({"label_csv": str(path), "imported_labels": 0, "skipped_rows": 0, "errors": []})
+            continue
+        _validate_internal_label_header(rows[0].keys())
+        for row_index, row in enumerate(rows, start=2):
+            normalized = _normalize_internal_label_row(row, fallback_line=line)
+            if not normalized["line"] or not normalized["sn"] or not normalized["sample_id"]:
+                skipped += 1
+                errors.append(f"{path.name} 第 {row_index} 行缺少 line/sn/sample_id")
+                continue
+            if not normalized["source"]:
+                skipped += 1
+                errors.append(f"{path.name} 第 {row_index} 行缺少 source")
+                continue
+            if _has_label_value(normalized):
+                all_rows.append(normalized)
+
+    database = LabelDatabase(Path(db_path).expanduser().resolve(), auto_export=False)
+    imported = database.import_label_events(all_rows, deduplicate=True)
+    database._refresh_csv_exports()
     return {
         "files": reports,
         "csv_count": len(reports),
-        "imported_labels": sum(int(item.get("imported_labels") or 0) for item in reports),
-        "skipped_rows": sum(int(item.get("skipped_rows") or 0) for item in reports),
-        "errors": [error for item in reports for error in (item.get("errors") or [])],
+        "imported_labels": imported,
+        "skipped_rows": skipped,
+        "errors": errors,
     }
 
 

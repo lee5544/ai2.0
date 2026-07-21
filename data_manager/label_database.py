@@ -654,6 +654,7 @@ class LabelDatabase:
         rows: Iterable[Mapping[str, object]],
         *,
         default_status: str = "",
+        deduplicate: bool = False,
     ) -> int:
         if _text(default_status) and _text(default_status).lower() not in LABEL_STATUSES:
             raise ValueError(f"Unsupported label status: {default_status}")
@@ -683,6 +684,20 @@ class LabelDatabase:
                         imported_at=imported_at,
                     )
                 )
+            if deduplicate and values:
+                existing = {
+                    tuple(row)
+                    for row in connection.execute(
+                        """SELECT sample_pk, timestamp, source, result_key, result_id,
+                                  result_name, reason_key, reason_id, reason_name,
+                                  reason_confidence, label_version, note, status
+                           FROM label_events"""
+                    )
+                }
+                values = [
+                    value for value in values
+                    if tuple(value[1:14]) not in existing
+                ]
             connection.executemany(
                 """
                 INSERT INTO label_events(
