@@ -38,6 +38,7 @@ for item in (
     _dir(os.path.join(REPO, "data_manager"), "data_manager"),
     _dir(os.path.join(REPO, "data_augmentation"), "data_augmentation"),
     _dir(os.path.join(REPO, "ml"), "ml"),
+    _dir(os.path.join(REPO, "quick_test"), "quick_test"),
 ):
     if item:
         datas.append(item)
