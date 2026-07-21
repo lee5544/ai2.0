@@ -611,7 +611,7 @@ class RFModel(BaseModel):
                     item = roc_list[0]
                     curves = item.get("curves", [])
                     if curves:
-                        cmap = plt.cm.get_cmap("tab10", len(curves))
+                        cmap = plt.colormaps.get_cmap("tab10").resampled(len(curves))
                         for c_idx, curve in enumerate(curves):
                             label_name = curve.get("class_name", str(curve.get("class_id", c_idx)))
                             roc_ax.plot(
@@ -631,7 +631,7 @@ class RFModel(BaseModel):
                             label=f"AUC={item['auc']:.3f}",
                         )
                 else:
-                    cmap = plt.cm.get_cmap("tab10", len(roc_list))
+                    cmap = plt.colormaps.get_cmap("tab10").resampled(len(roc_list))
                     for idx, item in enumerate(roc_list):
                         if "fpr" not in item or "tpr" not in item:
                             continue

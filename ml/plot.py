@@ -213,7 +213,7 @@ def _plot_embedding(df: pd.DataFrame, *, color_by: str, output_png: Path) -> Non
     counts = plot_df[color_by].value_counts(dropna=False).to_dict()
     labels = sorted(counts.keys(), key=lambda key: (-int(counts[key]), str(key)))
     cmap_name = "tab20" if len(labels) <= 20 else "gist_ncar"
-    cmap = plt.cm.get_cmap(cmap_name, max(len(labels), 1))
+    cmap = plt.colormaps.get_cmap(cmap_name).resampled(max(len(labels), 1))
 
     fig, ax = plt.subplots(figsize=(14, 10))
     for idx, label in enumerate(labels):

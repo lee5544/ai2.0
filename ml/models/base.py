@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import os
 import pickle
-import platform
 import shutil
 from pathlib import Path
 from typing import Any, Dict, List, Protocol, runtime_checkable
@@ -26,6 +25,7 @@ from typing import Any, Dict, List, Protocol, runtime_checkable
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib import font_manager
 import yaml
 
 from sklearn.metrics import (
@@ -43,6 +43,25 @@ from sklearn.model_selection import GridSearchCV, cross_validate
 from sklearn.preprocessing import label_binarize
 
 from ml.runtime import export_runtime_bundle
+
+
+def _configure_plot_fonts() -> None:
+    """Prefer an installed CJK font so Windows evaluation plots keep labels."""
+    candidates = (
+        "Microsoft YaHei", "SimHei", "Noto Sans CJK SC", "Source Han Sans SC",
+        "PingFang SC", "Hiragino Sans GB", "Arial Unicode MS", "DejaVu Sans",
+    )
+    try:
+        available = {font.name for font in font_manager.fontManager.ttflist}
+    except Exception:
+        available = set()
+    selected = next((name for name in candidates if name in available), None)
+    if selected:
+        plt.rcParams["font.family"] = selected
+    plt.rcParams["axes.unicode_minus"] = False
+
+
+_configure_plot_fonts()
 from ml.runtime import (
     build_threshold_scorer,
     build_uniform_threshold_dict,
@@ -400,9 +419,6 @@ class BaseModel:
         return output_paths
 
     def _evaluate_predictions(self, y_true: np.ndarray, y_pred: np.ndarray, title: str) -> None:
-        if platform.system() == "Darwin":
-            plt.rcParams["font.family"] = "Arial Unicode MS"
-
         labels = np.unique(np.concatenate([np.asarray(y_true), np.asarray(y_pred)]))
         cm = confusion_matrix(y_true, y_pred, labels=labels)
         disp = ConfusionMatrixDisplay(
@@ -808,7 +824,7 @@ class BaseModel:
                     item = roc_list[0]
                     curves = item.get("curves", [])
                     if curves:
-                        cmap = plt.cm.get_cmap("tab10", len(curves))
+                        cmap = plt.colormaps.get_cmap("tab10").resampled(len(curves))
                         for c_idx, curve in enumerate(curves):
                             label_name = curve.get("class_name", str(curve.get("class_id", c_idx)))
                             roc_ax.plot(curve["fpr"], curve["tpr"], color=cmap(c_idx), linewidth=1.8,
@@ -817,7 +833,7 @@ class BaseModel:
                         roc_ax.plot(item["fpr"], item["tpr"], color="tab:red", linewidth=2.5,
                                     label=f"AUC={item['auc']:.3f}")
                 else:
-                    cmap = plt.cm.get_cmap("tab10", len(roc_list))
+                    cmap = plt.colormaps.get_cmap("tab10").resampled(len(roc_list))
                     for idx, item in enumerate(roc_list):
                         if "fpr" not in item or "tpr" not in item:
                             continue
