@@ -766,6 +766,7 @@
             <label>模型识别码<input :value="editableModelId" readonly><span class="hint">由产线和模型名称生成，不包含 xgb、rf 等算法名称</span></label>
             <label>产线 line<input v-model.trim="projectInfoForm.line_name" list="project-line-options"><datalist id="project-line-options"><option v-for="line in availableLines" :value="line"></option></datalist></label>
             <label>模型名称<input v-model.trim="projectInfoForm.model_name"></label>
+            <label class="wide">项目备注 note<textarea v-model.trim="projectInfoForm.note" rows="4" placeholder="填写项目用途、数据范围、训练说明等信息"></textarea><span class="hint">备注会保存到项目 YAML，并随训练配置写入 results 下的配置文件。</span></label>
           </div>
         </div>
         <div class="card">
@@ -1184,7 +1185,7 @@ createApp({
       view:initialViewFromHash(), sidebarCollapsed:!!uiPrefs.sidebarCollapsed, sidebarWidth:Number(uiPrefs.sidebarWidth)||240, uiScale:Number(uiPrefs.uiScale)||1,
       projects:[], projectDetails:{}, current:null, options:{model_types:['xgb','rf'],train_modes:['normal','grid','cross'],split_strategies:[],reasons:[],line_options:[],augmentation_methods:[],run_stages:{},model_specs:{},database_catalog:{lines:[]}},
       showCreate:false, showOpenProject:false, openProjectForm:{path:''}, showOpenDatabase:false, createForm:{line_name:'',model_name:'',model_type:'xgb'}, message:'',messageError:false,
-      projectInfoForm:{line_name:'',model_name:'',model_type:'xgb'},projectDatabaseRoot:'',dataForm:{},trainForm:{label_scope:'valid',label_groups:[],model_params:{}},trainingOptions:{lines:[],folders:[],references:[],key_sns:[],key_sns_by_line:{}},lineOverview:null,modelOverview:null,selectedGroup:0,keyFolderDraft:{path:'',line:''},yamlText:'',dataset:null,results:null,runs:[],runDetail:null,validation:null,
+      projectInfoForm:{line_name:'',model_name:'',model_type:'xgb',note:''},projectDatabaseRoot:'',dataForm:{},trainForm:{label_scope:'valid',label_groups:[],model_params:{}},trainingOptions:{lines:[],folders:[],references:[],key_sns:[],key_sns_by_line:{}},lineOverview:null,modelOverview:null,selectedGroup:0,keyFolderDraft:{path:'',line:''},yamlText:'',dataset:null,results:null,runs:[],runDetail:null,validation:null,
       activeTrainStep:'dataset',
       databaseUi:{tab:initialDatabaseTabFromHash()},databaseLineOpen:{},selectedDistributionRefs:{},databaseOpening:false,databaseOpenProgress:'',
       globalDatabase:{data_root:'',label_records_db_path:'',manifest_path:'',tdms_root:''},
@@ -1658,6 +1659,7 @@ createApp({
       const type=project.model_type||(train.model_type||'xgb'), spec=modelSpec(type), paramKey=spec.parameter_key||`${type}_params`;
       return {
         line_name:project.line_name||c.line_name||'', model_name:project.model_name||(c.model||{}).model_name||'', model_type:type,
+        note:String(c.note||''),
         train_mode:train.train_mode||'normal', split_strategy:train.split_strategy||'reference_in', seed_runs:Number(train.seed_runs||10),
         num_workers:Number(dataset.num_workers||8), results_path:c.results_path||'./results/', data_root:c.data_root||dataset.data_root||'',
         label_records_db_path:database.label_records_db_path||c.label_records_db_path||dataset.label_records_db_path||'', tdms_root:database.tdms_root||'', manifest_path:database.manifest_path||dataset.manifest_path||'',
@@ -1707,7 +1709,7 @@ createApp({
     function arrayValue(value){return Array.isArray(value)?value:(value?[value]:[])}
     function syncForms(){
       const c=s.current.config, data=c.data||{}, train=c.train||{}, ds=c.dataset||{};s.validation=null;s.dataset=null;s.lineOverview=null;s.modelOverview=null;
-      Object.assign(s.projectInfoForm,{line_name:s.current.line_name||'',model_name:s.current.model_name||'',model_type:s.current.model_type||train.model_type||'xgb'});
+      Object.assign(s.projectInfoForm,{line_name:s.current.line_name||'',model_name:s.current.model_name||'',model_type:s.current.model_type||train.model_type||'xgb',note:String(c.note||'')});
       const database=c.database||{};
       s.projectDatabaseRoot=database.data_root||c.data_root||ds.data_root||'';
       s.dataForm={label_records_db_path:database.label_records_db_path||c.label_records_db_path||'',tdms_root:database.tdms_root||'',manifest_path:database.manifest_path||''};
@@ -1736,7 +1738,7 @@ createApp({
         const f=s.projectInfoForm;
         if(!f.line_name||!f.model_name)throw new Error('产线和模型名称不能为空');
         const c=JSON.parse(JSON.stringify(s.current.config||{}));
-        c.line_name=f.line_name;c.model={...(c.model||{}),model_name:f.model_name};
+        c.line_name=f.line_name;c.model={...(c.model||{}),model_name:f.model_name};c.note=String(f.note||'').trim();
         const preservedModelType=(c.train||{}).model_type||s.current.model_type||'xgb';
         const payload={line_name:f.line_name,model_name:f.model_name,model_type:preservedModelType,config:c};
         const d=await api(`/api/projects/${s.current.id}`,{method:'PUT',body:JSON.stringify(payload)});

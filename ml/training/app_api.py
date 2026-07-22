@@ -44,6 +44,13 @@ _DISTRIBUTION_CACHE: dict[tuple[str, float, str, float], dict] = {}
 LINE_DISPLAY_ORDER = ("epump2", "epump3", "epump4", "etilt1", "etilt2")
 
 
+class _ReadableYamlDumper(yaml.SafeDumper):
+    """Keep sequence indentation visible in project configuration files."""
+
+    def increase_indent(self, flow: bool = False, indentless: bool = False):
+        return super().increase_indent(flow, indentless=False)
+
+
 def load_yaml(path: Path) -> dict:
     try:
         data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
@@ -524,6 +531,14 @@ def normalize_project_payload(data: dict) -> dict:
     train.setdefault("train_mode", "normal")
     train.setdefault("split_strategy", "reference_in")
     train.setdefault("seed_runs", 10)
+    # A project configuration describes one executable model.  Remove stale
+    # parameter blocks left by a previous model selection, e.g. xgb_params
+    # must not remain in an lgb project.
+    current_parameter_key = (model_catalog().get("model_specs", {}).get(model_type) or {}).get("parameter_key")
+    for spec in (model_catalog().get("model_specs", {}) or {}).values():
+        parameter_key = spec.get("parameter_key") if isinstance(spec, dict) else None
+        if parameter_key and parameter_key != current_parameter_key:
+            train.pop(parameter_key, None)
     config.setdefault("results_path", "./results/")
     normalize_database_input(config)
     name = f"{line_name}_{model_name}"
@@ -685,7 +700,7 @@ def validate_config(config: dict) -> dict:
 
 
 def dump_yaml(config: dict) -> str:
-    return yaml.safe_dump(config, allow_unicode=True, sort_keys=False)
+    return yaml.dump(config, Dumper=_ReadableYamlDumper, allow_unicode=True, sort_keys=False)
 
 
 def config_filename(line_name: str, model_name: str) -> str:
